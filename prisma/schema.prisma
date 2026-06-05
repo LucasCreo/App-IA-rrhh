@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  role         String    @default("EMPLOYEE")
+  employeeId   Int?      @unique
+  createdAt    DateTime  @default(now())
+
+  employee  Employee?  @relation(fields: [employeeId], references: [id])
+  documents Document[] @relation("CargadoPor")
+  auditLogs AuditLog[]
+}
+
+model Employee {
+  id           Int       @id @default(autoincrement())
+  legajo       String    @unique
+  nombre       String
+  apellido     String
+  cuil         String    @unique
+  email        String    @unique
+  telefono     String?
+  fechaIngreso DateTime
+  categoriaId  Int
+  estado       String    @default("ACTIVO")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  categoria Category   @relation(fields: [categoriaId], references: [id])
+  user      User?
+  documents Document[]
+}
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  employees Employee[]
+}
+
+model Document {
+  id              Int       @id @default(autoincrement())
+  nombreArchivo   String
+  filePath        String
+  periodo         String
+  fechaCarga      DateTime  @default(now())
+  cargadoPorId    Int
+  employeeId      Int
+  tipoDocumentoId Int?
+  estado          String    @default("BORRADOR")
+  firmaExternalId String?
+  fechaFirma      DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  cargadoPor    User           @relation("CargadoPor", fields: [cargadoPorId], references: [id])
+  employee      Employee       @relation(fields: [employeeId], references: [id])
+  tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id])
+}
+
+model TipoDocumento {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique
+  descripcion String?
+  documentos  Document[]
+  createdAt   DateTime   @default(now())
+}
+
+model GeneralConfig {
+  id           Int      @id @default(autoincrement())
+  appName      String   @default("RRHH")
+  logoUrl      String?
+  primaryColor String   @default("#166534")
+  updatedAt    DateTime @updatedAt
+}
+
+model EmployeeFieldConfig {
+  campo     String   @id
+  visible   Boolean  @default(true)
+  requerido Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model SignatureConfig {
+  id           Int      @id @default(autoincrement())
+  providerUrl  String
+  apiKey       String
+  extraHeaders String   @default("{}")
+  extraBody    String   @default("{}")
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  accion    String
+  entidad   String
+  detalle   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

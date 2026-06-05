@@ -1,0 +1,67 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import { cn } from '@/lib/utils'
+import { LayoutDashboard, Users, Tag, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react'
+
+const nav = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/empleados', label: 'Empleados', icon: Users },
+  { href: '/admin/categorias', label: 'Categorías', icon: Tag },
+  { href: '/admin/documentos', label: 'Documentos', icon: FileText },
+  { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList },
+  { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
+]
+
+interface Props {
+  appName?: string
+  logoUrl?: string | null
+}
+
+export function AdminSidebar({ appName = 'RRHH', logoUrl }: Props) {
+  const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
+
+  return (
+    <aside className={cn('h-screen sticky top-0 bg-green-900 text-white flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}
+    >
+      <div className={cn('flex items-center border-b border-white/20 py-5', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
+        {!collapsed && (
+          <div className="flex items-center gap-2 min-w-0">
+            {logoUrl && <img src={logoUrl} alt="" className="h-6 w-auto object-contain shrink-0" />}
+            <span className="text-base font-bold tracking-tight truncate">{appName}</span>
+          </div>
+        )}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="p-1.5 rounded-md text-white/60 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+          title={collapsed ? 'Expandir' : 'Colapsar'}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
+      <nav className="flex-1 px-2 py-4 space-y-1">
+        {nav.map(({ href, label, icon: Icon }) => {
+          const active = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={collapsed ? label : undefined}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                collapsed && 'justify-center',
+                active ? 'bg-white/20 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              <Icon size={16} className="shrink-0" />
+              {!collapsed && label}
+            </Link>
+          )
+        })}
+      </nav>
+    </aside>
+  )
+}

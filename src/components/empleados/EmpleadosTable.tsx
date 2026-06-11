@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmpleadoDialog } from './EmpleadoDialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Pencil, Trash2, Plus, Search } from 'lucide-react'
 
 interface Empleado {
@@ -19,10 +21,15 @@ export function EmpleadosTable() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [dialog, setDialog] = useState<{ open: boolean; emp?: Empleado }>({ open: false })
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(() => {
+    setLoading(true)
     const params = new URLSearchParams({ q, page: String(page) })
-    fetch(`/api/empleados?${params}`).then(r => r.json()).then(setData)
+    fetch(`/api/empleados?${params}`)
+      .then(r => r.json())
+      .then(setData)
+      .finally(() => setLoading(false))
   }, [q, page])
 
   useEffect(() => { load() }, [load])
@@ -30,8 +37,17 @@ export function EmpleadosTable() {
   async function handleDelete(id: number, legajo: string) {
     if (!confirm(`¿Eliminar empleado ${legajo}?`)) return
     await fetch(`/api/empleados/${id}`, { method: 'DELETE' })
+    toast.success('Empleado eliminado')
     load()
   }
+
+  if (loading) return (
+    <div className="space-y-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full rounded-md" />
+      ))}
+    </div>
+  )
 
   return (
     <div>
@@ -97,7 +113,7 @@ export function EmpleadosTable() {
           open
           empleado={dialog.emp}
           onClose={() => setDialog({ open: false })}
-          onSaved={load}
+          onSaved={() => { toast.success('Empleado guardado'); load() }}
         />
       )}
     </div>

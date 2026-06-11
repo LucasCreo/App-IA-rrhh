@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,8 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 
 export function TabFirma() {
   const [form, setForm] = useState({ providerUrl: '', apiKey: '', extraHeaders: '{}', extraBody: '{}' })
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/configuracion').then(r => r.json()).then(data => {
@@ -24,7 +23,6 @@ export function TabFirma() {
   }, [])
 
   async function handleSave() {
-    setError('')
     try {
       const res = await fetch('/api/configuracion', {
         method: 'PUT',
@@ -33,13 +31,12 @@ export function TabFirma() {
       })
       if (!res.ok) {
         const text = await res.text()
-        setError(`Error ${res.status}: ${text}`)
+        toast.error(`Error ${res.status}: ${text}`)
         return
       }
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      toast.success('Configuración guardada')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error desconocido')
+      toast.error(e instanceof Error ? e.message : 'Error desconocido')
     }
   }
 
@@ -71,9 +68,8 @@ export function TabFirma() {
           </div>
           <div className="flex items-center gap-3">
             <Button className="bg-green-700 hover:bg-green-800" onClick={handleSave}>
-              {saved ? '✓ Guardado' : 'Guardar'}
+              Guardar
             </Button>
-            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         </CardContent>
       </Card>

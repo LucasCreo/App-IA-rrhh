@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 
@@ -14,7 +15,6 @@ interface FieldConfig { campo: string; visible: boolean; requerido: boolean }
 
 export function TabEmpleados() {
   const [fields, setFields] = useState<FieldConfig[]>([])
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     fetch('/api/configuracion/empleados-campos').then(r => r.json()).then(setFields)
@@ -35,8 +35,7 @@ export function TabEmpleados() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fields),
     })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    toast.success('Configuración guardada')
   }
 
   return (
@@ -79,7 +78,7 @@ export function TabEmpleados() {
         </div>
         <p className="text-xs text-muted-foreground mb-3">Nombre y Apellido siempre son visibles y requeridos.</p>
         <Button className="bg-green-700 hover:bg-green-800" onClick={handleSave}>
-          {saved ? '✓ Guardado' : 'Guardar'}
+          Guardar
         </Button>
       </CardContent>
     </Card>

@@ -23,7 +23,7 @@ export default async function EmpleadoPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-green-900">
+          <CardTitle className="text-green-900 dark:text-green-400">
             {employee.apellido}, {employee.nombre}
           </CardTitle>
         </CardHeader>
@@ -48,7 +48,7 @@ export default async function EmpleadoPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-green-900">Mis Recibos de Sueldo</CardTitle>
+          <CardTitle className="text-green-900 dark:text-green-400">Mis Recibos de Sueldo</CardTitle>
         </CardHeader>
         <CardContent>
           <MisRecibos employeeId={decoded.employeeId} />

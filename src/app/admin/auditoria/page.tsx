@@ -38,7 +38,7 @@ export default function AuditoriaPage() {
                 </TableCell>
                 <TableCell className="text-sm">{log.user.email}</TableCell>
                 <TableCell>
-                  <span className="px-2 py-0.5 bg-green-50 text-green-800 rounded text-xs font-mono">
+                  <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-400 rounded text-xs font-mono">
                     {log.accion}
                   </span>
                 </TableCell>

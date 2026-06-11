@@ -1,6 +1,7 @@
 'use client'
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { ResponsivePie } from '@nivo/pie'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 const CAT_COLORS = ['#16a34a', '#2563eb', '#ca8a04', '#dc2626', '#7c3aed', '#0891b2', '#d97706']
 
@@ -9,34 +10,106 @@ interface Props {
   empleadosPorCategoria: Array<{ nombre: string; cantidad: number }>
 }
 
+const lightTheme = {
+  text: { fill: '#6b7280', fontSize: 11 },
+  axis: { ticks: { text: { fill: '#6b7280', fontSize: 11 } } },
+  grid: { line: { stroke: '#e5e7eb', strokeDasharray: '4 4' } },
+  tooltip: {
+    container: {
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: '8px',
+      padding: '8px 12px',
+      fontSize: '12px',
+      color: '#111827',
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    },
+  },
+}
+
+const darkTheme = {
+  text: { fill: '#9ca3af', fontSize: 11 },
+  axis: { ticks: { text: { fill: '#9ca3af', fontSize: 11 } } },
+  grid: { line: { stroke: '#374151', strokeDasharray: '4 4' } },
+  tooltip: {
+    container: {
+      background: '#1f2937',
+      border: '1px solid #374151',
+      borderRadius: '8px',
+      padding: '8px 12px',
+      fontSize: '12px',
+      color: '#f9fafb',
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)',
+    },
+  },
+}
+
 export function Charts({ documentosPorEstado, empleadosPorCategoria }: Props) {
-  const catData = empleadosPorCategoria.map(e => ({ name: e.nombre, value: e.cantidad }))
+  const { theme } = useTheme()
+  const nivoTheme = theme === 'dark' ? darkTheme : lightTheme
+
+  const pieData = documentosPorEstado.map(d => ({
+    id: d.name,
+    label: d.name,
+    value: d.value,
+    color: d.color,
+  }))
+
+  const catPieData = empleadosPorCategoria.map((e, i) => ({
+    id: e.nombre,
+    label: e.nombre,
+    value: e.cantidad,
+    color: CAT_COLORS[i % CAT_COLORS.length],
+  }))
+  const totalDocs = documentosPorEstado.reduce((s, d) => s + d.value, 0)
+  const totalEmps = catPieData.reduce((s, d) => s + d.value, 0)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-green-900 mb-4">Estado de Documentos</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={documentosPorEstado} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-              {documentosPorEstado.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="bg-card rounded-xl border border-border p-5">
+        <p className="font-semibold text-foreground">Estado de Documentos</p>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalDocs} documentos en total</p>
+        <div className="h-[240px]">
+          <ResponsivePie
+            data={pieData}
+            colors={{ datum: 'data.color' }}
+            innerRadius={0.6}
+            padAngle={1.5}
+            cornerRadius={4}
+            activeOuterRadiusOffset={6}
+            enableArcLabels={false}
+            enableArcLinkLabels
+            arcLinkLabelsSkipAngle={12}
+            arcLinkLabelsTextColor={theme === 'dark' ? '#9ca3af' : '#374151'}
+            arcLinkLabelsThickness={1.5}
+            arcLinkLabelsColor={{ from: 'color' }}
+            theme={nivoTheme}
+            margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
+          />
+        </div>
       </div>
-      <div className="bg-white rounded-lg border p-4 shadow-sm">
-        <h3 className="font-semibold text-green-900 mb-4">Empleados por Categoría</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={catData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-              {catData.map((_, i) => <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />)}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+
+      <div className="bg-card rounded-xl border border-border p-5">
+        <p className="font-semibold text-foreground">Empleados por Categoría</p>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalEmps} empleados en total</p>
+        <div className="h-[240px]">
+          <ResponsivePie
+            data={catPieData}
+            colors={{ datum: 'data.color' }}
+            innerRadius={0.6}
+            padAngle={1.5}
+            cornerRadius={4}
+            activeOuterRadiusOffset={6}
+            enableArcLabels={false}
+            enableArcLinkLabels
+            arcLinkLabelsSkipAngle={12}
+            arcLinkLabelsTextColor={theme === 'dark' ? '#9ca3af' : '#374151'}
+            arcLinkLabelsThickness={1.5}
+            arcLinkLabelsColor={{ from: 'color' }}
+            theme={nivoTheme}
+            margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
+          />
+        </div>
       </div>
     </div>
   )

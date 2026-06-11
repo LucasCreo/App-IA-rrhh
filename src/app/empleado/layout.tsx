@@ -10,11 +10,10 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
   if (!token) redirect('/login')
 
   const config = await prisma.generalConfig.findFirst()
-  const brand = config?.primaryColor ?? '#166534'
   const appName = config?.appName ?? 'RRHH'
 
   return (
-    <div className="min-h-screen bg-green-50" style={{ '--brand': brand } as React.CSSProperties}>
+    <div className="min-h-screen bg-green-50 dark:bg-gray-950">
       <header className="bg-green-900 text-white px-6 py-4 flex items-center justify-between">
         <span className="font-bold text-lg">📋 Portal — {appName}</span>
         <LogoutButton />

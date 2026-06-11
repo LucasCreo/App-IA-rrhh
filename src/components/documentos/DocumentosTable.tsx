@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DocumentoUploadDialog } from './DocumentoUploadDialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Send, Trash2, Plus, RefreshCw } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
   id: number; nombreArchivo: string; periodo: string; estado: string
@@ -14,28 +17,20 @@ interface Doc {
   tipoDocumento?: { id: number; nombre: string } | null
 }
 
-const estadoStyles: Record<string, string> = {
-  BORRADOR: 'bg-gray-100 text-gray-700',
-  PENDIENTE_ENVIO: 'bg-yellow-100 text-yellow-700',
-  ENVIADO_A_FIRMA: 'bg-blue-100 text-blue-700',
-  FIRMADO: 'bg-green-100 text-green-700',
-  RECHAZADO: 'bg-red-100 text-red-700',
-  ERROR: 'bg-orange-100 text-orange-700',
-}
-
-const estadoLabel: Record<string, string> = {
-  BORRADOR: 'Borrador', PENDIENTE_ENVIO: 'Pendiente',
-  ENVIADO_A_FIRMA: 'Enviado', FIRMADO: 'Firmado',
-  RECHAZADO: 'Rechazado', ERROR: 'Error',
-}
 
 export function DocumentosTable() {
   const [docs, setDocs] = useState<Doc[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [sending, setSending] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const load = useCallback(() =>
-    fetch('/api/documentos').then(r => r.json()).then(setDocs), [])
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch('/api/documentos')
+      .then(r => r.json())
+      .then(setDocs)
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -43,7 +38,8 @@ export function DocumentosTable() {
     setSending(id)
     const res = await fetch(`/api/documentos/${id}/enviar-firma`, { method: 'POST' })
     const data = await res.json()
-    if (!res.ok) alert(`Error: ${data.error}`)
+    if (!res.ok) toast.error(`Error: ${data.error}`)
+    else toast.success('Enviado a firma')
     setSending(null)
     load()
   }
@@ -51,7 +47,8 @@ export function DocumentosTable() {
   async function handleCheckStatus(id: number) {
     const res = await fetch(`/api/documentos/${id}/enviar-firma`, { method: 'PATCH' })
     const data = await res.json()
-    if (!res.ok) alert(`Error: ${data.error}`)
+    if (!res.ok) toast.error(`Error: ${data.error}`)
+    else toast.success(`Estado actualizado: ${data.estado ?? 'OK'}`)
     load()
   }
 
@@ -60,6 +57,14 @@ export function DocumentosTable() {
     await fetch(`/api/documentos/${id}`, { method: 'DELETE' })
     load()
   }
+
+  if (loading) return (
+    <div className="space-y-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full rounded-md" />
+      ))}
+    </div>
+  )
 
   return (
     <div>
@@ -100,9 +105,7 @@ export function DocumentosTable() {
                 </a>
               </TableCell>
               <TableCell>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${estadoStyles[doc.estado]}`}>
-                  {estadoLabel[doc.estado] ?? doc.estado}
-                </span>
+                <StatusBadge estado={doc.estado} />
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
                 {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}

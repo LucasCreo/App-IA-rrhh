@@ -98,7 +98,7 @@ export function TabDocumentos() {
                 </tr>
               ))}
               {adding && (
-                <tr className="border-t bg-green-50">
+                <tr className="border-t bg-green-50 dark:bg-green-950/20">
                   <td className="px-3 py-1.5">
                     <Input value={newTipo.nombre} onChange={e => setNewTipo(t => ({ ...t, nombre: e.target.value }))} placeholder="Nombre del tipo" className="h-7 text-sm" autoFocus onKeyDown={e => e.key === 'Enter' && handleAdd()} />
                   </td>
@@ -114,7 +114,7 @@ export function TabDocumentos() {
             </tbody>
           </table>
         </div>
-        <Button variant="outline" className="border-green-700 text-green-700 hover:bg-green-50" onClick={() => setAdding(true)} disabled={adding}>
+        <Button variant="outline" className="border-green-700 text-green-700 hover:bg-green-50 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-950/20" onClick={() => setAdding(true)} disabled={adding}>
           <Plus size={15} className="mr-1" /> Nuevo Tipo
         </Button>
       </CardContent>

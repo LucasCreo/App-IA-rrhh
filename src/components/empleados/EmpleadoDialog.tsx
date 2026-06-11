@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,7 +52,12 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   async function handleSave() {
     const url = form.id ? `/api/empleados/${form.id}` : '/api/empleados'
     const method = form.id ? 'PUT' : 'POST'
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    if (!res.ok) {
+      const text = await res.text()
+      toast.error(`Error al guardar: ${text}`)
+      return
+    }
     onSaved()
     onClose()
   }

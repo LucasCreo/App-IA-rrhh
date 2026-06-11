@@ -4,21 +4,13 @@ import { useEffect, useState } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { FileText, Download } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
   id: number; nombreArchivo: string; periodo: string; estado: string
   fechaCarga: string; fechaFirma?: string
 }
 
-const estadoLabel: Record<string, string> = {
-  BORRADOR: 'Borrador', PENDIENTE_ENVIO: 'Pendiente', ENVIADO_A_FIRMA: 'Enviado a firma',
-  FIRMADO: 'Firmado', RECHAZADO: 'Rechazado', ERROR: 'Error',
-}
-
-const estadoColor: Record<string, string> = {
-  BORRADOR: 'text-gray-500', PENDIENTE_ENVIO: 'text-yellow-600', ENVIADO_A_FIRMA: 'text-blue-600',
-  FIRMADO: 'text-green-700 font-medium', RECHAZADO: 'text-red-600', ERROR: 'text-orange-600',
-}
 
 interface Props { employeeId: number }
 
@@ -54,8 +46,8 @@ export function MisRecibos({ employeeId }: Props) {
           <TableRow key={doc.id}>
             <TableCell className="font-mono">{doc.periodo}</TableCell>
             <TableCell>{doc.nombreArchivo}</TableCell>
-            <TableCell className={estadoColor[doc.estado] ?? ''}>
-              {estadoLabel[doc.estado] ?? doc.estado}
+            <TableCell>
+              <StatusBadge estado={doc.estado} />
             </TableCell>
             <TableCell className="text-sm text-muted-foreground">
               {doc.fechaFirma ? new Date(doc.fechaFirma).toLocaleDateString('es-AR') : '—'}

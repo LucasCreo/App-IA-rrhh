@@ -18,25 +18,25 @@ const nav = [
 interface Props {
   appName?: string
   logoUrl?: string | null
+  userEmail?: string
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail }: Props) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <aside className={cn('h-screen sticky top-0 bg-green-900 text-white flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}
-    >
-      <div className={cn('flex items-center border-b border-white/20 py-5', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
+    <aside className={cn('h-screen sticky top-0 bg-background border-r border-border flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}>
+      <div className={cn('flex items-center border-b border-border py-5', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
         {!collapsed && (
           <div className="flex items-center gap-2 min-w-0">
             {logoUrl && <img src={logoUrl} alt="" className="h-6 w-auto object-contain shrink-0" />}
-            <span className="text-base font-bold tracking-tight truncate">{appName}</span>
+            <span className="text-base font-bold tracking-tight truncate text-foreground">{appName}</span>
           </div>
         )}
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="p-1.5 rounded-md text-white/60 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
           title={collapsed ? 'Expandir' : 'Colapsar'}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -53,7 +53,9 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl }: Props) {
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 collapsed && 'justify-center',
-                active ? 'bg-white/20 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                active
+              ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
               <Icon size={16} className="shrink-0" />
@@ -62,6 +64,18 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl }: Props) {
           )
         })}
       </nav>
+      {/* User profile section */}
+      <div className={cn(
+        'border-t border-border py-3 mt-auto',
+        collapsed ? 'px-2 flex justify-center' : 'px-3 flex items-center gap-2'
+      )}>
+        <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center shrink-0 text-xs font-bold text-green-700 dark:text-green-400 uppercase">
+          {userEmail ? userEmail.slice(0, 2) : 'U'}
+        </div>
+        {!collapsed && (
+          <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{userEmail}</p>
+        )}
+      </div>
     </aside>
   )
 }

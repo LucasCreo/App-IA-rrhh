@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
@@ -59,8 +59,8 @@ model Document {
   fechaFirma      DateTime?
   updatedAt       DateTime  @updatedAt
 
-  cargadoPor    User           @relation("CargadoPor", fields: [cargadoPorId], references: [id])
-  employee      Employee       @relation(fields: [employeeId], references: [id])
+  cargadoPor    User           @relation("CargadoPor", fields: [cargadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id])
 }
 
@@ -73,11 +73,10 @@ model TipoDocumento {
 }
 
 model GeneralConfig {
-  id           Int      @id @default(autoincrement())
-  appName      String   @default("RRHH")
-  logoUrl      String?
-  primaryColor String   @default("#166534")
-  updatedAt    DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  appName   String   @default("RRHH")
+  logoUrl   String?
+  updatedAt DateTime @updatedAt
 }
 
 model EmployeeFieldConfig {

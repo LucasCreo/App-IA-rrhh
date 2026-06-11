@@ -124,7 +124,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v)}>
+                    <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
                       <SelectTrigger className="flex-1 h-8 text-xs">
                         <SelectValue placeholder="Empleado…" />
                       </SelectTrigger>

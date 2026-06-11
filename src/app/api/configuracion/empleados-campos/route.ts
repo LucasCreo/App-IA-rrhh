@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/auth'
 
 const DEFAULTS = [
   { campo: 'legajo', visible: true, requerido: true },
@@ -20,6 +21,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
   const fields: Array<{ campo: string; visible: boolean; requerido: boolean }> = await req.json()
   await Promise.all(fields.map(f =>
     prisma.employeeFieldConfig.upsert({

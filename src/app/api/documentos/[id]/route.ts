@@ -13,6 +13,9 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     include: { employee: true, cargadoPor: { select: { email: true } } },
   })
   if (!doc) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  if (user.role === 'EMPLOYEE' && doc.employeeId !== user.employeeId) {
+    return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+  }
   return NextResponse.json(doc)
 }
 
@@ -34,6 +37,6 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const doc = await prisma.document.delete({ where: { id: Number(id) } })
   try { await unlink(doc.filePath) } catch { /* file may not exist */ }
-  if (user) await logAction(user.userId, 'ELIMINAR', 'Documento', doc.nombreArchivo)
+  await logAction(user.userId, 'ELIMINAR', 'Documento', doc.nombreArchivo)
   return NextResponse.json({ ok: true })
 }

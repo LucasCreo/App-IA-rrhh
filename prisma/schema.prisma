@@ -10,6 +10,7 @@ datasource db {
 model User {
   id           Int       @id @default(autoincrement())
   email        String    @unique
+  username     String?   @unique
   passwordHash String
   role         String    @default("EMPLOYEE")
   employeeId   Int?      @unique
@@ -34,9 +35,12 @@ model Employee {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  categoria Category   @relation(fields: [categoriaId], references: [id])
-  user      User?
-  documents Document[]
+  categoria       Category             @relation(fields: [categoriaId], references: [id])
+  user            User?
+  documents       Document[]
+  valoresCampos   ValorCampoEmpleado[]
+  solicitudes              SolicitudDocumento[]
+  solicitudesModificacion  SolicitudModificacion[]
 }
 
 model Category {
@@ -83,7 +87,35 @@ model EmployeeFieldConfig {
   campo     String   @id
   visible   Boolean  @default(true)
   requerido Boolean  @default(false)
+  eliminado Boolean  @default(false)
   updatedAt DateTime @updatedAt
+}
+
+model CampoPersonalizado {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  tipo      String   @default("texto")
+  visible   Boolean  @default(true)
+  requerido Boolean  @default(false)
+  orden     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  valores ValorCampoEmpleado[]
+
+  @@map("campos_personalizados")
+}
+
+model ValorCampoEmpleado {
+  id         Int    @id @default(autoincrement())
+  employeeId Int
+  campoId    Int
+  valor      String
+
+  employee Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  campo    CampoPersonalizado @relation(fields: [campoId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, campoId])
+  @@map("valores_campo_empleado")
 }
 
 model SignatureConfig {
@@ -93,6 +125,42 @@ model SignatureConfig {
   extraHeaders String   @default("{}")
   extraBody    String   @default("{}")
   updatedAt    DateTime @updatedAt
+}
+
+model TipoSolicitud {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  solicitudes SolicitudDocumento[]
+}
+
+model SolicitudDocumento {
+  id                 Int      @id @default(autoincrement())
+  employeeId         Int
+  tipoId             Int
+  nombreArchivo      String
+  descripcion        String?
+  estado             String   @default("PENDIENTE")
+  comentario         String?
+  comentarioVisible  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipo     TipoSolicitud @relation(fields: [tipoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model SolicitudModificacion {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  comentario  String
+  estado      String   @default("PENDIENTE")
+  createdAt   DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model AuditLog {

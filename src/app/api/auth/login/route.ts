@@ -3,12 +3,25 @@ import { prisma } from '@/lib/prisma'
 import { signToken, comparePassword, COOKIE_NAME } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json()
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email y contraseña requeridos' }, { status: 400 })
+  const { identifier, password } = await req.json()
+  if (!identifier || !password) {
+    return NextResponse.json({ error: 'Usuario/email y contraseña requeridos' }, { status: 400 })
   }
 
-  const user = await prisma.user.findUnique({ where: { email } })
+  let user = null
+  if (identifier.includes('@')) {
+    user = await prisma.user.findUnique({ where: { email: identifier } })
+  } else {
+    user = await prisma.user.findUnique({ where: { username: identifier } })
+    if (!user) {
+      const employee = await prisma.employee.findUnique({ where: { legajo: identifier } })
+      if (employee) user = await prisma.user.findFirst({ where: { employeeId: employee.id } })
+    }
+    if (!user) {
+      user = await prisma.user.findFirst({ where: { email: { startsWith: `${identifier}@` } } })
+    }
+  }
+
   if (!user || !(await comparePassword(password, user.passwordHash))) {
     return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 })
   }

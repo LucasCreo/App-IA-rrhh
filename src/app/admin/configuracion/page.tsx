@@ -6,6 +6,7 @@ import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
 import { TabDocumentos } from '@/components/configuracion/TabDocumentos'
 import { TabFirma } from '@/components/configuracion/TabFirma'
+import { TabSolicitudes } from '@/components/configuracion/TabSolicitudes'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'empleados', label: 'Empleados' },
   { id: 'documentos', label: 'Documentos' },
   { id: 'firma', label: 'Firma' },
+  { id: 'solicitudes', label: 'Solicitudes' },
 ]
 
 export default function ConfiguracionPage() {
@@ -42,6 +44,7 @@ export default function ConfiguracionPage() {
         {tab === 'empleados' && <TabEmpleados />}
         {tab === 'documentos' && <TabDocumentos />}
         {tab === 'firma' && <TabFirma />}
+        {tab === 'solicitudes' && <TabSolicitudes />}
       </div>
     </>
   )

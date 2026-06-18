@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export async function GET() {
   const data = await prisma.category.findMany({
@@ -9,9 +11,20 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
   const { nombre } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
-  const cat = await prisma.category.create({ data: { nombre: nombre.trim() } })
-  return NextResponse.json(cat, { status: 201 })
+
+  try {
+    const cat = await prisma.category.create({ data: { nombre: nombre.trim() } })
+    return NextResponse.json(cat, { status: 201 })
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      return NextResponse.json({ error: 'Ya existe una categoría con ese nombre' }, { status: 409 })
+    }
+    throw e
+  }
 }

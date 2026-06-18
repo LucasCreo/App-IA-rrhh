@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { CategoriaDialog } from './CategoriaDialog'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 
@@ -11,15 +16,19 @@ interface Categoria { id: number; nombre: string; _count: { employees: number } 
 export function CategoriasTable() {
   const [data, setData] = useState<Categoria[]>([])
   const [dialog, setDialog] = useState<{ open: boolean; cat?: Categoria }>({ open: false })
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   const load = () => fetch('/api/categorias').then(r => r.json()).then(setData)
   useEffect(() => { load() }, [])
 
-  async function handleDelete(id: number) {
-    if (!confirm('¿Eliminar categoría?')) return
-    await fetch(`/api/categorias/${id}`, { method: 'DELETE' })
+  async function confirmDelete() {
+    if (deleteId === null) return
+    await fetch(`/api/categorias/${deleteId}`, { method: 'DELETE' })
+    setDeleteId(null)
     load()
   }
+
+  const deletingCat = data.find(c => c.id === deleteId)
 
   return (
     <div>
@@ -45,7 +54,7 @@ export function CategoriasTable() {
                 <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, cat })}>
                   <Pencil size={14} />
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDelete(cat.id)}>
+                <Button size="sm" variant="destructive" onClick={() => setDeleteId(cat.id)}>
                   <Trash2 size={14} />
                 </Button>
               </TableCell>
@@ -53,6 +62,7 @@ export function CategoriasTable() {
           ))}
         </TableBody>
       </Table>
+
       {dialog.open && (
         <CategoriaDialog
           open
@@ -61,6 +71,25 @@ export function CategoriasTable() {
           onSaved={load}
         />
       )}
+
+      <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar categoría "{deletingCat?.nombre}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingCat?._count.employees
+                ? `Tiene ${deletingCat._count.employees} empleado${deletingCat._count.employees !== 1 ? 's' : ''} asignados. Esta acción no se puede deshacer.`
+                : 'Esta acción no se puede deshacer.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={confirmDelete}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -15,11 +15,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
   }
 
-  const buffer = await readFile(doc.filePath)
-  return new NextResponse(buffer, {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${doc.nombreArchivo}"`,
-    },
-  })
+  try {
+    const buffer = await readFile(doc.filePath)
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${doc.nombreArchivo}"`,
+      },
+    })
+  } catch {
+    return NextResponse.json({ error: 'Archivo no disponible en el servidor' }, { status: 404 })
+  }
 }

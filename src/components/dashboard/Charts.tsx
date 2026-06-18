@@ -96,18 +96,14 @@ export function Charts({ documentosPorEstado, empleadosPorCategoria }: Props) {
           <ResponsivePie
             data={catPieData}
             colors={{ datum: 'data.color' }}
-            innerRadius={0.6}
-            padAngle={1.5}
-            cornerRadius={4}
+            innerRadius={0}
+            padAngle={0}
+            cornerRadius={0}
             activeOuterRadiusOffset={6}
             enableArcLabels={false}
-            enableArcLinkLabels
-            arcLinkLabelsSkipAngle={12}
-            arcLinkLabelsTextColor={theme === 'dark' ? '#9ca3af' : '#374151'}
-            arcLinkLabelsThickness={1.5}
-            arcLinkLabelsColor={{ from: 'color' }}
+            enableArcLinkLabels={false}
             theme={nivoTheme}
-            margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
+            margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
           />
         </div>
       </div>

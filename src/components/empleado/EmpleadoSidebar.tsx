@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { LayoutDashboard, FileText, Send, ChevronLeft, ChevronRight, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
+import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const nav = [
   { href: '/empleado', label: 'Inicio', icon: LayoutDashboard },
@@ -18,9 +19,10 @@ interface Props {
   logoUrl?: string | null
   initials: string
   fullName: string
+  avatarUrl?: string | null
 }
 
-export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName }: Props) {
+export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName, avatarUrl }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -96,14 +98,12 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName 
             perfilActive && !collapsed && 'bg-muted'
           )}
         >
-          <div className={cn(
-            'h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold uppercase transition-colors',
-            perfilActive
-              ? 'bg-green-200 dark:bg-green-900/60 text-green-700 dark:text-green-400 ring-2 ring-green-400/40'
-              : 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/60'
-          )}>
-            {initials}
-          </div>
+          <AvatarUpload
+            initials={initials}
+            initialAvatar={avatarUrl}
+            size="sm"
+            className={cn(perfilActive && 'ring-2 ring-green-400/60 rounded-full')}
+          />
           {!collapsed && (
             <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{fullName}</p>
           )}

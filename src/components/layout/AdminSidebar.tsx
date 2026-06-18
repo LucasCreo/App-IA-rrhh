@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, Inbox, ChevronLeft, ChevronRight, KeyRound } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, Inbox, ChevronLeft, ChevronRight, KeyRound, Layers } from 'lucide-react'
 import { CambiarPasswordDialog } from '@/components/shared/CambiarPasswordDialog'
+import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/empleados', label: 'Empleados', icon: Users },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText },
+  { href: '/admin/lotes', label: 'Lotes', icon: Layers },
   { href: '/admin/solicitudes', label: 'Solicitudes', icon: Inbox },
   { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
@@ -20,11 +22,12 @@ interface Props {
   appName?: string
   logoUrl?: string | null
   userEmail?: string
+  avatarUrl?: string | null
   pendingModificaciones?: number
   pendingSolicitudes?: number
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, pendingModificaciones = 0, pendingSolicitudes = 0 }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0 }: Props) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [pwOpen, setPwOpen] = useState(false)
@@ -90,9 +93,11 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, pendingModi
           'border-t border-border py-3 mt-auto',
           collapsed ? 'px-2 flex flex-col items-center gap-2' : 'px-3 flex items-center gap-2'
         )}>
-          <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center shrink-0 text-xs font-bold text-green-700 dark:text-green-400 uppercase">
-            {userEmail ? userEmail.slice(0, 2) : 'U'}
-          </div>
+          <AvatarUpload
+            initials={userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'}
+            initialAvatar={avatarUrl}
+            size="sm"
+          />
           {!collapsed && (
             <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{userEmail}</p>
           )}

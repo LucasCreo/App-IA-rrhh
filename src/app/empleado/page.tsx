@@ -19,11 +19,11 @@ export default async function EmpleadoPage() {
       where: { id: decoded.employeeId },
       include: { categoria: true },
     }),
-    prisma.document.count({ where: { employeeId: decoded.employeeId } }),
+    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { not: 'BORRADOR' } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
     prisma.document.findMany({
-      where: { employeeId: decoded.employeeId },
+      where: { employeeId: decoded.employeeId, estado: { not: 'BORRADOR' } },
       orderBy: { fechaCarga: 'desc' },
       take: 3,
     }),

@@ -12,12 +12,13 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
   const decoded = await verifyToken(token)
   if (!decoded.employeeId) redirect('/login')
 
-  const [config, employee] = await Promise.all([
+  const [config, employee, dbUser] = await Promise.all([
     prisma.generalConfig.findFirst(),
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
       select: { nombre: true, apellido: true },
     }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true } }),
   ])
   if (!employee) redirect('/login')
 
@@ -31,6 +32,7 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
         logoUrl={config?.logoUrl ?? null}
         initials={initials}
         fullName={fullName}
+        avatarUrl={dbUser?.avatarUrl ?? null}
       />
       <main className="flex-1 flex flex-col overflow-hidden">
         {children}

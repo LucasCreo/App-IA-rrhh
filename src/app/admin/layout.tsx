@@ -3,9 +3,10 @@ import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { getCurrentUser } from '@/lib/auth'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [config, user, pendingModificaciones, pendingSolicitudes] = await Promise.all([
+  const user = await getCurrentUser()
+  const [config, dbUser, pendingModificaciones, pendingSolicitudes] = await Promise.all([
     prisma.generalConfig.findFirst(),
-    getCurrentUser(),
+    user ? prisma.user.findUnique({ where: { id: user.userId }, select: { avatarUrl: true } }) : null,
     prisma.solicitudModificacion.count({ where: { estado: 'PENDIENTE' } }),
     prisma.solicitudDocumento.count({ where: { estado: 'PENDIENTE' } }),
   ])
@@ -15,6 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         appName={config?.appName ?? 'RRHH'}
         logoUrl={config?.logoUrl ?? null}
         userEmail={user?.email ?? ''}
+        avatarUrl={dbUser?.avatarUrl ?? null}
         pendingModificaciones={pendingModificaciones}
         pendingSolicitudes={pendingSolicitudes}
       />

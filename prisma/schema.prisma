@@ -14,11 +14,13 @@ model User {
   passwordHash String
   role         String    @default("EMPLOYEE")
   employeeId   Int?      @unique
+  avatarUrl    String?
   createdAt    DateTime  @default(now())
 
   employee  Employee?  @relation(fields: [employeeId], references: [id])
   documents Document[] @relation("CargadoPor")
   auditLogs AuditLog[]
+  lotes     Lote[]     @relation("LotesCargados")
 }
 
 model Employee {
@@ -66,6 +68,8 @@ model Document {
   cargadoPor    User           @relation("CargadoPor", fields: [cargadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id])
+  lote          Lote?          @relation(fields: [loteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loteId        Int?
 }
 
 model TipoDocumento {
@@ -73,7 +77,22 @@ model TipoDocumento {
   nombre      String     @unique
   descripcion String?
   documentos  Document[]
+  lotes       Lote[]
   createdAt   DateTime   @default(now())
+}
+
+model Lote {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  descripcion     String?
+  periodo         String
+  tipoDocumentoId Int?
+  creadoPorId     Int
+  createdAt       DateTime @default(now())
+
+  tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cargadoPor    User           @relation("LotesCargados", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documentos    Document[]
 }
 
 model GeneralConfig {

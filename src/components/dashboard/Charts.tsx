@@ -10,102 +10,100 @@ interface Props {
   empleadosPorCategoria: Array<{ nombre: string; cantidad: number }>
 }
 
-const lightTheme = {
-  text: { fill: '#6b7280', fontSize: 11 },
-  axis: { ticks: { text: { fill: '#6b7280', fontSize: 11 } } },
-  grid: { line: { stroke: '#e5e7eb', strokeDasharray: '4 4' } },
-  tooltip: {
-    container: {
-      background: '#ffffff',
-      border: '1px solid #e5e7eb',
-      borderRadius: '8px',
-      padding: '8px 12px',
-      fontSize: '12px',
-      color: '#111827',
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-    },
+const lightTooltip = {
+  container: {
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px',
+    padding: '8px 12px', fontSize: '12px', color: '#111827',
+    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+  },
+}
+const darkTooltip = {
+  container: {
+    background: '#1f2937', border: '1px solid #374151', borderRadius: '8px',
+    padding: '8px 12px', fontSize: '12px', color: '#f9fafb',
+    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)',
   },
 }
 
-const darkTheme = {
-  text: { fill: '#9ca3af', fontSize: 11 },
-  axis: { ticks: { text: { fill: '#9ca3af', fontSize: 11 } } },
-  grid: { line: { stroke: '#374151', strokeDasharray: '4 4' } },
-  tooltip: {
-    container: {
-      background: '#1f2937',
-      border: '1px solid #374151',
-      borderRadius: '8px',
-      padding: '8px 12px',
-      fontSize: '12px',
-      color: '#f9fafb',
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)',
-    },
-  },
+function Legend({ items }: { items: Array<{ label: string; color: string; value: number }> }) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center mt-3">
+      {items.map(item => (
+        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+          {item.label}
+          <span className="font-medium text-foreground">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export function Charts({ documentosPorEstado, empleadosPorCategoria }: Props) {
   const { theme } = useTheme()
-  const nivoTheme = theme === 'dark' ? darkTheme : lightTheme
+  const tooltip = theme === 'dark' ? darkTooltip : lightTooltip
 
-  const pieData = documentosPorEstado.map(d => ({
-    id: d.name,
-    label: d.name,
-    value: d.value,
-    color: d.color,
-  }))
+  const pieData = documentosPorEstado
+    .filter(d => d.value > 0)
+    .map(d => ({ id: d.name, label: d.name, value: d.value, color: d.color }))
 
   const catPieData = empleadosPorCategoria.map((e, i) => ({
-    id: e.nombre,
-    label: e.nombre,
-    value: e.cantidad,
+    id: e.nombre, label: e.nombre, value: e.cantidad,
     color: CAT_COLORS[i % CAT_COLORS.length],
   }))
+
   const totalDocs = documentosPorEstado.reduce((s, d) => s + d.value, 0)
   const totalEmps = catPieData.reduce((s, d) => s + d.value, 0)
+
+  const pieConfig = {
+    innerRadius: 0,
+    padAngle: 0,
+    cornerRadius: 0,
+    activeOuterRadiusOffset: 6,
+    enableArcLabels: false,
+    enableArcLinkLabels: false,
+    margin: { top: 10, right: 10, bottom: 10, left: 10 },
+    theme: { tooltip },
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
       <div className="bg-card rounded-xl border border-border p-5">
         <p className="font-semibold text-foreground">Estado de Documentos</p>
         <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalDocs} documentos en total</p>
-        <div className="h-[240px]">
-          <ResponsivePie
-            data={pieData}
-            colors={{ datum: 'data.color' }}
-            innerRadius={0.6}
-            padAngle={1.5}
-            cornerRadius={4}
-            activeOuterRadiusOffset={6}
-            enableArcLabels={false}
-            enableArcLinkLabels
-            arcLinkLabelsSkipAngle={12}
-            arcLinkLabelsTextColor={theme === 'dark' ? '#9ca3af' : '#374151'}
-            arcLinkLabelsThickness={1.5}
-            arcLinkLabelsColor={{ from: 'color' }}
-            theme={nivoTheme}
-            margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
-          />
-        </div>
+        {pieData.length === 0 ? (
+          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
+        ) : (
+          <>
+            <div className="h-[200px]">
+              <ResponsivePie
+                data={pieData}
+                colors={{ datum: 'data.color' }}
+                {...pieConfig}
+              />
+            </div>
+            <Legend items={pieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
+          </>
+        )}
       </div>
 
       <div className="bg-card rounded-xl border border-border p-5">
         <p className="font-semibold text-foreground">Empleados por Categoría</p>
         <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalEmps} empleados en total</p>
-        <div className="h-[240px]">
-          <ResponsivePie
-            data={catPieData}
-            colors={{ datum: 'data.color' }}
-            innerRadius={0}
-            padAngle={0}
-            cornerRadius={0}
-            activeOuterRadiusOffset={6}
-            enableArcLabels={false}
-            enableArcLinkLabels={false}
-            theme={nivoTheme}
-            margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          />
-        </div>
+        {catPieData.length === 0 ? (
+          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
+        ) : (
+          <>
+            <div className="h-[200px]">
+              <ResponsivePie
+                data={catPieData}
+                colors={{ datum: 'data.color' }}
+                {...pieConfig}
+              />
+            </div>
+            <Legend items={catPieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
+          </>
+        )}
       </div>
     </div>
   )

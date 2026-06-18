@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'fs/promises'
 import path from 'path'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const form = await req.formData()
   const file = form.get('file') as File | null

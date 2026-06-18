@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
   const updated = await prisma.solicitudModificacion.update({

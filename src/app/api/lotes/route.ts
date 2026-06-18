@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
@@ -8,8 +9,8 @@ import { join } from 'path'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export async function GET() {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const [lotes, descs] = await Promise.all([
     (prisma as any).lote.findMany({
@@ -48,8 +49,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const formData = await req.formData()
   const nombre = (formData.get('nombre') as string)?.trim()

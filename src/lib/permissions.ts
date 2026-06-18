@@ -1,0 +1,25 @@
+export const PERMISOS = {
+  VER_DASHBOARD: 'VER_DASHBOARD',
+  GESTIONAR_EMPLEADOS: 'GESTIONAR_EMPLEADOS',
+  GESTIONAR_DOCUMENTOS: 'GESTIONAR_DOCUMENTOS',
+  GESTIONAR_LOTES: 'GESTIONAR_LOTES',
+  GESTIONAR_SOLICITUDES: 'GESTIONAR_SOLICITUDES',
+  VER_AUDITORIA: 'VER_AUDITORIA',
+  GESTIONAR_CONFIGURACION: 'GESTIONAR_CONFIGURACION',
+  GESTIONAR_USUARIOS: 'GESTIONAR_USUARIOS',
+} as const
+
+export type Permiso = typeof PERMISOS[keyof typeof PERMISOS]
+
+export const TODOS_LOS_PERMISOS = Object.values(PERMISOS) as Permiso[]
+
+export const LABELS_PERMISOS: Record<Permiso, string> = {
+  VER_DASHBOARD: 'Ver dashboard',
+  GESTIONAR_EMPLEADOS: 'Gestionar empleados',
+  GESTIONAR_DOCUMENTOS: 'Gestionar documentos',
+  GESTIONAR_LOTES: 'Gestionar lotes de recibos',
+  GESTIONAR_SOLICITUDES: 'Gestionar solicitudes',
+  VER_AUDITORIA: 'Ver auditoría',
+  GESTIONAR_CONFIGURACION: 'Gestionar configuración',
+  GESTIONAR_USUARIOS: 'Gestionar usuarios y roles',
+}

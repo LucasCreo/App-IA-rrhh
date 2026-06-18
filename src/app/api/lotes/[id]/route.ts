@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const [lote, empleados, descRows] = await Promise.all([
     (prisma as any).lote.findUnique({
@@ -61,8 +62,8 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { nombre, descripcion } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })

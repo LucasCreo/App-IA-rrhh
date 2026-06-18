@@ -13,14 +13,33 @@ model User {
   username     String?   @unique
   passwordHash String
   role         String    @default("EMPLOYEE")
+  rolId        Int?
   employeeId   Int?      @unique
   avatarUrl    String?
   createdAt    DateTime  @default(now())
 
+  rol       Rol?       @relation(fields: [rolId], references: [id])
   employee  Employee?  @relation(fields: [employeeId], references: [id])
   documents Document[] @relation("CargadoPor")
   auditLogs AuditLog[]
   lotes     Lote[]     @relation("LotesCargados")
+}
+
+model Rol {
+  id          Int          @id @default(autoincrement())
+  nombre      String       @unique
+  descripcion String?
+  createdAt   DateTime     @default(now())
+  permisos    RolPermiso[]
+  usuarios    User[]
+}
+
+model RolPermiso {
+  rolId   Int
+  permiso String
+  rol     Rol    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permiso])
 }
 
 model Employee {

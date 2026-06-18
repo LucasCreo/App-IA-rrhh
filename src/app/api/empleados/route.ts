@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser, hashPassword } from '@/lib/auth'
+import { getCurrentUser, requirePermiso, hashPassword } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 
@@ -55,8 +56,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
 

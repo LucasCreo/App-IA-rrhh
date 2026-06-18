@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function GET() {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const campos = await prisma.campoPersonalizado.findMany({ orderBy: { orden: 'asc' } })
   return NextResponse.json(campos)
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { nombre, tipo } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })

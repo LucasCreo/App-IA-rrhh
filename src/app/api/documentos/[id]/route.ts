@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { unlink } from 'fs/promises'
 
@@ -20,8 +21,8 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   const { id } = await params
   const body = await req.json()
   const doc = await prisma.document.update({
@@ -32,8 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   const { id } = await params
   const doc = await prisma.document.delete({ where: { id: Number(id) } })
   try { await unlink(doc.filePath) } catch { /* file may not exist */ }

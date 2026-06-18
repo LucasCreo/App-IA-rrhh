@@ -1,21 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, Inbox, ChevronLeft, ChevronRight, KeyRound, Layers } from 'lucide-react'
-import { CambiarPasswordDialog } from '@/components/shared/CambiarPasswordDialog'
-import { AvatarUpload } from '@/components/shared/AvatarUpload'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, Inbox, ChevronLeft, ChevronRight, Layers, ShieldCheck, LogOut, Sun, Moon } from 'lucide-react'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/empleados', label: 'Empleados', icon: Users },
-  { href: '/admin/documentos', label: 'Documentos', icon: FileText },
-  { href: '/admin/lotes', label: 'Lotes', icon: Layers },
-  { href: '/admin/solicitudes', label: 'Solicitudes', icon: Inbox },
-  { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList },
-  { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
+  { href: '/admin/empleados', label: 'Empleados', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
+  { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
+  { href: '/admin/lotes', label: 'Lotes', icon: Layers, permiso: 'GESTIONAR_LOTES' },
+  { href: '/admin/solicitudes', label: 'Solicitudes', icon: Inbox, permiso: 'GESTIONAR_SOLICITUDES' },
+  { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList, permiso: 'VER_AUDITORIA' },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: ShieldCheck, permiso: 'GESTIONAR_USUARIOS' },
+  { href: '/admin/configuracion', label: 'Configuración', icon: Settings, permiso: 'GESTIONAR_CONFIGURACION' },
 ]
 
 interface Props {
@@ -25,16 +25,23 @@ interface Props {
   avatarUrl?: string | null
   pendingModificaciones?: number
   pendingSolicitudes?: number
+  permisos?: string[] | null // null = full access
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0 }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null }: Props) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { theme, toggle } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
-  const [pwOpen, setPwOpen] = useState(false)
+  const visibleNav = permisos === null ? nav : nav.filter(item => permisos.includes(item.permiso))
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+  }
 
   return (
-    <>
-      <aside className={cn('h-screen sticky top-0 bg-background border-r border-border flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}>
+    <aside className={cn('h-screen sticky top-0 bg-background border-r border-border flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}>
         <div className={cn('flex items-center border-b border-border py-5', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
           {!collapsed && (
             <div className="flex items-center gap-2 min-w-0">
@@ -51,7 +58,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           </button>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1">
-          {nav.map(({ href, label, icon: Icon }) => {
+          {visibleNav.map(({ href, label, icon: Icon }) => {
             const active = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
             return (
               <Link
@@ -93,25 +100,36 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           'border-t border-border py-3 mt-auto',
           collapsed ? 'px-2 flex flex-col items-center gap-2' : 'px-3 flex items-center gap-2'
         )}>
-          <AvatarUpload
-            initials={userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'}
-            initialAvatar={avatarUrl}
-            size="sm"
-          />
-          {!collapsed && (
-            <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{userEmail}</p>
-          )}
+          <Link
+            href="/admin/perfil"
+            title={collapsed ? 'Mi perfil' : undefined}
+            className={cn('flex items-center gap-2 min-w-0 flex-1 rounded-md hover:bg-muted transition-colors', collapsed ? 'justify-center p-1.5' : 'px-1.5 py-1')}
+          >
+            <div className="h-8 w-8 rounded-full overflow-hidden bg-green-100 dark:bg-green-950/40 flex items-center justify-center font-bold text-xs text-green-700 dark:text-green-400 uppercase select-none shrink-0">
+              {avatarUrl
+                ? <img src={`/api/auth/avatar?file=${avatarUrl}`} alt="" className="w-full h-full object-cover" />
+                : (userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U')}
+            </div>
+            {!collapsed && (
+              <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{userEmail}</p>
+            )}
+          </Link>
           <button
-            onClick={() => setPwOpen(true)}
-            title="Cambiar contraseña"
+            onClick={toggle}
+            title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
           >
-            <KeyRound size={14} />
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          <button
+            onClick={logout}
+            title="Cerrar sesión"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+          >
+            <LogOut size={14} />
           </button>
         </div>
       </aside>
 
-      <CambiarPasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
-    </>
   )
 }

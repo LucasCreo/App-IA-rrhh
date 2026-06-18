@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -10,6 +11,10 @@ export async function GET(req: NextRequest) {
 
   try {
     if (user.role === 'ADMIN') {
+      // Admin path: check permission
+      const authed = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
+      if (!authed) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+
       const solicitudes = await prisma.solicitudDocumento.findMany({
         where: estado ? { estado } : {},
         include: {

@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { searchParams } = new URL(req.url)
   const employeeId = searchParams.get('employeeId')
 
-  if (user.role === 'ADMIN') {
-    if (!employeeId) return NextResponse.json({ error: 'Falta employeeId' }, { status: 400 })
-    const solicitudes = await prisma.solicitudModificacion.findMany({
-      where: { employeeId: Number(employeeId) },
-      orderBy: { createdAt: 'desc' },
-    })
-    return NextResponse.json(solicitudes)
-  }
-
-  return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!employeeId) return NextResponse.json({ error: 'Falta employeeId' }, { status: 400 })
+  const solicitudes = await prisma.solicitudModificacion.findMany({
+    where: { employeeId: Number(employeeId) },
+    orderBy: { createdAt: 'desc' },
+  })
+  return NextResponse.json(solicitudes)
 }
 
 export async function POST(req: NextRequest) {

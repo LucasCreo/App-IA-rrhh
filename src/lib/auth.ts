@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
+import { prisma } from './prisma'
+import type { Permiso } from './permissions'
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
 export const COOKIE_NAME = 'rrhh_token'
@@ -36,4 +38,24 @@ export async function getCurrentUser() {
   } catch {
     return null
   }
+}
+
+// Returns user if ADMIN and has the given permission (or no custom rol = full access).
+// Pass no permiso to just check that the user is an admin.
+export async function requirePermiso(permiso?: Permiso) {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'ADMIN') return null
+  if (!permiso) return user
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.userId },
+    select: { rolId: true },
+  })
+
+  if (!dbUser?.rolId) return user // no custom rol = full access
+
+  const rp = await prisma.rolPermiso.findUnique({
+    where: { rolId_permiso: { rolId: dbUser.rolId, permiso } },
+  })
+  return rp ? user : null
 }

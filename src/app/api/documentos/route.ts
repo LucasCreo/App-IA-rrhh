@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -21,7 +22,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
   }
 
-  // Empleados solo pueden ver sus propios documentos y nunca los borradores
   const effectiveEmployeeId = user.role === 'EMPLOYEE'
     ? user.employeeId
     : (employeeId ? Number(employeeId) : undefined)
@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File
@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El archivo supera el límite de 10 MB' }, { status: 400 })
   }
 
-  // Validar magic bytes de PDF (%PDF = 0x25 0x50 0x44 0x46)
   if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
     return NextResponse.json({ error: 'El archivo no es un PDF válido' }, { status: 400 })
   }

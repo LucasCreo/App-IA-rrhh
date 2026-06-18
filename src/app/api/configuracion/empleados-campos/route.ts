@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 const DEFAULTS = [
   { campo: 'legajo', visible: true, requerido: true, eliminado: false },
@@ -26,8 +27,8 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const fields: Array<{ campo: string; visible: boolean; requerido: boolean; eliminado?: boolean }> = await req.json()
   await Promise.all(fields.map(f =>

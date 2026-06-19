@@ -7,16 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DocumentoUploadDialog } from './DocumentoUploadDialog'
+import { DocumentoMasivoDialog } from './DocumentoMasivoDialog'
+import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Send, Trash2, Plus, RefreshCw, Download } from 'lucide-react'
+import { FileText, Send, Trash2, Plus, RefreshCw, Download, Users } from 'lucide-react'
+
+interface Props { esRecibo?: boolean }
 import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
-  id: number; nombreArchivo: string; periodo: string; estado: string
+  id: number; nombreArchivo: string; periodo: string | null; estado: string
   fechaCarga: string; fechaFirma?: string; firmaExternalId?: string
   employee: { nombre: string; apellido: string; legajo: string }
   cargadoPor: { email: string }
-  tipoDocumento?: { id: number; nombre: string } | null
+  tipoDocumento?: { id: number; nombre: string; accion: string } | null
 }
 
 const ESTADOS = ['BORRADOR', 'ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO', 'ERROR']
@@ -31,9 +35,11 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-export function DocumentosTable() {
+export function DocumentosTable({ esRecibo }: Props) {
   const [docs, setDocs] = useState<Doc[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [masivoOpen, setMasivoOpen] = useState(false)
+  const [cargarOpen, setCargarOpen] = useState(false)
   const [sending, setSending] = useState<number | null>(null)
   const [sendingBulk, setSendingBulk] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -50,11 +56,12 @@ export function DocumentosTable() {
     const params = new URLSearchParams()
     if (filtPeriodo) params.set('periodo', filtPeriodo)
     if (filtEstado !== 'todos') params.set('estado', filtEstado)
+    if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
     fetch(`/api/documentos?${params}`)
       .then(r => r.json())
       .then(setDocs)
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado])
+  }, [filtPeriodo, filtEstado, esRecibo])
 
   useEffect(() => { load() }, [load])
 
@@ -103,7 +110,7 @@ export function DocumentosTable() {
     const rows = docs.map(d => [
       `${d.employee.apellido}, ${d.employee.nombre}`,
       d.employee.legajo,
-      d.periodo,
+      d.periodo ?? '',
       d.tipoDocumento?.nombre ?? '',
       d.nombreArchivo,
       d.estado,
@@ -114,7 +121,7 @@ export function DocumentosTable() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `recibos${filtPeriodo ? `-${filtPeriodo}` : ''}.csv`
+    a.download = `${esRecibo === true ? 'recibos' : 'documentos'}${filtPeriodo ? `-${filtPeriodo}` : ''}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -126,7 +133,9 @@ export function DocumentosTable() {
     load()
   }
 
-  const borradores = docs.filter(d => d.estado === 'BORRADOR' || d.estado === 'ERROR')
+  const borradores = docs.filter(d =>
+    (d.estado === 'BORRADOR' || d.estado === 'ERROR') && d.tipoDocumento?.accion !== 'NINGUNA'
+  )
   const firmados = docs.filter(d => d.estado === 'FIRMADO').length
   const enviados = docs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length
   const empleadosConRecibo = new Set(docs.map(d => d.employee.legajo)).size
@@ -170,7 +179,7 @@ export function DocumentosTable() {
           {borradores.length > 0 && (
             <Button variant="outline" className="text-blue-600 border-blue-200" onClick={handleBulkSend} disabled={sendingBulk}>
               <Send size={14} className="mr-1" />
-              {sendingBulk ? 'Enviando...' : `Enviar ${borradores.length} a firma`}
+              {sendingBulk ? 'Enviando...' : `Notificar/Enviar ${borradores.length}`}
             </Button>
           )}
           {docs.length > 0 && (
@@ -178,8 +187,13 @@ export function DocumentosTable() {
               <Download size={14} className="mr-1" /> CSV
             </Button>
           )}
-          <Button className="bg-green-700 hover:bg-green-800" onClick={() => setUploadOpen(true)}>
-            <Plus size={16} className="mr-1" /> Cargar Recibo
+          {esRecibo === true && (
+            <Button variant="outline" onClick={() => setMasivoOpen(true)}>
+              <Users size={14} className="mr-1" /> Distribución masiva
+            </Button>
+          )}
+          <Button className="bg-green-700 hover:bg-green-800" onClick={() => esRecibo === true ? setUploadOpen(true) : setCargarOpen(true)}>
+            <Plus size={16} className="mr-1" /> {esRecibo === true ? 'Cargar Recibo' : 'Cargar Documento'}
           </Button>
         </div>
       </div>
@@ -229,7 +243,7 @@ export function DocumentosTable() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{doc.employee.legajo} · {doc.periodo}</p>
+                    <p className="text-xs text-muted-foreground">{doc.employee.legajo}{doc.periodo ? ` · ${doc.periodo}` : ''}</p>
                   </div>
                   <StatusBadge estado={doc.estado} />
                 </div>
@@ -242,16 +256,27 @@ export function DocumentosTable() {
                   </span>
                 )}
                 <div className="flex gap-2 pt-1">
-                  {(doc.estado === 'BORRADOR' || doc.estado === 'PENDIENTE_ENVIO' || doc.estado === 'ERROR') && (
-                    <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                      <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar a firma'}
-                    </Button>
-                  )}
-                  {doc.estado === 'ENVIADO_A_FIRMA' && (
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleCheckStatus(doc.id)}>
-                      <RefreshCw size={14} className="mr-1" />Ver estado
-                    </Button>
-                  )}
+                  {(() => {
+                    const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
+                    if (accion === 'NINGUNA') return null
+                    if (accion === 'LECTURA') {
+                      if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
+                        return <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Notificar'}</Button>
+                      return null
+                    }
+                    return <>
+                      {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
+                        <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
+                          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar a firma'}
+                        </Button>
+                      )}
+                      {doc.estado === 'ENVIADO_A_FIRMA' && (
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleCheckStatus(doc.id)}>
+                          <RefreshCw size={14} className="mr-1" />Ver estado
+                        </Button>
+                      )}
+                    </>
+                  })()}
                   <Button size="sm" variant="destructive" onClick={() => setDeleteId(doc.id)}>
                     <Trash2 size={14} />
                   </Button>
@@ -281,7 +306,7 @@ export function DocumentosTable() {
                       <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
                       <div className="text-xs text-muted-foreground">{doc.employee.legajo}</div>
                     </TableCell>
-                    <TableCell className="font-mono">{doc.periodo}</TableCell>
+                    <TableCell className="font-mono">{doc.periodo ?? '—'}</TableCell>
                     <TableCell>
                       {doc.tipoDocumento
                         ? <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">{doc.tipoDocumento.nombre}</span>
@@ -297,16 +322,27 @@ export function DocumentosTable() {
                       {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
-                      {(doc.estado === 'BORRADOR' || doc.estado === 'PENDIENTE_ENVIO' || doc.estado === 'ERROR') && (
-                        <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Firmar'}
-                        </Button>
-                      )}
-                      {doc.estado === 'ENVIADO_A_FIRMA' && (
-                        <Button size="sm" variant="outline" onClick={() => handleCheckStatus(doc.id)}>
-                          <RefreshCw size={14} className="mr-1" />Estado
-                        </Button>
-                      )}
+                      {(() => {
+                        const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
+                        if (accion === 'NINGUNA') return null
+                        if (accion === 'LECTURA') {
+                          if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
+                            return <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Notificar'}</Button>
+                          return null
+                        }
+                        return <>
+                          {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
+                            <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
+                              <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Firmar'}
+                            </Button>
+                          )}
+                          {doc.estado === 'ENVIADO_A_FIRMA' && (
+                            <Button size="sm" variant="outline" onClick={() => handleCheckStatus(doc.id)}>
+                              <RefreshCw size={14} className="mr-1" />Estado
+                            </Button>
+                          )}
+                        </>
+                      })()}
                       <Button size="sm" variant="destructive" onClick={() => setDeleteId(doc.id)}>
                         <Trash2 size={14} />
                       </Button>
@@ -336,7 +372,9 @@ export function DocumentosTable() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} />}
+      {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} esRecibo={esRecibo} />}
+      {masivoOpen && <DocumentoMasivoDialog open onClose={() => setMasivoOpen(false)} onSaved={load} />}
+      {cargarOpen && <DocumentoCargarDialog open onClose={() => setCargarOpen(false)} onSaved={load} />}
     </div>
   )
 }

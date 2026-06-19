@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const employeeId = searchParams.get('employeeId')
   const estado = searchParams.get('estado')
   const periodo = searchParams.get('periodo') ?? undefined
+  const reciboParam = searchParams.get('recibo')
+  const RECIBO_TIPO = 'Recibo de Sueldo'
 
   const VALID_ESTADOS = ['BORRADOR', 'ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO', 'ERROR']
   if (estado && !VALID_ESTADOS.includes(estado)) {
@@ -26,17 +28,24 @@ export async function GET(req: NextRequest) {
     ? user.employeeId
     : (employeeId ? Number(employeeId) : undefined)
 
+  const reciboFilter = reciboParam === 'true'
+    ? { tipoDocumento: { nombre: RECIBO_TIPO } }
+    : reciboParam === 'false'
+      ? { OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] }
+      : {}
+
   const docs = await prisma.document.findMany({
     where: {
       ...(effectiveEmployeeId ? { employeeId: effectiveEmployeeId } : {}),
       ...(estado ? { estado } : {}),
       ...(user.role === 'EMPLOYEE' ? { estado: { not: 'BORRADOR' } } : {}),
       ...(periodo ? { periodo: { contains: periodo } } : {}),
+      ...reciboFilter,
     },
     include: {
       employee: { select: { nombre: true, apellido: true, legajo: true } },
       cargadoPor: { select: { email: true } },
-      tipoDocumento: { select: { id: true, nombre: true } },
+      tipoDocumento: { select: { id: true, nombre: true, accion: true } },
     },
     orderBy: { fechaCarga: 'desc' },
   })
@@ -50,11 +59,12 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get('file') as File
   const employeeId = Number(formData.get('employeeId'))
-  const periodo = formData.get('periodo') as string
+  const periodo = (formData.get('periodo') as string | null) || null
+  const metadataRaw = formData.get('metadata') as string | null
   const tipoDocumentoIdRaw = formData.get('tipoDocumentoId')
   const tipoDocumentoId = tipoDocumentoIdRaw ? Number(tipoDocumentoIdRaw) : undefined
 
-  if (!file || !employeeId || !periodo) {
+  if (!file || !employeeId) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
@@ -80,6 +90,7 @@ export async function POST(req: NextRequest) {
       nombreArchivo: file.name,
       filePath,
       periodo,
+      metadata: metadataRaw || null,
       employeeId,
       cargadoPorId: user.userId,
       estado: 'BORRADOR',

@@ -10,8 +10,22 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const doc = await prisma.document.findUnique({ where: { id: Number(id) } })
+  const doc = await prisma.document.findUnique({
+    where: { id: Number(id) },
+    include: { tipoDocumento: { select: { accion: true } } },
+  })
   if (!doc) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
+
+  const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
+
+  if (accion === 'LECTURA' || accion === 'NINGUNA') {
+    await prisma.document.update({
+      where: { id: doc.id },
+      data: { estado: 'ENVIADO_A_FIRMA' },
+    })
+    await logAction(user.userId, 'NOTIFICAR', 'Documento', `Doc ${doc.id} notificado para ${accion}`)
+    return NextResponse.json({ ok: true })
+  }
 
   try {
     const externalId = await sendToSign(doc.id, doc.filePath, doc.nombreArchivo)

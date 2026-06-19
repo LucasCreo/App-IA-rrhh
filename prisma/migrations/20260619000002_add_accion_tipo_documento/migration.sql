@@ -1,0 +1,1 @@
+ALTER TABLE [dbo].[TipoDocumento] ADD [accion] NVARCHAR(1000) NOT NULL DEFAULT 'FIRMA';

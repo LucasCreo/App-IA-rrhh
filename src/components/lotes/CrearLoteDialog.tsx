@@ -122,7 +122,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>Nuevo Lote de Recibos</DialogTitle>
         </DialogHeader>

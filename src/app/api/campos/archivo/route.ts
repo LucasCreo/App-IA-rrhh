@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import { join, extname } from 'path'
 
@@ -7,8 +8,8 @@ const UPLOADS_DIR = join(process.cwd(), 'uploads', 'campos')
 const MAX_SIZE = 10 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File

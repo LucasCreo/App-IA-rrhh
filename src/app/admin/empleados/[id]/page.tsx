@@ -199,7 +199,7 @@ export default function EmpleadoDetailPage() {
             {isVisible('categoria') && (
               <div>
                 <Label>Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
-                <Select key={cats.length} value={String(form.categoriaId)} onValueChange={v => { if (v) { setField('categoriaId')(v); clearError('categoria') } }}>
+                <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { setField('categoriaId')(v); clearError('categoria') } }}>
                   <SelectTrigger className={cn('mt-1', err('categoria') && 'border-red-500 focus:ring-red-500')}>
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>

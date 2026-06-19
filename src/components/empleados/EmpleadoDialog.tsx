@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { Paperclip, X } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 
 interface Categoria { id: number; nombre: string }
@@ -33,6 +34,7 @@ const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
 export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [form, setForm] = useState<Empleado>(empleado ?? empty)
   const [cats, setCats] = useState<Categoria[]>([])
+  const [catsLoaded, setCatsLoaded] = useState(false)
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -44,7 +46,8 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
 
   useEffect(() => {
     if (!open) return
-    fetch('/api/categorias').then(r => r.json()).then(setCats)
+    setCatsLoaded(false)
+    fetch('/api/categorias').then(r => r.json()).then(data => { setCats(data); setCatsLoaded(true) })
     fetch('/api/configuracion/empleados-campos').then(r => r.json()).then(setFieldConfig)
     fetch('/api/configuracion/campos-personalizados').then(r => r.json()).then(setCamposCustom)
     setForm(empleado ?? empty)
@@ -135,7 +138,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="px-1 shrink-0">
           <DialogTitle>{form.id ? 'Editar' : 'Nuevo'} Empleado</DialogTitle>
         </DialogHeader>
@@ -181,14 +184,18 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
           {isVisible('categoria') && (
             <div>
               <Label>Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
-              <Select key={cats.length} value={String(form.categoriaId)} onValueChange={v => { if (v) { set('categoriaId')(v); clearError('categoria') } }}>
-                <SelectTrigger className={cn(err('categoria') && 'border-red-500 focus:ring-red-500')}>
-                  <SelectValue placeholder="Seleccionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cats.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {!catsLoaded ? (
+                <Skeleton className="h-9 w-full rounded-md" />
+              ) : (
+                <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { set('categoriaId')(v); clearError('categoria') } }}>
+                  <SelectTrigger className={cn(err('categoria') && 'border-red-500 focus:ring-red-500')}>
+                    <SelectValue placeholder="Seleccionar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cats.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
           {isVisible('estado') && (

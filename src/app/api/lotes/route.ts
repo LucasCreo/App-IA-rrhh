@@ -12,27 +12,20 @@ export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const [lotes, descs] = await Promise.all([
-    (prisma as any).lote.findMany({
-      include: {
-        tipoDocumento: { select: { id: true, nombre: true } },
-        documentos: { select: { estado: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.$queryRawUnsafe<Array<{ id: number; descripcion: string | null }>>(
-      `SELECT id, descripcion FROM Lote`
-    ),
-  ])
+  const lotes = await prisma.lote.findMany({
+    include: {
+      tipoDocumento: { select: { id: true, nombre: true } },
+      documentos: { select: { estado: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
-  const descMap = new Map(descs.map((d: any) => [d.id, d.descripcion ?? null]))
-
-  return NextResponse.json(lotes.map((l: any) => {
-    const docs: Array<{ estado: string }> = l.documentos
+  return NextResponse.json(lotes.map(l => {
+    const docs = l.documentos
     return {
       id: l.id,
       nombre: l.nombre,
-      descripcion: descMap.get(l.id) ?? null,
+      descripcion: l.descripcion ?? null,
       periodo: l.periodo,
       createdAt: l.createdAt,
       tipoDocumento: l.tipoDocumento,
@@ -63,18 +56,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
-  const lote = await (prisma as any).lote.create({
+  const lote = await prisma.lote.create({
     data: {
       nombre,
+      descripcion,
       periodo,
       creadoPorId: user.userId,
       ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
     },
   })
-
-  if (descripcion) {
-    await prisma.$executeRawUnsafe(`UPDATE Lote SET descripcion = @p1 WHERE id = @p2`, descripcion, lote.id)
-  }
 
   const uploadsDir = join(process.cwd(), 'uploads')
   await mkdir(uploadsDir, { recursive: true })

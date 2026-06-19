@@ -4,14 +4,14 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Send, ChevronLeft, ChevronRight, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, ChevronLeft, ChevronRight, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const nav = [
   { href: '/empleado', label: 'Inicio', icon: LayoutDashboard },
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
-  { href: '/empleado/documentos', label: 'Documentos', icon: Send },
+  { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
 ]
 
 interface Props {

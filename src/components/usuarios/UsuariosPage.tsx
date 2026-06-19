@@ -41,7 +41,7 @@ export function UsuariosPage() {
   const [tab, setTab] = useState<'usuarios' | 'roles'>('usuarios')
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="max-w-5xl">
       <div className="flex border-b mb-6">
         {TABS.map(t => (
           <button

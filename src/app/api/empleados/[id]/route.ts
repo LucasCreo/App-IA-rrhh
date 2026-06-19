@@ -26,49 +26,54 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json()
 
   try {
-    const emp = await prisma.employee.update({
-      where: { id: Number(id) },
-      data: {
-        legajo: body.legajo,
-        nombre: body.nombre,
-        apellido: body.apellido,
-        cuil: body.cuil,
-        email: body.email,
-        telefono: body.telefono ?? null,
-        fechaIngreso: new Date(body.fechaIngreso),
-        categoriaId: Number(body.categoriaId),
-        estado: body.estado,
-      },
-      include: { categoria: true },
-    })
-    if (body.camposPersonalizados) {
-      await Promise.all(
-        (body.camposPersonalizados as Array<{ campoId: number; valor: string }>).map(v =>
-          prisma.valorCampoEmpleado.upsert({
-            where: { employeeId_campoId: { employeeId: emp.id, campoId: v.campoId } },
-            update: { valor: v.valor },
-            create: { employeeId: emp.id, campoId: v.campoId, valor: v.valor },
-          })
-        )
-      )
-    }
-    const existingUser = await prisma.user.findUnique({ where: { employeeId: emp.id } })
-    if (existingUser && body.username !== undefined) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: { username: body.username || null },
-      })
-    } else if (!existingUser && body.crearUsuario && body.password) {
-      await prisma.user.create({
+    const emp = await prisma.$transaction(async tx => {
+      const updated = await tx.employee.update({
+        where: { id: Number(id) },
         data: {
+          legajo: body.legajo,
+          nombre: body.nombre,
+          apellido: body.apellido,
+          cuil: body.cuil,
           email: body.email,
-          username: body.username || null,
-          passwordHash: await hashPassword(body.password),
-          role: 'EMPLOYEE',
-          employeeId: emp.id,
+          telefono: body.telefono ?? null,
+          fechaIngreso: new Date(body.fechaIngreso),
+          categoriaId: Number(body.categoriaId),
+          estado: body.estado,
         },
+        include: { categoria: true },
       })
-    }
+      if (body.camposPersonalizados) {
+        await Promise.all(
+          (body.camposPersonalizados as Array<{ campoId: number; valor: string }>).map(v =>
+            tx.valorCampoEmpleado.upsert({
+              where: { employeeId_campoId: { employeeId: updated.id, campoId: v.campoId } },
+              update: { valor: v.valor },
+              create: { employeeId: updated.id, campoId: v.campoId, valor: v.valor },
+            })
+          )
+        )
+      }
+      const existingUser = await tx.user.findUnique({ where: { employeeId: updated.id } })
+      if (existingUser) {
+        const userUpdate: Record<string, unknown> = {}
+        if (body.username !== undefined) userUpdate.username = body.username || null
+        if (body.email && body.email !== existingUser.email) userUpdate.email = body.email
+        if (Object.keys(userUpdate).length > 0) {
+          await tx.user.update({ where: { id: existingUser.id }, data: userUpdate })
+        }
+      } else if (body.crearUsuario && body.password) {
+        await tx.user.create({
+          data: {
+            email: body.email,
+            username: body.username || null,
+            passwordHash: await hashPassword(body.password),
+            role: 'EMPLOYEE',
+            employeeId: updated.id,
+          },
+        })
+      }
+      return updated
+    })
     await logAction(user.userId, 'MODIFICAR', 'Empleado', `Legajo: ${emp.legajo}`)
     return NextResponse.json(emp)
   } catch (e) {

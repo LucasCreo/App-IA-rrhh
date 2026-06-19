@@ -9,11 +9,11 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const [lote, empleados, descRows] = await Promise.all([
-    (prisma as any).lote.findUnique({
+  const [lote, empleados] = await Promise.all([
+    prisma.lote.findUnique({
       where: { id: Number(id) },
       include: {
-        tipoDocumento: { select: { id: true, nombre: true } },
+        tipoDocumento: { select: { id: true, nombre: true, accion: true } },
         documentos: { orderBy: { fechaCarga: 'desc' } },
       },
     }),
@@ -22,9 +22,6 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       select: { id: true, nombre: true, apellido: true, legajo: true },
       orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
     }),
-    prisma.$queryRawUnsafe<Array<{ descripcion: string | null }>>(
-      `SELECT descripcion FROM Lote WHERE id = ${Number(id)}`
-    ),
   ])
 
   if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
@@ -54,7 +51,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
   const { documentos: _omit, ...loteInfo } = lote
   return NextResponse.json({
-    lote: { ...loteInfo, descripcion: descRows[0]?.descripcion ?? null },
+    lote: loteInfo,
     empleados: empleadosConEstado,
     stats,
   })
@@ -71,10 +68,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const n = nombre.trim()
   const desc: string | null = descripcion?.trim() || null
 
-  await prisma.$executeRawUnsafe(
-    `UPDATE Lote SET nombre = @p1, descripcion = @p2 WHERE id = @p3`,
-    n, desc, Number(id)
-  )
+  await prisma.lote.update({
+    where: { id: Number(id) },
+    data: { nombre: n, descripcion: desc },
+  })
 
   await logAction(user.userId, 'EDITAR_LOTE', 'Lote', n)
   return NextResponse.json({ id: Number(id), nombre: n, descripcion: desc })

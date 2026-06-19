@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 
 export async function GET() {
+  const user = await requirePermiso(PERMISOS.VER_DASHBOARD)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   const [
     totalEmpleados, activos, inactivos,
     totalDocs, docsByEstado, empByCategoria,
@@ -93,7 +97,6 @@ export async function GET() {
     documentosPorEstado: [
       { name: 'Firmados', value: documentsByEstado['FIRMADO'] ?? 0, color: '#16a34a' },
       { name: 'Enviados', value: documentsByEstado['ENVIADO_A_FIRMA'] ?? 0, color: '#2563eb' },
-      { name: 'Pendientes', value: documentsByEstado['PENDIENTE_ENVIO'] ?? 0, color: '#ca8a04' },
       { name: 'Borradores', value: documentsByEstado['BORRADOR'] ?? 0, color: '#6b7280' },
       { name: 'Rechazados', value: documentsByEstado['RECHAZADO'] ?? 0, color: '#dc2626' },
     ],

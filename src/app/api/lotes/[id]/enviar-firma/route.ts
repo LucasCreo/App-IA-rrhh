@@ -10,6 +10,12 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const lote = await (prisma as any).lote.findUnique({
+    where: { id: Number(id) },
+    include: { tipoDocumento: { select: { accion: true } } },
+  })
+  const accion: string = lote?.tipoDocumento?.accion ?? 'FIRMA'
+
   const docs = await prisma.document.findMany({
     where: { loteId: Number(id), estado: { in: ['BORRADOR', 'ERROR'] } },
   })
@@ -19,11 +25,18 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
   for (const doc of docs) {
     try {
-      const externalId = await sendToSign(doc.id, doc.filePath, doc.nombreArchivo)
-      await prisma.document.update({
-        where: { id: doc.id },
-        data: { estado: 'ENVIADO_A_FIRMA', firmaExternalId: externalId },
-      })
+      if (accion === 'LECTURA' || accion === 'NINGUNA') {
+        await prisma.document.update({
+          where: { id: doc.id },
+          data: { estado: 'ENVIADO_A_FIRMA' },
+        })
+      } else {
+        const externalId = await sendToSign(doc.id, doc.filePath, doc.nombreArchivo)
+        await prisma.document.update({
+          where: { id: doc.id },
+          data: { estado: 'ENVIADO_A_FIRMA', firmaExternalId: externalId },
+        })
+      }
       sent++
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error'

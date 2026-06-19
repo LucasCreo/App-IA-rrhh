@@ -39,7 +39,7 @@ interface LoteInfo {
   descripcion: string | null
   periodo: string
   createdAt: string
-  tipoDocumento: { id: number; nombre: string } | null
+  tipoDocumento: { id: number; nombre: string; accion: string } | null
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -172,8 +172,9 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
 
   if (!lote || !stats) return null
 
+  const accion = lote.tipoDocumento?.accion ?? 'FIRMA'
   const pct = stats.total > 0 ? Math.round(stats.firmados / stats.total * 100) : 0
-  const canEnviarTodos = (stats.borradores + stats.errores) > 0
+  const canEnviarTodos = accion !== 'NINGUNA' && (stats.borradores + stats.errores) > 0
 
   const filtroTabs: { key: Filtro; label: string; count: number }[] = [
     { key: 'todos',     label: 'Todos',     count: empleados.length },
@@ -208,7 +209,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
           disabled={!canEnviarTodos || sending}
         >
           <Send size={14} className="mr-1.5" />
-          {sending ? 'Enviando...' : 'Enviar todos a firma'}
+          {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
         </Button>
       </header>
 
@@ -264,7 +265,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium text-foreground">
-                {stats.firmados} de {stats.total} empleados firmaron
+                {stats.firmados} de {stats.total} empleados {accion === 'LECTURA' ? 'leyeron' : 'firmaron'}
               </p>
               <span className="text-sm font-bold text-green-600 dark:text-green-400">{pct}%</span>
             </div>
@@ -327,7 +328,10 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                 </tr>
               ) : filteredEmpleados.map((emp, idx) => {
                 const estadoKey = (emp.documento?.estado ?? 'SIN_RECIBO') as EstadoKey
-                const cfg = ESTADO_CONFIG[estadoKey] ?? ESTADO_CONFIG.SIN_RECIBO
+                const cfgBase = ESTADO_CONFIG[estadoKey] ?? ESTADO_CONFIG.SIN_RECIBO
+                const cfg = accion === 'LECTURA' && estadoKey === 'FIRMADO'
+                  ? { ...cfgBase, label: 'Leído' }
+                  : cfgBase
                 const { Icon } = cfg
                 const docId = emp.documento?.id
                 const isLoading = actionLoading === docId
@@ -345,16 +349,16 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {docId && (estadoKey === 'BORRADOR' || estadoKey === 'ERROR') && (
+                      {docId && (estadoKey === 'BORRADOR' || estadoKey === 'ERROR') && accion !== 'NINGUNA' && (
                         <button
                           onClick={() => enviarDoc(docId)}
                           disabled={isLoading}
                           className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 disabled:opacity-50 inline-flex items-center gap-1 ml-auto"
                         >
-                          <Send size={11} />{isLoading ? '...' : 'Enviar'}
+                          <Send size={11} />{isLoading ? '...' : accion === 'LECTURA' ? 'Notificar' : 'Enviar'}
                         </button>
                       )}
-                      {docId && estadoKey === 'ENVIADO_A_FIRMA' && (
+                      {docId && estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && (
                         <button
                           onClick={() => verificarDoc(docId)}
                           disabled={isLoading}

@@ -74,7 +74,8 @@ model Document {
   id              Int       @id @default(autoincrement())
   nombreArchivo   String
   filePath        String
-  periodo         String
+  periodo         String?
+  metadata        String?
   fechaCarga      DateTime  @default(now())
   cargadoPorId    Int
   employeeId      Int
@@ -92,12 +93,15 @@ model Document {
 }
 
 model TipoDocumento {
-  id          Int        @id @default(autoincrement())
-  nombre      String     @unique
-  descripcion String?
-  documentos  Document[]
-  lotes       Lote[]
-  createdAt   DateTime   @default(now())
+  id            Int        @id @default(autoincrement())
+  nombre        String     @unique
+  descripcion   String?
+  accion        String     @default("FIRMA")
+  campos        String?
+  tienePeriodo  Boolean    @default(true)
+  documentos    Document[]
+  lotes         Lote[]
+  createdAt     DateTime   @default(now())
 }
 
 model Lote {

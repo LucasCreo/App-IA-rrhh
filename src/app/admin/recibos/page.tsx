@@ -2,21 +2,21 @@
 
 import { useState } from 'react'
 import { AdminHeader } from '@/components/layout/AdminHeader'
+import { LotesTable } from '@/components/lotes/LotesTable'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
-import { SolicitudesTab } from '@/components/solicitudes/SolicitudesTab'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { id: 'documentos', label: 'Documentos' },
-  { id: 'solicitudes', label: 'Solicitudes de empleados' },
+  { id: 'lotes', label: 'Lotes' },
+  { id: 'individuales', label: 'Individuales' },
 ]
 
-export default function DocumentosPage() {
-  const [tab, setTab] = useState('documentos')
+export default function RecibosPage() {
+  const [tab, setTab] = useState('lotes')
 
   return (
     <>
-      <AdminHeader title="Documentos" />
+      <AdminHeader title="Recibos de Sueldo" />
       <div className="p-6">
         <div className="flex border-b mb-6">
           {TABS.map(t => (
@@ -34,8 +34,8 @@ export default function DocumentosPage() {
             </button>
           ))}
         </div>
-        {tab === 'documentos' && <DocumentosTable esRecibo={false} />}
-        {tab === 'solicitudes' && <SolicitudesTab />}
+        {tab === 'lotes' && <LotesTable />}
+        {tab === 'individuales' && <DocumentosTable esRecibo={true} />}
       </div>
     </>
   )

@@ -4,14 +4,22 @@ import { useEffect, useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, X } from 'lucide-react'
 
+interface CampoDefinicion {
+  nombre: string
+  label: string
+  tipo: 'mes_anio' | 'texto' | 'numero' | 'fecha'
+  requerido: boolean
+}
+
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
-interface Tipo { id: number; nombre: string }
-interface Entry { file: File; empleadoId: string; mes: string; ano: string }
-interface Props { open: boolean; onClose: () => void; onSaved: () => void }
+interface Tipo { id: number; nombre: string; campos?: CampoDefinicion[] | null; tienePeriodo?: boolean }
+interface Entry { file: File; empleadoId: string; campoValues: Record<string, string> }
+interface Props { open: boolean; onClose: () => void; onSaved: () => void; esRecibo?: boolean }
 
 const MESES = [
   { value: '01', label: 'Enero' }, { value: '02', label: 'Febrero' },
@@ -24,7 +32,25 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
+const DEFAULT_CAMPOS: CampoDefinicion[] = [
+  { nombre: 'periodo', label: 'Período', tipo: 'mes_anio', requerido: true },
+]
+
+function buildDefaultValues(campos: CampoDefinicion[]): Record<string, string> {
+  const now = new Date()
+  const defaults: Record<string, string> = {}
+  for (const campo of campos) {
+    if (campo.tipo === 'mes_anio') {
+      defaults[`${campo.nombre}__mes`] = String(now.getMonth() + 1).padStart(2, '0')
+      defaults[`${campo.nombre}__ano`] = String(now.getFullYear())
+    } else {
+      defaults[campo.nombre] = ''
+    }
+  }
+  return defaults
+}
+
+export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [tipos, setTipos] = useState<Tipo[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
@@ -35,15 +61,34 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) return
     fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => setEmpleados(d.employees))
-    fetch('/api/configuracion/tipos-documento').then(r => r.json()).then(setTipos)
+    const RECIBO_TIPO = 'Recibo de Sueldo'
+    fetch('/api/configuracion/tipos-documento').then(r => r.json()).then((data: Tipo[]) => {
+      setTipos(esRecibo === true
+        ? data.filter(t => t.nombre === RECIBO_TIPO)
+        : esRecibo === false
+          ? data.filter(t => t.nombre !== RECIBO_TIPO)
+          : data)
+    })
     setEntries([])
     setTipoId('')
-  }, [open])
+  }, [open, esRecibo])
+
+  const selectedTipo = tipos.find(t => String(t.id) === tipoId)
+  const activeCampos: CampoDefinicion[] = selectedTipo?.campos?.length
+    ? selectedTipo.campos
+    : (selectedTipo && selectedTipo.tienePeriodo === false) ? [] : DEFAULT_CAMPOS
+
+  // Reset campo values when tipo changes
+  useEffect(() => {
+    if (!open) return
+    const defaults = buildDefaultValues(activeCampos)
+    setEntries(prev => prev.map(e => ({ ...e, campoValues: defaults })))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoId])
 
   function addFiles(newFiles: File[]) {
-    const defaultMes = String(new Date().getMonth() + 1).padStart(2, '0')
-    const defaultAno = String(new Date().getFullYear())
-    setEntries(prev => [...prev, ...newFiles.map(file => ({ file, empleadoId: '', mes: defaultMes, ano: defaultAno }))])
+    const defaults = buildDefaultValues(activeCampos)
+    setEntries(prev => [...prev, ...newFiles.map(file => ({ file, empleadoId: '', campoValues: defaults }))])
   }
 
   function removeEntry(index: number) {
@@ -54,26 +99,46 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
     setEntries(prev => prev.map((e, i) => i === index ? { ...e, empleadoId } : e))
   }
 
-  function setEntryMes(index: number, mes: string) {
-    setEntries(prev => prev.map((e, i) => i === index ? { ...e, mes } : e))
+  function setCampoValue(index: number, key: string, value: string) {
+    setEntries(prev => prev.map((e, i) => i === index ? { ...e, campoValues: { ...e.campoValues, [key]: value } } : e))
   }
 
-  function setEntryAno(index: number, ano: string) {
-    setEntries(prev => prev.map((e, i) => i === index ? { ...e, ano } : e))
+  function buildFormData(entry: Entry): FormData {
+    const fd = new FormData()
+    fd.append('file', entry.file)
+    fd.append('employeeId', entry.empleadoId)
+    if (tipoId) fd.append('tipoDocumentoId', tipoId)
+
+    const metadata: Record<string, string> = {}
+    for (const campo of activeCampos) {
+      if (campo.tipo === 'mes_anio') {
+        const mes = entry.campoValues[`${campo.nombre}__mes`]
+        const ano = entry.campoValues[`${campo.nombre}__ano`]
+        if (mes && ano) {
+          if (campo.nombre === 'periodo') {
+            fd.append('periodo', `${ano}-${mes}`)
+          } else {
+            metadata[campo.nombre] = `${ano}-${mes}`
+          }
+        }
+      } else {
+        const value = entry.campoValues[campo.nombre]
+        if (value?.trim()) metadata[campo.nombre] = value.trim()
+      }
+    }
+    if (Object.keys(metadata).length > 0) {
+      fd.append('metadata', JSON.stringify(metadata))
+    }
+    return fd
   }
 
   async function handleUpload() {
     if (!entries.length) return
     setLoading(true)
     try {
-      const results = await Promise.all(entries.map(({ file, empleadoId, mes, ano }) => {
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('employeeId', empleadoId)
-        fd.append('periodo', `${ano}-${mes}`)
-        if (tipoId) fd.append('tipoDocumentoId', tipoId)
-        return fetch('/api/documentos', { method: 'POST', body: fd })
-      }))
+      const results = await Promise.all(entries.map(entry =>
+        fetch('/api/documentos', { method: 'POST', body: buildFormData(entry) })
+      ))
       const failed = results.filter(r => !r.ok)
       if (failed.length > 0) {
         toast.error(`${failed.length} archivo(s) no pudieron cargarse`)
@@ -88,13 +153,28 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
     }
   }
 
-  const canUpload = entries.length > 0 && entries.every(e => e.empleadoId && e.mes && e.ano) && !loading
+  const canUpload = entries.length > 0 &&
+    entries.every(e => {
+      if (!e.empleadoId) return false
+      for (const campo of activeCampos) {
+        if (!campo.requerido) continue
+        if (campo.tipo === 'mes_anio') {
+          if (!e.campoValues[`${campo.nombre}__mes`] || !e.campoValues[`${campo.nombre}__ano`]) return false
+        } else {
+          if (!e.campoValues[campo.nombre]?.trim()) return false
+        }
+      }
+      return true
+    }) && !loading
+
+  const dialogTitle = esRecibo === true ? 'Cargar Recibo de Sueldo' : 'Cargar Documento'
+  const btnLabel = esRecibo === true ? 'Recibo' : 'Documento'
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl flex flex-col max-h-[85vh] overflow-hidden">
+      <DialogContent className="sm:max-w-2xl flex flex-col max-h-[85vh] overflow-hidden">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Cargar Recibo de Sueldo</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
@@ -139,9 +219,9 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
                       <X size={14} />
                     </button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
-                      <SelectTrigger className="flex-1 h-8 text-xs">
+                      <SelectTrigger className="flex-1 min-w-40 h-8 text-xs">
                         <SelectValue placeholder="Empleado…" />
                       </SelectTrigger>
                       <SelectContent>
@@ -152,18 +232,44 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select value={entry.mes} onValueChange={v => setEntryMes(i, v)}>
-                      <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={entry.ano} onValueChange={v => setEntryAno(i, v)}>
-                      <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    {activeCampos.map(campo => {
+                      if (campo.tipo === 'mes_anio') {
+                        return (
+                          <>
+                            <Select
+                              key={`${campo.nombre}__mes`}
+                              value={entry.campoValues[`${campo.nombre}__mes`] ?? ''}
+                              onValueChange={v => setCampoValue(i, `${campo.nombre}__mes`, v)}
+                            >
+                              <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Mes" /></SelectTrigger>
+                              <SelectContent>
+                                {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              key={`${campo.nombre}__ano`}
+                              value={entry.campoValues[`${campo.nombre}__ano`] ?? ''}
+                              onValueChange={v => setCampoValue(i, `${campo.nombre}__ano`, v)}
+                            >
+                              <SelectTrigger className="w-20 h-8 text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
+                              <SelectContent>
+                                {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </>
+                        )
+                      }
+                      return (
+                        <Input
+                          key={campo.nombre}
+                          type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
+                          value={entry.campoValues[campo.nombre] ?? ''}
+                          onChange={e => setCampoValue(i, campo.nombre, e.target.value)}
+                          placeholder={campo.label}
+                          className="h-8 text-xs w-36"
+                        />
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -178,7 +284,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved }: Props) {
             onClick={handleUpload}
             disabled={!canUpload}
           >
-            {loading ? 'Subiendo...' : entries.length > 1 ? `Cargar ${entries.length} Recibos` : 'Cargar Recibo'}
+            {loading ? 'Subiendo...' : entries.length > 1 ? `Cargar ${entries.length} ${btnLabel}s` : `Cargar ${btnLabel}`}
           </Button>
         </DialogFooter>
       </DialogContent>

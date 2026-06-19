@@ -17,7 +17,7 @@ export const LABELS_PERMISOS: Record<Permiso, string> = {
   VER_DASHBOARD: 'Ver dashboard',
   GESTIONAR_EMPLEADOS: 'Gestionar empleados',
   GESTIONAR_DOCUMENTOS: 'Gestionar documentos',
-  GESTIONAR_LOTES: 'Gestionar lotes de recibos',
+  GESTIONAR_LOTES: 'Gestionar recibos de sueldo',
   GESTIONAR_SOLICITUDES: 'Gestionar solicitudes',
   VER_AUDITORIA: 'Ver auditoría',
   GESTIONAR_CONFIGURACION: 'Gestionar configuración',

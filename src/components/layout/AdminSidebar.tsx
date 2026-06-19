@@ -4,17 +4,18 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, Inbox, ChevronLeft, ChevronRight, Layers, ShieldCheck, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, LogOut, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
   { href: '/admin/empleados', label: 'Empleados', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
-  { href: '/admin/lotes', label: 'Lotes', icon: Layers, permiso: 'GESTIONAR_LOTES' },
-  { href: '/admin/solicitudes', label: 'Solicitudes', icon: Inbox, permiso: 'GESTIONAR_SOLICITUDES' },
+  { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList, permiso: 'VER_AUDITORIA' },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: ShieldCheck, permiso: 'GESTIONAR_USUARIOS' },
+]
+
+const navBottom = [
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings, permiso: 'GESTIONAR_CONFIGURACION' },
 ]
 
@@ -34,6 +35,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   const { theme, toggle } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
   const visibleNav = permisos === null ? nav : nav.filter(item => permisos.includes(item.permiso))
+  const visibleNavBottom = permisos === null ? navBottom : navBottom.filter(item => permisos.includes(item.permiso))
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -83,18 +85,42 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                 {collapsed && href === '/admin/empleados' && pendingModificaciones > 0 && (
                   <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
                 )}
-                {!collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
+                {!collapsed && href === '/admin/documentos' && pendingSolicitudes > 0 && (
                   <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 text-yellow-900 text-xs font-bold px-1">
                     {pendingSolicitudes}
                   </span>
                 )}
-                {collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
+                {collapsed && href === '/admin/documentos' && pendingSolicitudes > 0 && (
                   <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
                 )}
               </Link>
             )
           })}
         </nav>
+        {visibleNavBottom.length > 0 && (
+          <div className="px-2 pb-2 space-y-1">
+            {visibleNavBottom.map(({ href, label, icon: Icon }) => {
+              const active = pathname.startsWith(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                    collapsed && 'justify-center',
+                    active
+                      ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  <Icon size={16} className="shrink-0" />
+                  {!collapsed && label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
         {/* User profile section */}
         <div className={cn(
           'border-t border-border py-3 mt-auto',

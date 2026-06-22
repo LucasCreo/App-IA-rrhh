@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Pencil, Trash2, Plus, Check, X, Settings2 } from 'lucide-react'
+import { Pencil, Trash2, Plus, Check, X, Settings2, Lock } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 
@@ -24,6 +24,7 @@ interface Tipo {
   accion: string
   campos?: CampoDefinicion[] | null
   tienePeriodo?: boolean
+  protegido?: boolean
 }
 
 const ACCIONES: Record<string, string> = {
@@ -168,7 +169,7 @@ export function TabDocumentos() {
                   <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Sin tipos definidos</td></tr>
                 )}
                 {tipos.map(tipo => (
-                  <tr key={tipo.id} className="border-t">
+                  <tr key={tipo.id} className={`border-t${tipo.protegido ? ' bg-muted/50' : ''}`}>
                     {editing?.id === tipo.id ? (
                       <>
                         <td className="px-3 py-1.5">
@@ -207,8 +208,14 @@ export function TabDocumentos() {
                               <span className="ml-1 text-xs text-muted-foreground">{tipo.campos.length}</span>
                             ) : null}
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(tipo)}><Pencil size={13} /></Button>
-                          <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(tipo.id)}><Trash2 size={13} /></Button>
+                          {tipo.protegido ? (
+                            <span title="Tipo protegido" className="inline-flex items-center px-2 text-muted-foreground/50"><Lock size={13} /></span>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => setEditing(tipo)}><Pencil size={13} /></Button>
+                              <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(tipo.id)}><Trash2 size={13} /></Button>
+                            </>
+                          )}
                         </td>
                       </>
                     )}

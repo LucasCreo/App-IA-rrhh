@@ -35,7 +35,7 @@ export function KPICards({ data }: { data: Record<string, any> }) {
 
       <div className="rounded-xl border bg-card border-border p-5 flex flex-col gap-3 hover:-translate-y-1 hover:shadow-md transition-all duration-200 cursor-default">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Recibos</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Emitidos</span>
           <div className="p-1.5 rounded-lg shrink-0 bg-purple-50 dark:bg-purple-950/30">
             <FileText size={14} className="text-purple-500 dark:text-purple-400" />
           </div>
@@ -48,7 +48,7 @@ export function KPICards({ data }: { data: Record<string, any> }) {
 
       <div className={`rounded-xl border p-5 flex flex-col gap-3 hover:-translate-y-1 hover:shadow-md transition-all duration-200 cursor-default ${solAlert ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700' : 'bg-card border-border'}`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Solicitudes</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Recibidos</span>
           <div className="p-1.5 rounded-lg shrink-0 bg-yellow-50 dark:bg-yellow-950/30">
             <Inbox size={14} className="text-yellow-600 dark:text-yellow-400" />
           </div>

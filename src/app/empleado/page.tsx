@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 
 export default async function EmpleadoPage() {
   const cookieStore = await cookies()
@@ -14,16 +13,17 @@ export default async function EmpleadoPage() {
   const decoded = await verifyToken(token)
   if (!decoded.employeeId) redirect('/login')
 
-  const [employee, totalRecibos, totalSolicitudes, solicitudesPendientes, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
+  const RECIBO_TIPO = 'Recibo de Sueldo'
+  const [employee, totalRecibos, totalSolicitudes, totalDocumentosRecibidos, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
       include: { categoria: true },
     }),
-    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { not: 'BORRADOR' } } }),
+    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
-    prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
+    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] } }),
     prisma.document.findMany({
-      where: { employeeId: decoded.employeeId, estado: { not: 'BORRADOR' } },
+      where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } },
       orderBy: { fechaCarga: 'desc' },
       take: 3,
     }),
@@ -76,15 +76,10 @@ export default async function EmpleadoPage() {
             <p className="text-2xl font-bold">{totalSolicitudes}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Documentos enviados</p>
           </Link>
-          <Link href="/empleado/documentos" className={cn(
-            'rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow',
-            solicitudesPendientes > 0 && 'border-yellow-400 dark:border-yellow-600'
-          )}>
-            <Clock size={18} className={cn('mx-auto mb-1.5', solicitudesPendientes > 0 ? 'text-yellow-500' : 'text-muted-foreground')} />
-            <p className={cn('text-2xl font-bold', solicitudesPendientes > 0 && 'text-yellow-600 dark:text-yellow-400')}>
-              {solicitudesPendientes}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Solicitudes pendientes</p>
+          <Link href="/empleado/documentos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+            <Clock size={18} className="mx-auto mb-1.5 text-muted-foreground" />
+            <p className="text-2xl font-bold">{totalDocumentosRecibidos}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Documentos recibidos</p>
           </Link>
         </div>
 

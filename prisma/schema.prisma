@@ -99,6 +99,7 @@ model TipoDocumento {
   accion        String     @default("FIRMA")
   campos        String?
   tienePeriodo  Boolean    @default(true)
+  protegido     Boolean    @default(false)
   documentos    Document[]
   lotes         Lote[]
   createdAt     DateTime   @default(now())

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     where: {
       ...(effectiveEmployeeId ? { employeeId: effectiveEmployeeId } : {}),
       ...(estado ? { estado } : {}),
-      ...(user.role === 'EMPLOYEE' ? { estado: { not: 'BORRADOR' } } : {}),
+      ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
       ...(periodo ? { periodo: { contains: periodo } } : {}),
       ...reciboFilter,
     },

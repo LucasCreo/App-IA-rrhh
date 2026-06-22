@@ -9,6 +9,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
+  const existing = await prisma.tipoDocumento.findUnique({ where: { id: Number(id) } })
+  if (existing?.protegido) return NextResponse.json({ error: 'Este tipo de documento es inmutable' }, { status: 403 })
+
   const { nombre, descripcion, accion, campos, tienePeriodo } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
@@ -39,6 +42,9 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
+  const existing = await prisma.tipoDocumento.findUnique({ where: { id: Number(id) } })
+  if (existing?.protegido) return NextResponse.json({ error: 'Este tipo de documento es inmutable' }, { status: 403 })
+
   try {
     await prisma.$transaction(async tx => {
       await tx.document.updateMany({ where: { tipoDocumentoId: Number(id) }, data: { tipoDocumentoId: null } })

@@ -5,7 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { Prisma } from '@prisma/client'
 
 export async function GET() {
-  const tipos = await prisma.tipoDocumento.findMany({ orderBy: { nombre: 'asc' } })
+  const tipos = await prisma.tipoDocumento.findMany({ orderBy: [{ protegido: 'desc' }, { nombre: 'asc' }] })
   return NextResponse.json(tipos.map(t => ({
     ...t,
     campos: t.campos ? JSON.parse(t.campos) : null,

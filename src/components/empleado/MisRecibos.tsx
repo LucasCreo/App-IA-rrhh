@@ -20,7 +20,7 @@ export function MisRecibos({ employeeId }: Props) {
   const [marking, setMarking] = useState<number | null>(null)
 
   function load() {
-    fetch(`/api/documentos?employeeId=${employeeId}`)
+    fetch(`/api/documentos?employeeId=${employeeId}&recibo=true`)
       .then(r => r.json())
       .then(setDocs)
   }

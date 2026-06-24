@@ -30,7 +30,7 @@ interface Plantilla {
 }
 
 const TIPOS_CRITERIO = [
-  { value: 'numerico', label: 'Numérico (1-5)' },
+  { value: 'numerico', label: 'Numérico (1-10)' },
   { value: 'texto', label: 'Texto libre' },
 ]
 

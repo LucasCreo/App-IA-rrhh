@@ -55,7 +55,7 @@ export function MisEvaluaciones() {
                     <p className="text-xs text-muted-foreground">{c.label}</p>
                     <p className="text-lg font-bold text-green-700 dark:text-green-400">
                       {ev.resultados[c.nombre] ?? '—'}
-                      <span className="text-xs font-normal text-muted-foreground">/5</span>
+                      <span className="text-xs font-normal text-muted-foreground">/10</span>
                     </p>
                   </div>
                 ))}

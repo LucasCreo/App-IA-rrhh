@@ -1,17 +1,41 @@
-import { getCurrentUser } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useState } from 'react'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { RondasList } from '@/components/evaluaciones/RondasList'
+import { EvaluacionesIndividuales } from '@/components/evaluaciones/EvaluacionesIndividuales'
+import { cn } from '@/lib/utils'
 
-export default async function EvaluacionesPage() {
-  const user = await getCurrentUser()
-  if (!user) redirect('/login')
+const TABS = [
+  { id: 'rondas', label: 'Rondas' },
+  { id: 'individuales', label: 'Individuales' },
+]
+
+export default function EvaluacionesPage() {
+  const [tab, setTab] = useState('rondas')
 
   return (
     <>
       <AdminHeader title="Evaluaciones de desempeño" />
       <div className="p-6">
-        <RondasList />
+        <div className="flex border-b mb-6">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                tab === t.id
+                  ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tab === 'rondas' && <RondasList />}
+        {tab === 'individuales' && <EvaluacionesIndividuales />}
       </div>
     </>
   )

@@ -140,7 +140,7 @@ export function RondaDetalle({ id }: { id: number }) {
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                   {criterios.filter(c => c.tipo === 'numerico').map(c => (
                     <span key={c.nombre} className="text-xs text-muted-foreground">
-                      {c.label}: <span className="font-medium text-foreground">{ev.resultados[c.nombre] ?? '—'}/5</span>
+                      {c.label}: <span className="font-medium text-foreground">{ev.resultados[c.nombre] ?? '—'}/10</span>
                     </span>
                   ))}
                 </div>
@@ -172,7 +172,7 @@ export function RondaDetalle({ id }: { id: number }) {
                 <p className="text-sm font-medium mb-2">{criterio.label}</p>
                 {criterio.tipo === 'numerico' ? (
                   <div className="flex gap-1.5">
-                    {[1, 2, 3, 4, 5].map(n => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                       <button
                         key={n}
                         onClick={() => setResultado(criterio.nombre, String(n))}

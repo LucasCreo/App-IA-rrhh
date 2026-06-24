@@ -4,7 +4,7 @@ import { EmpleadosTable } from '@/components/empleados/EmpleadosTable'
 export default function EmpleadosPage() {
   return (
     <>
-      <AdminHeader title="Empleados" />
+      <AdminHeader title="Legajos" />
       <div className="p-6">
         <EmpleadosTable />
       </div>

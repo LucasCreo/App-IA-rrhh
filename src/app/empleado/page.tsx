@@ -2,8 +2,9 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight } from 'lucide-react'
+import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList } from 'lucide-react'
 import Link from 'next/link'
+import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 
 export default async function EmpleadoPage() {
   const cookieStore = await cookies()
@@ -14,16 +15,18 @@ export default async function EmpleadoPage() {
   if (!decoded.employeeId) redirect('/login')
 
   const RECIBO_TIPO = 'Recibo de Sueldo'
-  const [employee, totalRecibos, totalSolicitudes, totalDocumentosRecibidos, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
+  const [employee, dbUser, totalRecibos, totalSolicitudes, totalDocumentosRecibidos, totalFormulariosPendientes, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
       include: { categoria: true },
     }),
-    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true } }),
+    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] } }),
+    prisma.respuestaFormulario.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
     prisma.document.findMany({
-      where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } },
+      where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } },
       orderBy: { fechaCarga: 'desc' },
       take: 3,
     }),
@@ -46,9 +49,13 @@ export default async function EmpleadoPage() {
         {/* Bienvenida */}
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-xl font-bold shrink-0 select-none text-green-700 dark:text-green-400">
-              {`${employee.nombre[0]}${employee.apellido[0]}`.toUpperCase()}
-            </div>
+            {dbUser?.avatarUrl ? (
+              <img src={`/api/auth/avatar?file=${dbUser.avatarUrl}`} alt="Avatar" className="h-14 w-14 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-xl font-bold shrink-0 select-none text-green-700 dark:text-green-400">
+                {`${employee.nombre[0]}${employee.apellido[0]}`.toUpperCase()}
+              </div>
+            )}
             <div>
               <h2 className="text-lg font-bold text-green-700 dark:text-green-400">Bienvenido, {employee.nombre}</h2>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">
@@ -65,7 +72,7 @@ export default async function EmpleadoPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <Link href="/empleado/recibos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             <FileText size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalRecibos}</p>
@@ -80,6 +87,11 @@ export default async function EmpleadoPage() {
             <Clock size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalDocumentosRecibidos}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Documentos recibidos</p>
+          </Link>
+          <Link href="/empleado/documentos?tab=formularios" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+            <ClipboardList size={18} className="mx-auto mb-1.5 text-muted-foreground" />
+            <p className="text-2xl font-bold">{totalFormulariosPendientes}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Formularios pendientes</p>
           </Link>
         </div>
 
@@ -105,6 +117,9 @@ export default async function EmpleadoPage() {
             </div>
           </div>
         )}
+
+        {/* Próximos eventos */}
+        <ProximosEventos href="/empleado/calendario" />
 
         {/* Últimas solicitudes */}
         {ultimasSolicitudes.length > 0 && (

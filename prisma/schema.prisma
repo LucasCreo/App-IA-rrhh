@@ -15,14 +15,16 @@ model User {
   role         String    @default("EMPLOYEE")
   rolId        Int?
   employeeId   Int?      @unique
-  avatarUrl    String?
+  avatarUrl           String?
+  googleRefreshToken  String?
   createdAt    DateTime  @default(now())
 
   rol       Rol?       @relation(fields: [rolId], references: [id])
   employee  Employee?  @relation(fields: [employeeId], references: [id])
-  documents Document[] @relation("CargadoPor")
-  auditLogs AuditLog[]
-  lotes     Lote[]     @relation("LotesCargados")
+  documents       Document[]  @relation("CargadoPor")
+  auditLogs       AuditLog[]
+  lotes           Lote[]      @relation("LotesCargados")
+  eventosCreados  Evento[]    @relation("EventosCreadosPor")
 }
 
 model Rol {
@@ -62,6 +64,9 @@ model Employee {
   valoresCampos   ValorCampoEmpleado[]
   solicitudes              SolicitudDocumento[]
   solicitudesModificacion  SolicitudModificacion[]
+  eventosAsignados         EventoEmpleado[]
+  evaluaciones             Evaluacion[]
+  respuestasFormulario     RespuestaFormulario[]
 }
 
 model Category {
@@ -171,11 +176,13 @@ model SignatureConfig {
 }
 
 model TipoSolicitud {
-  id          Int      @id @default(autoincrement())
-  nombre      String   @unique
-  descripcion String?
-  activo      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id                 Int      @id @default(autoincrement())
+  nombre             String   @unique
+  descripcion        String?
+  activo             Boolean  @default(true)
+  requiereAprobacion Boolean  @default(true)
+  campos             String   @default("[]")
+  createdAt          DateTime @default(now())
 
   solicitudes SolicitudDocumento[]
 }
@@ -184,8 +191,9 @@ model SolicitudDocumento {
   id                 Int      @id @default(autoincrement())
   employeeId         Int
   tipoId             Int
-  nombreArchivo      String
+  nombreArchivo      String?
   descripcion        String?
+  metadata           String   @default("{}")
   estado             String   @default("PENDIENTE")
   comentario         String?
   comentarioVisible  Boolean  @default(false)
@@ -204,6 +212,118 @@ model SolicitudModificacion {
   createdAt   DateTime @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Evento {
+  id              Int       @id @default(autoincrement())
+  titulo          String
+  descripcion     String?
+  fechaInicio     DateTime
+  fechaFin        DateTime?
+  todoElDia       Boolean   @default(true)
+  tipo            String    @default("PERSONAL")
+  comentarioAdmin String?
+  googleEventId   String?
+  creadoPorId     Int
+  createdAt       DateTime  @default(now())
+
+  creadoPor User             @relation("EventosCreadosPor", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asignados EventoEmpleado[]
+}
+
+model EventoEmpleado {
+  eventoId   Int
+  employeeId Int
+
+  evento   Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([eventoId, employeeId])
+}
+
+model TipoEvento {
+  id              Int      @id @default(autoincrement())
+  nombre          String   @unique
+  color           String   @default("#6b7280")
+  permiteAdmin    Boolean  @default(true)
+  permiteEmpleado Boolean  @default(false)
+  protegido       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model PlantillaEvaluacion {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  criterios   String   @default("[]")
+  createdAt   DateTime @default(now())
+
+  rondas RondaEvaluacion[]
+}
+
+model RondaEvaluacion {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  plantillaId Int
+  estado      String   @default("ACTIVA")
+  createdAt   DateTime @default(now())
+
+  plantilla    PlantillaEvaluacion @relation(fields: [plantillaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  evaluaciones Evaluacion[]
+}
+
+model Evaluacion {
+  id         Int      @id @default(autoincrement())
+  rondaId    Int
+  employeeId Int
+  resultados String   @default("{}")
+  comentario String?
+  completada Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ronda    RondaEvaluacion @relation(fields: [rondaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([rondaId, employeeId])
+}
+
+model PlantillaFormulario {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  campos      String   @default("[]")
+  createdAt   DateTime @default(now())
+
+  asignaciones AsignacionFormulario[]
+}
+
+model AsignacionFormulario {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  plantillaId Int
+  fechaLimite DateTime?
+  createdAt   DateTime  @default(now())
+
+  plantilla  PlantillaFormulario  @relation(fields: [plantillaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  respuestas RespuestaFormulario[]
+}
+
+model RespuestaFormulario {
+  id           Int      @id @default(autoincrement())
+  asignacionId Int
+  employeeId   Int
+  datos        String   @default("{}")
+  estado       String   @default("PENDIENTE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  asignacion AsignacionFormulario @relation(fields: [asignacionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee   Employee             @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([asignacionId, employeeId])
 }
 
 model AuditLog {

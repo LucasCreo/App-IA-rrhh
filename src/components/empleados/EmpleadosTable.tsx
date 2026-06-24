@@ -12,6 +12,7 @@ import { EmpleadoDialog } from './EmpleadoDialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
@@ -30,6 +31,7 @@ export function EmpleadosTable() {
   const [cats, setCats] = useState<Categoria[]>([])
   const [page, setPage] = useState(1)
   const [dialog, setDialog] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; legajo: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -49,9 +51,10 @@ export function EmpleadosTable() {
 
   useEffect(() => { load() }, [load])
 
-  async function handleDelete(id: number, legajo: string) {
-    if (!confirm(`¿Eliminar empleado ${legajo}?`)) return
-    await fetch(`/api/empleados/${id}`, { method: 'DELETE' })
+  async function doDelete() {
+    if (!deleteTarget) return
+    await fetch(`/api/empleados/${deleteTarget.id}`, { method: 'DELETE' })
+    setDeleteTarget(null)
     toast.success('Empleado eliminado')
     load()
   }
@@ -251,7 +254,7 @@ export function EmpleadosTable() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={e => { e.stopPropagation(); handleDelete(emp.id, emp.legajo) }}
+                      onClick={e => { e.stopPropagation(); setDeleteTarget({ id: emp.id, legajo: emp.legajo }) }}
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -278,6 +281,12 @@ export function EmpleadosTable() {
           onSaved={() => { toast.success('Empleado guardado'); load() }}
         />
       )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`¿Eliminar empleado ${deleteTarget?.legajo}?`}
+        onConfirm={doDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

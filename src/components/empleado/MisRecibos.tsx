@@ -22,7 +22,7 @@ export function MisRecibos({ employeeId }: Props) {
   function load() {
     fetch(`/api/documentos?employeeId=${employeeId}&recibo=true`)
       .then(r => r.json())
-      .then(setDocs)
+      .then(data => setDocs(data.docs ?? []))
   }
 
   useEffect(() => { load() }, [employeeId])

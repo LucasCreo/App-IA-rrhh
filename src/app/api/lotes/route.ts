@@ -9,6 +9,7 @@ import { join } from 'path'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export async function GET() {
+  try {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
@@ -39,9 +40,13 @@ export async function GET() {
       },
     }
   }))
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
@@ -116,4 +121,7 @@ export async function POST(req: NextRequest) {
 
   await logAction(user.userId, 'CREAR_LOTE', 'Lote', `${nombre} — ${uploaded.length} docs`)
   return NextResponse.json({ loteId: lote.id, uploaded: uploaded.length, errors }, { status: 201 })
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
+  }
 }

@@ -155,13 +155,13 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
           <div>
             <Label>Período</Label>
             <div className="flex gap-2 mt-1">
-              <Select value={mes} onValueChange={setMes}>
+              <Select value={mes} onValueChange={v => v && setMes(v)}>
                 <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={ano} onValueChange={setAno}>
+              <Select value={ano} onValueChange={v => v && setAno(v)}>
                 <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}

@@ -12,12 +12,14 @@ import { Check, X, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
+interface CampoSolicitud { nombre: string; label: string }
+
 interface Solicitud {
-  id: number; nombreArchivo: string; estado: string
+  id: number; nombreArchivo?: string; estado: string
   descripcion?: string; comentario?: string; comentarioVisible: boolean
-  createdAt: string
+  metadata?: string; createdAt: string
   employee: { id: number; nombre: string; apellido: string; legajo: string }
-  tipo: { id: number; nombre: string }
+  tipo: { id: number; nombre: string; campos?: CampoSolicitud[] }
 }
 
 type AccionDialog = { id: number; estado: 'APROBADO' | 'RECHAZADO' } | null
@@ -106,13 +108,34 @@ export function SolicitudesTab() {
                   <span className="text-xs text-muted-foreground">· {s.employee.legajo}</span>
                   <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{s.tipo.nombre}</span>
                 </div>
-                <a
-                  href={`/api/solicitudes/archivo?file=${s.nombreArchivo}`}
-                  target="_blank"
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  {s.nombreArchivo.replace(/^\d+-/, '')}
-                </a>
+                {s.nombreArchivo && (
+                  <a
+                    href={`/api/solicitudes/archivo?file=${s.nombreArchivo}`}
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    {s.nombreArchivo.replace(/^\d+-/, '')}
+                  </a>
+                )}
+                {(() => {
+                  try {
+                    const meta = JSON.parse(s.metadata ?? '{}') as Record<string, string>
+                    const entries = Object.entries(meta).filter(([, v]) => v)
+                    if (!entries.length) return null
+                    return (
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                        {entries.map(([k, v]) => {
+                          const campo = s.tipo.campos?.find(c => c.nombre === k)
+                          return (
+                            <span key={k} className="text-xs text-muted-foreground">
+                              {campo?.label ?? k}: <span className="text-foreground">{v}</span>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )
+                  } catch { return null }
+                })()}
                 {s.descripcion && (
                   <p className="text-xs text-muted-foreground mt-1">{s.descripcion}</p>
                 )}

@@ -12,7 +12,7 @@ import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Send, Trash2, Plus, RefreshCw, Download, Users } from 'lucide-react'
 
-interface Props { esRecibo?: boolean }
+interface Props { esRecibo?: boolean; employeeId?: number }
 import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
@@ -35,7 +35,7 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-export function DocumentosTable({ esRecibo }: Props) {
+export function DocumentosTable({ esRecibo, employeeId }: Props) {
   const [docs, setDocs] = useState<Doc[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [masivoOpen, setMasivoOpen] = useState(false)
@@ -48,6 +48,9 @@ export function DocumentosTable({ esRecibo }: Props) {
   const [filtAno, setFiltAno] = useState('')
   const [filtEstado, setFiltEstado] = useState('todos')
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   const filtPeriodo = filtAno && filtMes ? `${filtAno}-${filtMes}` : filtAno || ''
 
@@ -57,11 +60,13 @@ export function DocumentosTable({ esRecibo }: Props) {
     if (filtPeriodo) params.set('periodo', filtPeriodo)
     if (filtEstado !== 'todos') params.set('estado', filtEstado)
     if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
+    if (employeeId) params.set('employeeId', String(employeeId))
+    params.set('page', String(page))
     fetch(`/api/documentos?${params}`)
       .then(r => r.json())
-      .then(setDocs)
+      .then(data => { setDocs(data.docs ?? []); setTotal(data.total ?? 0); setPages(data.pages ?? 1) })
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado, esRecibo])
+  }, [filtPeriodo, filtEstado, esRecibo, employeeId, page])
 
   useEffect(() => { load() }, [load])
 
@@ -147,7 +152,7 @@ export function DocumentosTable({ esRecibo }: Props) {
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
           <p className="text-xs text-muted-foreground mb-1">Mes</p>
-          <Select value={filtMes} onValueChange={v => setFiltMes(v === 'todos' ? '' : v)}>
+          <Select value={filtMes} onValueChange={v => { if (v != null) { setFiltMes(v === 'todos' ? '' : v); setPage(1) } }}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Todos" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
@@ -157,7 +162,7 @@ export function DocumentosTable({ esRecibo }: Props) {
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1">Año</p>
-          <Select value={filtAno} onValueChange={v => setFiltAno(v === 'todos' ? '' : v)}>
+          <Select value={filtAno} onValueChange={v => { if (v != null) { setFiltAno(v === 'todos' ? '' : v); setPage(1) } }}>
             <SelectTrigger className="w-24"><SelectValue placeholder="Todos" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
@@ -167,7 +172,7 @@ export function DocumentosTable({ esRecibo }: Props) {
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1">Estado</p>
-          <Select value={filtEstado} onValueChange={v => setFiltEstado(v ?? 'todos')}>
+          <Select value={filtEstado} onValueChange={v => { setFiltEstado(v ?? 'todos'); setPage(1) }}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
@@ -187,7 +192,7 @@ export function DocumentosTable({ esRecibo }: Props) {
               <Download size={14} className="mr-1" /> CSV
             </Button>
           )}
-          {esRecibo === true && (
+          {esRecibo === true && !employeeId && (
             <Button variant="outline" onClick={() => setMasivoOpen(true)}>
               <Users size={14} className="mr-1" /> Distribución masiva
             </Button>
@@ -242,8 +247,8 @@ export function DocumentosTable({ esRecibo }: Props) {
               <div key={doc.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>
-                    <p className="text-xs text-muted-foreground">{doc.employee.legajo}{doc.periodo ? ` · ${doc.periodo}` : ''}</p>
+                    {!employeeId && <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>}
+                    <p className="text-xs text-muted-foreground">{!employeeId && doc.employee.legajo}{doc.periodo ? `${!employeeId ? ' · ' : ''}${doc.periodo}` : ''}</p>
                   </div>
                   <StatusBadge estado={doc.estado} />
                 </div>
@@ -290,7 +295,7 @@ export function DocumentosTable({ esRecibo }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Empleado</TableHead>
+                  {!employeeId && <TableHead>Empleado</TableHead>}
                   <TableHead>Período</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Archivo</TableHead>
@@ -302,10 +307,12 @@ export function DocumentosTable({ esRecibo }: Props) {
               <TableBody>
                 {docs.map(doc => (
                   <TableRow key={doc.id}>
-                    <TableCell>
-                      <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
-                      <div className="text-xs text-muted-foreground">{doc.employee.legajo}</div>
-                    </TableCell>
+                    {!employeeId && (
+                      <TableCell>
+                        <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
+                        <div className="text-xs text-muted-foreground">{doc.employee.legajo}</div>
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono">{doc.periodo ?? '—'}</TableCell>
                     <TableCell>
                       {doc.tipoDocumento
@@ -353,6 +360,17 @@ export function DocumentosTable({ esRecibo }: Props) {
             </Table>
           </div>
         </>
+      )}
+
+      {pages > 1 && (
+        <div className="flex items-center justify-between px-1 pt-2">
+          <p className="text-xs text-muted-foreground">{total} documentos</p>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹</Button>
+            <span className="text-xs px-2">{page} / {pages}</span>
+            <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>›</Button>
+          </div>
+        </div>
       )}
 
       <AlertDialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null) }}>

@@ -34,22 +34,33 @@ export async function GET(req: NextRequest) {
       ? { OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] }
       : {}
 
-  const docs = await prisma.document.findMany({
-    where: {
-      ...(effectiveEmployeeId ? { employeeId: effectiveEmployeeId } : {}),
-      ...(estado ? { estado } : {}),
-      ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
-      ...(periodo ? { periodo: { contains: periodo } } : {}),
-      ...reciboFilter,
-    },
-    include: {
-      employee: { select: { nombre: true, apellido: true, legajo: true } },
-      cargadoPor: { select: { email: true } },
-      tipoDocumento: { select: { id: true, nombre: true, accion: true } },
-    },
-    orderBy: { fechaCarga: 'desc' },
-  })
-  return NextResponse.json(docs)
+  const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
+  const limit = user.role === 'EMPLOYEE' ? 1000 : 50
+
+  const where = {
+    ...(effectiveEmployeeId ? { employeeId: effectiveEmployeeId } : {}),
+    ...(estado ? { estado } : {}),
+    ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
+    ...(periodo ? { periodo: { contains: periodo } } : {}),
+    ...reciboFilter,
+  }
+
+  const [total, docs] = await Promise.all([
+    prisma.document.count({ where }),
+    prisma.document.findMany({
+      where,
+      include: {
+        employee: { select: { nombre: true, apellido: true, legajo: true } },
+        cargadoPor: { select: { email: true } },
+        tipoDocumento: { select: { id: true, nombre: true, accion: true } },
+      },
+      orderBy: { fechaCarga: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ])
+
+  return NextResponse.json({ docs, total, page, pages: Math.ceil(total / limit) })
 }
 
 export async function POST(req: NextRequest) {

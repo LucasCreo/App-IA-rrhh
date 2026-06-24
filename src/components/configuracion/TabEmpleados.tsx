@@ -12,6 +12,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { CategoriasTable } from '@/components/categorias/CategoriasTable'
+import { Plus } from 'lucide-react'
 
 const LABELS: Record<string, string> = {
   legajo: 'Legajo', cuil: 'CUIL', email: 'Email',
@@ -34,6 +35,7 @@ interface PendingDelete { id: number; nombre: string; count: number }
 export function TabEmpleados() {
   const [fields, setFields] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
+  const [showFormCampo, setShowFormCampo] = useState(false)
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevoTipo, setNuevoTipo] = useState('texto')
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
@@ -103,6 +105,7 @@ export function TabEmpleados() {
     setCamposCustom(cs => [...cs, nuevo])
     setNuevoNombre('')
     setNuevoTipo('texto')
+    setShowFormCampo(false)
     toast.success('Campo agregado')
   }
 
@@ -123,7 +126,7 @@ export function TabEmpleados() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Campos del módulo Empleados</CardTitle>
+          <CardTitle>Campos del módulo Legajos</CardTitle>
           <CardDescription>Configurá qué campos se muestran y cuáles son obligatorios.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -183,8 +186,17 @@ export function TabEmpleados() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Campos personalizados</CardTitle>
-          <CardDescription>Agregá campos extra al formulario de empleados.</CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Campos personalizados</CardTitle>
+              <CardDescription className="mt-1">Agregá campos extra al formulario de empleados.</CardDescription>
+            </div>
+            {!showFormCampo && (
+              <Button size="sm" className="bg-green-700 hover:bg-green-800 shrink-0" onClick={() => setShowFormCampo(true)}>
+                <Plus size={14} className="mr-1" /> Nuevo campo
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {camposCustom.length > 0 && (
@@ -220,27 +232,35 @@ export function TabEmpleados() {
             </div>
           )}
 
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground mb-1">Nombre del campo</p>
-              <Input
-                placeholder="Ej: Número de obra social"
-                value={nuevoNombre}
-                onChange={e => setNuevoNombre(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAgregar()}
-              />
+          {showFormCampo && (
+            <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex-1 min-w-40">
+                  <p className="text-xs text-muted-foreground mb-1">Nombre del campo</p>
+                  <Input
+                    placeholder="Ej: Número de obra social"
+                    value={nuevoNombre}
+                    onChange={e => setNuevoNombre(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAgregar()}
+                    autoFocus
+                  />
+                </div>
+                <div className="w-36">
+                  <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+                  <Select value={nuevoTipo} onValueChange={v => v && setNuevoTipo(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setShowFormCampo(false); setNuevoNombre(''); setNuevoTipo('texto') }}>Cancelar</Button>
+                <Button className="bg-green-700 hover:bg-green-800" size="sm" onClick={handleAgregar}>Agregar</Button>
+              </div>
             </div>
-            <div className="w-36">
-              <p className="text-xs text-muted-foreground mb-1">Tipo</p>
-              <Select value={nuevoTipo} onValueChange={setNuevoTipo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="bg-green-700 hover:bg-green-800" onClick={handleAgregar}>Agregar</Button>
-          </div>
+          )}
         </CardContent>
       </Card>
 

@@ -22,12 +22,16 @@ export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { nombre, descripcion } = await req.json()
+  const { nombre, descripcion, requiereAprobacion } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Falta nombre' }, { status: 400 })
 
   try {
     const tipo = await prisma.tipoSolicitud.create({
-      data: { nombre: nombre.trim(), descripcion: descripcion?.trim() || null },
+      data: {
+        nombre: nombre.trim(),
+        descripcion: descripcion?.trim() || null,
+        requiereAprobacion: requiereAprobacion !== false,
+      },
     })
     return NextResponse.json(tipo)
   } catch (e: unknown) {

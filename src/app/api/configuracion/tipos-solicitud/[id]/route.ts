@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { nombre, descripcion, activo } = await req.json()
+  const { nombre, descripcion, activo, requiereAprobacion, campos } = await req.json()
 
   const tipo = await prisma.tipoSolicitud.update({
     where: { id: Number(id) },
@@ -16,6 +16,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ...(nombre !== undefined && { nombre: nombre.trim() }),
       ...(descripcion !== undefined && { descripcion: descripcion?.trim() || null }),
       ...(activo !== undefined && { activo }),
+      ...(requiereAprobacion !== undefined && { requiereAprobacion }),
+      ...(campos !== undefined && { campos: JSON.stringify(campos) }),
     },
   })
   return NextResponse.json(tipo)

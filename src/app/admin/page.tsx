@@ -7,6 +7,7 @@ import { KPICards } from '@/components/dashboard/KPICards'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Users } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 
 const Charts = dynamic(() => import('@/components/dashboard/Charts').then(m => m.Charts), { ssr: false })
 
@@ -32,6 +33,9 @@ export default function AdminDashboard() {
               documentosPorEstado={data.documentosPorEstado}
               empleadosPorCategoria={data.empleadosPorCategoria}
             />
+            <div className="mt-6">
+              <ProximosEventos href="/admin/calendario" />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               {/* Solicitudes pendientes recientes */}
               <div className="rounded-xl border bg-card shadow-sm">

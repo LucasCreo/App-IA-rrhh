@@ -12,7 +12,7 @@ const CONFIG: Record<string, { label: string; dot: string; bg: string; text: str
 }
 
 export function StatusBadge({ estado }: { estado: string }) {
-  const cfg = CONFIG[estado as EstadoDoc] ?? {
+  const cfg = CONFIG[estado] ?? {
     label: estado, dot: 'bg-gray-400', bg: 'bg-gray-100', text: 'text-gray-700',
   }
 

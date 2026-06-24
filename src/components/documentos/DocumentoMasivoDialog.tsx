@@ -155,13 +155,13 @@ export function DocumentoMasivoDialog({ open, onClose, onSaved }: Props) {
               <div>
                 <p className="text-xs text-muted-foreground mb-1.5">Período</p>
                 <div className="flex gap-2">
-                  <Select value={mes} onValueChange={setMes}>
+                  <Select value={mes} onValueChange={v => v && setMes(v)}>
                     <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={ano} onValueChange={setAno}>
+                  <Select value={ano} onValueChange={v => v && setAno(v)}>
                     <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
@@ -176,7 +176,7 @@ export function DocumentoMasivoDialog({ open, onClose, onSaved }: Props) {
           {tipos.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Tipo de documento (opcional)</p>
-              <Select value={tipoDocumentoId} onValueChange={v => setTipoDocumentoId(v === 'none' ? '' : v)}>
+              <Select value={tipoDocumentoId} onValueChange={v => { if (v != null) setTipoDocumentoId(v === 'none' ? '' : v) }}>
                 <SelectTrigger><SelectValue placeholder="Sin tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin tipo</SelectItem>
@@ -190,7 +190,7 @@ export function DocumentoMasivoDialog({ open, onClose, onSaved }: Props) {
           {categorias.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Categoría (opcional)</p>
-              <Select value={categoriaId} onValueChange={v => setCategoriaId(v === 'todos' ? '' : v)}>
+              <Select value={categoriaId} onValueChange={v => { if (v != null) setCategoriaId(v === 'todos' ? '' : v) }}>
                 <SelectTrigger><SelectValue placeholder="Todos los empleados" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los empleados</SelectItem>

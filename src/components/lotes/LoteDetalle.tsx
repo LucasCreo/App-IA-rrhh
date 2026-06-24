@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -63,6 +65,7 @@ const ESTADO_CONFIG: Record<EstadoKey, { label: string; classes: string; Icon: R
 type Filtro = 'todos' | 'firmados' | 'enFirma' | 'borradores' | 'errores' | 'sinRecibo'
 
 export function LoteDetalle({ loteId }: { loteId: number }) {
+  const router = useRouter()
   const [lote, setLote] = useState<LoteInfo | null>(null)
   const [empleados, setEmpleados] = useState<EmpleadoRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -74,6 +77,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [editNombre, setEditNombre] = useState('')
   const [editDescripcion, setEditDescripcion] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -126,6 +130,14 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     setEditing(true)
   }
 
+  async function doDeleteLote() {
+    const r = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' })
+    setConfirmDelete(false)
+    if (!r.ok) { toast.error('Error al eliminar el lote'); return }
+    toast.success('Lote eliminado')
+    router.push('/admin/lotes')
+  }
+
   async function saveEdit() {
     if (!editNombre.trim()) { toast.error('El nombre no puede estar vacío'); return }
     setSaving(true)
@@ -176,14 +188,14 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const pct = stats.total > 0 ? Math.round(stats.firmados / stats.total * 100) : 0
   const canEnviarTodos = accion !== 'NINGUNA' && (stats.borradores + stats.errores) > 0
 
-  const filtroTabs: { key: Filtro; label: string; count: number }[] = [
-    { key: 'todos',     label: 'Todos',     count: empleados.length },
+  const filtroTabs = ([
+    { key: 'todos' as Filtro,     label: 'Todos',     count: empleados.length },
     { key: 'firmados',  label: 'Firmados',  count: stats.firmados },
     { key: 'enFirma',   label: 'En Firma',  count: stats.enFirma },
     { key: 'borradores',label: 'Borrador',  count: stats.borradores },
     { key: 'sinRecibo', label: 'Sin Recibo',count: stats.sinRecibo },
     { key: 'errores',   label: 'Errores',   count: stats.errores + stats.rechazados },
-  ].filter(t => t.key === 'todos' || t.count > 0)
+  ] as { key: Filtro; label: string; count: number }[]).filter(t => t.key === 'todos' || t.count > 0)
 
   const filteredEmpleados = empleados.filter(e => {
     if (filtro === 'todos') return true
@@ -202,15 +214,26 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         <Link href="/admin/lotes" className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
           <ArrowLeft size={18} />
         </Link>
-        <Button
-          size="sm"
-          className="bg-green-700 hover:bg-green-800 shrink-0"
-          onClick={enviarTodos}
-          disabled={!canEnviarTodos || sending}
-        >
-          <Send size={14} className="mr-1.5" />
-          {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
+            onClick={() => setConfirmDelete(true)}
+            title="Eliminar lote"
+          >
+            <Trash2 size={14} />
+          </Button>
+          <Button
+            size="sm"
+            className="bg-green-700 hover:bg-green-800 shrink-0"
+            onClick={enviarTodos}
+            disabled={!canEnviarTodos || sending}
+          >
+            <Send size={14} className="mr-1.5" />
+            {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
@@ -375,6 +398,13 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
           </table>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`¿Eliminar el lote "${lote?.nombre}"?`}
+        description="Los recibos asociados no se eliminarán."
+        onConfirm={doDeleteLote}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

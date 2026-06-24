@@ -7,6 +7,9 @@ import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
 import { TabDocumentos } from '@/components/configuracion/TabDocumentos'
 import { TabFirma } from '@/components/configuracion/TabFirma'
 import { TabSolicitudes } from '@/components/configuracion/TabSolicitudes'
+import { TabCalendario } from '@/components/configuracion/TabCalendario'
+import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
+import { TabFormularios } from '@/components/configuracion/TabFormularios'
 import { UsuariosPage } from '@/components/usuarios/UsuariosPage'
 import { cn } from '@/lib/utils'
 
@@ -19,17 +22,20 @@ export function ConfiguracionClient({ puedeGestionarUsuarios }: Props) {
 
   const tabs = [
     { id: 'general', label: 'General' },
-    { id: 'empleados', label: 'Empleados' },
+    { id: 'empleados', label: 'Legajos' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'firma', label: 'Firma' },
     { id: 'solicitudes', label: 'Solicitudes' },
+    { id: 'calendario', label: 'Calendario' },
+    { id: 'evaluaciones', label: 'Evaluaciones' },
+    { id: 'formularios', label: 'Formularios' },
     ...(puedeGestionarUsuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
   ]
 
   return (
     <>
       <AdminHeader title="Configuración" />
-      <div className={cn('p-6', tab !== 'usuarios' && 'max-w-3xl')}>
+      <div className="p-6">
         <div className="flex border-b mb-6">
           {tabs.map(t => (
             <button
@@ -51,6 +57,9 @@ export function ConfiguracionClient({ puedeGestionarUsuarios }: Props) {
         {tab === 'documentos' && <TabDocumentos />}
         {tab === 'firma' && <TabFirma />}
         {tab === 'solicitudes' && <TabSolicitudes />}
+        {tab === 'calendario' && <TabCalendario />}
+        {tab === 'evaluaciones' && <TabEvaluaciones />}
+        {tab === 'formularios' && <TabFormularios />}
         {tab === 'usuarios' && <UsuariosPage />}
       </div>
     </>

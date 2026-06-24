@@ -239,7 +239,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                             <Select
                               key={`${campo.nombre}__mes`}
                               value={entry.campoValues[`${campo.nombre}__mes`] ?? ''}
-                              onValueChange={v => setCampoValue(i, `${campo.nombre}__mes`, v)}
+                              onValueChange={v => v && setCampoValue(i, `${campo.nombre}__mes`, v)}
                             >
                               <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Mes" /></SelectTrigger>
                               <SelectContent>
@@ -249,7 +249,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                             <Select
                               key={`${campo.nombre}__ano`}
                               value={entry.campoValues[`${campo.nombre}__ano`] ?? ''}
-                              onValueChange={v => setCampoValue(i, `${campo.nombre}__ano`, v)}
+                              onValueChange={v => v && setCampoValue(i, `${campo.nombre}__ano`, v)}
                             >
                               <SelectTrigger className="w-20 h-8 text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
                               <SelectContent>

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pencil, Trash2, Plus, Check, X, Settings2, Lock } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface CampoDefinicion {
   nombre: string
@@ -53,6 +54,7 @@ export function TabDocumentos() {
   const [adding, setAdding] = useState(false)
   const [newTipo, setNewTipo] = useState({ nombre: '', descripcion: '', accion: 'FIRMA' })
   const [camposDialog, setCamposDialog] = useState<{ tipo: Tipo; campos: CampoDefinicion[]; tienePeriodo: boolean } | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   async function load() {
     const r = await fetch('/api/configuracion/tipos-documento')
@@ -86,9 +88,10 @@ export function TabDocumentos() {
     load()
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('¿Eliminar tipo? Los documentos asociados quedarán sin tipo.')) return
-    const res = await fetch(`/api/configuracion/tipos-documento/${id}`, { method: 'DELETE' })
+  async function doDelete() {
+    if (deleteId === null) return
+    const res = await fetch(`/api/configuracion/tipos-documento/${deleteId}`, { method: 'DELETE' })
+    setDeleteId(null)
     if (!res.ok) { toast.error((await res.json()).error ?? 'Error al eliminar'); return }
     load()
   }
@@ -179,7 +182,7 @@ export function TabDocumentos() {
                           <Input value={editing.descripcion ?? ''} onChange={e => setEditing(t => t ? { ...t, descripcion: e.target.value } : t)} className="h-7 text-sm" />
                         </td>
                         <td className="px-3 py-1.5">
-                          <Select value={editing.accion} onValueChange={v => setEditing(t => t ? { ...t, accion: v } : t)}>
+                          <Select value={editing.accion} onValueChange={v => v && setEditing(t => t ? { ...t, accion: v } : t)}>
                             <SelectTrigger className="h-7 text-sm w-36"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {Object.entries(ACCIONES).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
@@ -213,7 +216,7 @@ export function TabDocumentos() {
                           ) : (
                             <>
                               <Button size="sm" variant="ghost" onClick={() => setEditing(tipo)}><Pencil size={13} /></Button>
-                              <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(tipo.id)}><Trash2 size={13} /></Button>
+                              <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => setDeleteId(tipo.id)}><Trash2 size={13} /></Button>
                             </>
                           )}
                         </td>
@@ -230,7 +233,7 @@ export function TabDocumentos() {
                       <Input value={newTipo.descripcion} onChange={e => setNewTipo(t => ({ ...t, descripcion: e.target.value }))} placeholder="Descripción (opcional)" className="h-7 text-sm" />
                     </td>
                     <td className="px-3 py-1.5">
-                      <Select value={newTipo.accion} onValueChange={v => setNewTipo(t => ({ ...t, accion: v }))}>
+                      <Select value={newTipo.accion} onValueChange={v => v && setNewTipo(t => ({ ...t, accion: v }))}>
                         <SelectTrigger className="h-7 text-sm w-36"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {Object.entries(ACCIONES).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
@@ -313,6 +316,13 @@ export function TabDocumentos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="¿Eliminar tipo de documento?"
+        description="Los documentos asociados quedarán sin tipo."
+        onConfirm={doDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </>
   )
 }

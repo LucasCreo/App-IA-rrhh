@@ -7,6 +7,9 @@ export const PERMISOS = {
   VER_AUDITORIA: 'VER_AUDITORIA',
   GESTIONAR_CONFIGURACION: 'GESTIONAR_CONFIGURACION',
   GESTIONAR_USUARIOS: 'GESTIONAR_USUARIOS',
+  GESTIONAR_CALENDARIO: 'GESTIONAR_CALENDARIO',
+  GESTIONAR_EVALUACIONES: 'GESTIONAR_EVALUACIONES',
+  GESTIONAR_FORMULARIOS: 'GESTIONAR_FORMULARIOS',
 } as const
 
 export type Permiso = typeof PERMISOS[keyof typeof PERMISOS]
@@ -22,4 +25,7 @@ export const LABELS_PERMISOS: Record<Permiso, string> = {
   VER_AUDITORIA: 'Ver auditoría',
   GESTIONAR_CONFIGURACION: 'Gestionar configuración',
   GESTIONAR_USUARIOS: 'Gestionar usuarios y roles',
+  GESTIONAR_CALENDARIO: 'Gestionar calendario',
+  GESTIONAR_EVALUACIONES: 'Gestionar evaluaciones de desempeño',
+  GESTIONAR_FORMULARIOS: 'Gestionar formularios',
 }

@@ -24,7 +24,7 @@ export default async function PerfilPage() {
   ])
   if (!employee) redirect('/login')
 
-  const customFields = employee.valoresCampos.filter(v => v.campo.visible && !v.campo.eliminado)
+  const customFields = employee.valoresCampos.filter(v => v.campo.visible)
   const initials = `${employee.nombre[0]}${employee.apellido[0]}`.toUpperCase()
 
   return (

@@ -2,16 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
-  { href: '/admin/empleados', label: 'Empleados', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
+  { href: '/admin/empleados', label: 'Legajos', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
+  { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
+  { href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' },
+  { href: '/admin/formularios', label: 'Formularios', icon: ClipboardCheck, permiso: 'GESTIONAR_FORMULARIOS' },
   { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList, permiso: 'VER_AUDITORIA' },
 ]
 
@@ -34,8 +37,11 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   const router = useRouter()
   const { theme, toggle } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const visibleNav = permisos === null ? nav : nav.filter(item => permisos.includes(item.permiso))
   const visibleNavBottom = permisos === null ? navBottom : navBottom.filter(item => permisos.includes(item.permiso))
+
+  useEffect(() => { setMobileOpen(false) }, [pathname])
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -43,8 +49,32 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   }
 
   return (
-    <aside className={cn('h-screen sticky top-0 bg-background border-r border-border flex flex-col transition-all duration-200 shrink-0 overflow-hidden', collapsed ? 'w-16' : 'w-60')}>
-        <div className={cn('flex items-center border-b border-border py-5', collapsed ? 'justify-center px-2' : 'justify-between px-4')}>
+    <>
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 z-30 bg-background border-b border-border flex items-center px-4 gap-3">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <Menu size={20} />
+        </button>
+        {logoUrl && <img src={logoUrl} alt="" className="h-6 w-auto object-contain" />}
+        <span className="font-bold text-sm text-foreground">{appName}</span>
+      </div>
+
+      {/* Overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
+      )}
+
+    <aside className={cn(
+      'fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r border-border overflow-hidden',
+      'transition-all duration-200 shrink-0',
+      'md:sticky md:top-0 md:h-screen md:z-auto md:translate-x-0',
+      mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+      collapsed ? 'w-60 md:w-16' : 'w-60',
+    )}>
+        <div className={cn('flex items-center border-b border-border py-5', collapsed ? 'md:justify-center px-2 md:px-2' : 'justify-between px-4')}>
           {!collapsed && (
             <div className="flex items-center gap-2 min-w-0">
               {logoUrl && <img src={logoUrl} alt="" className="h-6 w-auto object-contain shrink-0" />}
@@ -53,10 +83,16 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           )}
           <button
             onClick={() => setCollapsed(c => !c)}
-            className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            className="hidden md:block p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
             title={collapsed ? 'Expandir' : 'Colapsar'}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+          >
+            <X size={16} />
           </button>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1">
@@ -156,6 +192,6 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           </button>
         </div>
       </aside>
-
+    </>
   )
 }

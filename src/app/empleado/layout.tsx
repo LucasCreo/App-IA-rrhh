@@ -34,7 +34,7 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
         fullName={fullName}
         avatarUrl={dbUser?.avatarUrl ?? null}
       />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0">
         {children}
       </main>
     </div>

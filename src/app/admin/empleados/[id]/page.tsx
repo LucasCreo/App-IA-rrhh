@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from '@/components/empleados/SolicitudesModificacionAdmin'
+import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft } from 'lucide-react'
 
@@ -41,6 +42,7 @@ export default function EmpleadoDetailPage() {
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [tab, setTab] = useState<'datos' | 'documentos'>('datos')
 
   useEffect(() => {
     Promise.all([
@@ -155,13 +157,34 @@ export default function EmpleadoDetailPage() {
   return (
     <>
       <AdminHeader title={`${form.apellido}, ${form.nombre}`} />
-      <div className="p-6 max-w-3xl space-y-6">
+      <div className="p-6">
         <button
           onClick={() => router.push('/admin/empleados')}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft size={15} /> Volver a empleados
         </button>
+
+        {/* Pestañas */}
+        <div className="flex border-b mb-6">
+          {(['datos', 'documentos'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize',
+                tab === t
+                  ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t === 'datos' ? 'Datos' : 'Documentos'}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'documentos' && <DocumentosTable employeeId={form.id} />}
+        {tab === 'datos' && <div className="max-w-3xl space-y-6">
 
         {/* Datos personales */}
         <div className="rounded-xl border bg-card shadow-sm p-5">
@@ -339,6 +362,7 @@ export default function EmpleadoDetailPage() {
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </Button>
         </div>
+        </div>}
       </div>
     </>
   )

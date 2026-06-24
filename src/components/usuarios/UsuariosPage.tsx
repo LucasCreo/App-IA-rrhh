@@ -6,6 +6,7 @@ import { Plus, Trash2, Pencil, ShieldCheck, User, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TODOS_LOS_PERMISOS, LABELS_PERMISOS, type Permiso } from '@/lib/permissions'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -69,10 +70,12 @@ function TabUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newRolId, setNewRolId] = useState<string>('')
   const [adding, setAdding] = useState(false)
+  const [deleteUser, setDeleteUser] = useState<{ id: number; email: string } | null>(null)
 
   async function fetchAll() {
     setLoading(true)
@@ -98,7 +101,7 @@ function TabUsuarios() {
     setAdding(false)
     if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
     toast.success('Usuario creado')
-    setNewEmail(''); setNewPassword(''); setNewRolId('')
+    setNewEmail(''); setNewPassword(''); setNewRolId(''); setShowForm(false)
     fetchAll()
   }
 
@@ -124,9 +127,10 @@ function TabUsuarios() {
     fetchAll()
   }
 
-  async function handleDelete(userId: number, email: string) {
-    if (!confirm(`¿Eliminar usuario ${email}?`)) return
-    const res = await fetch(`/api/usuarios/${userId}`, { method: 'DELETE' })
+  async function doDeleteUser() {
+    if (!deleteUser) return
+    const res = await fetch(`/api/usuarios/${deleteUser.id}`, { method: 'DELETE' })
+    setDeleteUser(null)
     if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
     toast.success('Usuario eliminado')
     fetchAll()
@@ -136,39 +140,55 @@ function TabUsuarios() {
     <div className="space-y-6">
       {/* Create user */}
       <div className="rounded-xl border bg-card p-5">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Nuevo usuario administrador</p>
-        <div className="flex gap-2 flex-wrap">
-          <Input
-            placeholder="Email"
-            className="flex-1 min-w-48"
-            value={newEmail}
-            onChange={e => setNewEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          />
-          <Input
-            type="password"
-            placeholder="Contraseña"
-            className="w-44"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          />
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={newRolId}
-            onChange={e => setNewRolId(e.target.value)}
-          >
-            <option value="">Sin rol (acceso total)</option>
-            {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-          </select>
-          <Button
-            className="bg-green-700 hover:bg-green-800"
-            onClick={handleAdd}
-            disabled={adding || !newEmail.trim() || !newPassword}
-          >
-            <Plus size={14} className="mr-1.5" />Crear
-          </Button>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Usuarios administradores</p>
+          {!showForm && (
+            <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setShowForm(true)}>
+              <Plus size={14} className="mr-1.5" />Nuevo usuario
+            </Button>
+          )}
         </div>
+        {showForm && (
+          <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              <Input
+                placeholder="Email"
+                className="flex-1 min-w-48"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                autoFocus
+              />
+              <Input
+                type="password"
+                placeholder="Contraseña"
+                className="w-44"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              />
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={newRolId}
+                onChange={e => setNewRolId(e.target.value)}
+              >
+                <option value="">Sin rol (acceso total)</option>
+                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setShowForm(false); setNewEmail(''); setNewPassword(''); setNewRolId('') }}>Cancelar</Button>
+              <Button
+                size="sm"
+                className="bg-green-700 hover:bg-green-800"
+                onClick={handleAdd}
+                disabled={adding || !newEmail.trim() || !newPassword}
+              >
+                Crear
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Users table */}
@@ -230,7 +250,7 @@ function TabUsuarios() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    onClick={() => handleDelete(u.id, u.email)}
+                    onClick={() => setDeleteUser({ id: u.id, email: u.email })}
                     className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
                     title="Eliminar usuario"
                   >
@@ -242,6 +262,12 @@ function TabUsuarios() {
           </tbody>
         </table>
       </div>
+      <ConfirmDialog
+        open={!!deleteUser}
+        title={`¿Eliminar usuario ${deleteUser?.email}?`}
+        onConfirm={doDeleteUser}
+        onCancel={() => setDeleteUser(null)}
+      />
     </div>
   )
 }
@@ -254,6 +280,7 @@ function TabRoles() {
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
   const [form, setForm] = useState({ nombre: '', descripcion: '', permisos: [] as string[] })
   const [saving, setSaving] = useState(false)
+  const [deleteRole, setDeleteRole] = useState<Rol | null>(null)
 
   async function fetchRoles() {
     setLoading(true)
@@ -301,13 +328,18 @@ function TabRoles() {
     fetchRoles()
   }
 
-  async function handleDelete(rol: Rol) {
+  function handleDelete(rol: Rol) {
     if (rol.usuariosCount > 0) {
       toast.error(`${rol.usuariosCount} usuario${rol.usuariosCount !== 1 ? 's usan' : ' usa'} este rol`)
       return
     }
-    if (!confirm(`¿Eliminar el rol "${rol.nombre}"?`)) return
-    const res = await fetch(`/api/roles/${rol.id}`, { method: 'DELETE' })
+    setDeleteRole(rol)
+  }
+
+  async function doDeleteRole() {
+    if (!deleteRole) return
+    const res = await fetch(`/api/roles/${deleteRole.id}`, { method: 'DELETE' })
+    setDeleteRole(null)
     if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
     toast.success('Rol eliminado')
     fetchRoles()
@@ -397,6 +429,12 @@ function TabRoles() {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={!!deleteRole}
+        title={`¿Eliminar rol "${deleteRole?.nombre}"?`}
+        onConfirm={doDeleteRole}
+        onCancel={() => setDeleteRole(null)}
+      />
     </div>
   )
 }

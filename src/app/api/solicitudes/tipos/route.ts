@@ -11,7 +11,10 @@ export async function GET() {
       where: { activo: true },
       orderBy: { nombre: 'asc' },
     })
-    return NextResponse.json(tipos)
+    return NextResponse.json(tipos.map(t => ({
+      ...t,
+      campos: JSON.parse(t.campos ?? '[]'),
+    })))
   } catch {
     return NextResponse.json([], { status: 200 })
   }

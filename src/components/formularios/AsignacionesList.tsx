@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ClipboardList, Plus, Search, CheckSquare, Square } from 'lucide-react'
+import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 
 interface Asignacion {
   id: number
   nombre: string
+  plantillaId: number
   plantilla: { nombre: string }
   fechaLimite: string | null
   createdAt: string
@@ -20,7 +22,8 @@ interface Asignacion {
   enviadas: number
 }
 
-interface Plantilla { id: number; nombre: string; activo: boolean }
+interface Campo { nombre: string; label: string; tipo: string; opciones?: string; rellena?: 'admin' | 'empleado' }
+interface Plantilla { id: number; nombre: string; activo: boolean; campos: Campo[] }
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
 
 export function AsignacionesList() {
@@ -35,6 +38,15 @@ export function AsignacionesList() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+  const [datosAdmin, setDatosAdmin] = useState<Record<string, string>>({})
+  const [toDelete, setToDelete] = useState<Asignacion | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [toEdit, setToEdit] = useState<Asignacion | null>(null)
+  const [editNombre, setEditNombre] = useState('')
+  const [editPlantillaId, setEditPlantillaId] = useState('')
+  const [editFechaLimite, setEditFechaLimite] = useState('')
+  const [editDatosAdmin, setEditDatosAdmin] = useState<Record<string, string>>({})
+  const [editSaving, setEditSaving] = useState(false)
 
   function load() {
     fetch('/api/formularios/asignaciones').then(r => r.json()).then(setAsignaciones)
@@ -49,7 +61,7 @@ export function AsignacionesList() {
     ])
     setPlantillas((pRes as Plantilla[]).filter(p => p.activo))
     setEmpleados((eRes as any).employees ?? eRes)
-    setNombre(''); setPlantillaId(''); setFechaLimite(''); setSearch(''); setSelected([])
+    setNombre(''); setPlantillaId(''); setFechaLimite(''); setSearch(''); setSelected([]); setDatosAdmin({})
     setOpen(true)
   }
 
@@ -67,6 +79,43 @@ export function AsignacionesList() {
     setSelected(prev => allSelected ? prev.filter(id => !ids.includes(id)) : [...new Set([...prev, ...ids])])
   }
 
+  async function openEditDialog(a: Asignacion) {
+    const [pRes, detail] = await Promise.all([
+      fetch('/api/configuracion/plantillas-formulario').then(r => r.json()),
+      fetch(`/api/formularios/asignaciones/${a.id}`).then(r => r.json()),
+    ])
+    setPlantillas((pRes as Plantilla[]).filter(p => p.activo))
+    setEditNombre(a.nombre)
+    setEditPlantillaId(String(a.plantillaId))
+    setEditFechaLimite(a.fechaLimite ? a.fechaLimite.slice(0, 10) : '')
+    setEditDatosAdmin(detail.datosAdmin ?? {})
+    setToEdit(a)
+  }
+
+  async function handleEdit() {
+    if (!editNombre.trim()) { toast.error('Ingresá un nombre'); return }
+    setEditSaving(true)
+    const res = await fetch(`/api/formularios/asignaciones/${toEdit!.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: editNombre, plantillaId: Number(editPlantillaId), fechaLimite: editFechaLimite || null, datosAdmin: editDatosAdmin }),
+    })
+    setEditSaving(false)
+    if (!res.ok) { toast.error('Error al guardar'); return }
+    setToEdit(null); load()
+    toast.success('Asignación actualizada')
+  }
+
+  async function handleDelete() {
+    if (!toDelete) return
+    setDeleting(true)
+    const res = await fetch(`/api/formularios/asignaciones/${toDelete.id}`, { method: 'DELETE' })
+    setDeleting(false)
+    if (!res.ok) { toast.error('Error al eliminar'); return }
+    setToDelete(null); load()
+    toast.success('Asignación eliminada')
+  }
+
   async function handleCrear() {
     if (!nombre.trim()) { toast.error('Ingresá un nombre'); return }
     if (!plantillaId) { toast.error('Seleccioná una plantilla'); return }
@@ -75,7 +124,7 @@ export function AsignacionesList() {
     const res = await fetch('/api/formularios/asignaciones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, plantillaId: Number(plantillaId), fechaLimite: fechaLimite || null, employeeIds: selected }),
+      body: JSON.stringify({ nombre, plantillaId: Number(plantillaId), fechaLimite: fechaLimite || null, employeeIds: selected, datosAdmin }),
     })
     setSaving(false)
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Error'); return }
@@ -107,6 +156,7 @@ export function AsignacionesList() {
                 <th className="text-center px-4 py-2.5 font-medium">Progreso</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Fecha límite</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Creada</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -136,12 +186,101 @@ export function AsignacionesList() {
                   <td className="px-4 py-3 text-muted-foreground hidden md:table-cell text-xs">
                     {new Date(a.createdAt).toLocaleDateString('es-AR')}
                   </td>
+                  <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditDialog(a)}>
+                        <Pencil size={14} />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={() => setToDelete(a)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <Dialog open={toEdit !== null} onOpenChange={v => !v && setToEdit(null)}>
+        <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>Editar asignación</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4 py-2">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Nombre</p>
+              <Input value={editNombre} onChange={e => setEditNombre(e.target.value)} />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
+              <Select value={editPlantillaId} onValueChange={v => { if (v) { setEditPlantillaId(v); setEditDatosAdmin({}) } }}>
+                <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
+                <SelectContent>
+                  {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {toEdit && editPlantillaId !== String(toEdit.plantillaId) && toEdit.enviadas > 0 && (
+                <div className="flex items-start gap-2 mt-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <span>Cambiar la plantilla reiniciará las respuestas ya enviadas por los empleados.</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Fecha límite (opcional)</p>
+              <Input type="date" value={editFechaLimite} onChange={e => setEditFechaLimite(e.target.value)} />
+            </div>
+            {(() => {
+              const plantilla = plantillas.find(p => p.id === Number(editPlantillaId))
+              const camposAdmin = plantilla?.campos.filter(c => c.rellena === 'admin') ?? []
+              if (!plantilla || camposAdmin.length === 0) return null
+              return (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Campos pre-cargados por RRHH</p>
+                  {camposAdmin.map(campo => (
+                    <div key={campo.nombre}>
+                      <p className="text-xs text-muted-foreground mb-1">{campo.label} <span className="italic">(opcional)</span></p>
+                      {campo.tipo === 'texto' ? (
+                        <Textarea className="text-sm min-h-[60px]" placeholder={`${campo.label}...`}
+                          value={editDatosAdmin[campo.nombre] ?? ''}
+                          onChange={e => setEditDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))} />
+                      ) : (
+                        <Input type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
+                          placeholder={campo.label}
+                          value={editDatosAdmin[campo.nombre] ?? ''}
+                          onChange={e => setEditDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+          <DialogFooter className="shrink-0 border-t border-border pt-4">
+            <Button variant="outline" onClick={() => setToEdit(null)}>Cancelar</Button>
+            <Button className="bg-green-700 hover:bg-green-800" onClick={handleEdit} disabled={editSaving}>
+              {editSaving ? 'Guardando...' : 'Guardar cambios'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={toDelete !== null} onOpenChange={v => !v && setToDelete(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar asignación?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">Se eliminarán todas las respuestas de <span className="font-medium text-foreground">"{toDelete?.nombre}"</span>. Esta acción no se puede deshacer.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setToDelete(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={v => !v && setOpen(false)}>
         <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
@@ -155,7 +294,7 @@ export function AsignacionesList() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
-              <Select value={plantillaId} onValueChange={v => v && setPlantillaId(v)}>
+              <Select value={plantillaId} onValueChange={v => { if (v) { setPlantillaId(v); setDatosAdmin({}) } }}>
                 <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
                 <SelectContent>
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
@@ -166,6 +305,36 @@ export function AsignacionesList() {
               <p className="text-xs text-muted-foreground mb-1">Fecha límite (opcional)</p>
               <Input type="date" value={fechaLimite} onChange={e => setFechaLimite(e.target.value)} />
             </div>
+            {(() => {
+              const plantilla = plantillas.find(p => p.id === Number(plantillaId))
+              const camposAdmin = plantilla?.campos.filter(c => c.rellena === 'admin') ?? []
+              if (!plantilla || camposAdmin.length === 0) return null
+              return (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Campos pre-cargados por RRHH</p>
+                  {camposAdmin.map(campo => (
+                    <div key={campo.nombre}>
+                      <p className="text-xs text-muted-foreground mb-1">{campo.label} <span className="italic">(opcional — el empleado lo verá como solo lectura)</span></p>
+                      {campo.tipo === 'texto' ? (
+                        <Textarea
+                          className="text-sm min-h-[60px]"
+                          placeholder={`${campo.label}...`}
+                          value={datosAdmin[campo.nombre] ?? ''}
+                          onChange={e => setDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))}
+                        />
+                      ) : (
+                        <Input
+                          type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
+                          placeholder={campo.label}
+                          value={datosAdmin[campo.nombre] ?? ''}
+                          onChange={e => setDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
             <div>
               <p className="text-xs text-muted-foreground mb-2">
                 Empleados · <span className="font-medium">{selected.length} seleccionado{selected.length !== 1 ? 's' : ''}</span>

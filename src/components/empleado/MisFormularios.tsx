@@ -15,6 +15,7 @@ interface Campo {
   tipo: 'texto' | 'numero' | 'fecha' | 'seleccion'
   opciones?: string
   requerido: boolean
+  rellena?: 'admin' | 'empleado'
 }
 
 interface Respuesta {
@@ -25,6 +26,7 @@ interface Respuesta {
   asignacion: {
     nombre: string
     fechaLimite: string | null
+    datosAdmin: Record<string, string>
     plantilla: { nombre: string; campos: Campo[] }
   }
 }
@@ -54,7 +56,7 @@ export function MisFormularios() {
     if (!editRespuesta) return
     const campos = editRespuesta.asignacion.plantilla.campos
     for (const campo of campos) {
-      if (campo.requerido && !form[campo.nombre]?.trim()) {
+      if ((campo.rellena ?? 'empleado') === 'empleado' && campo.requerido && !form[campo.nombre]?.trim()) {
         toast.error(`El campo "${campo.label}" es requerido`)
         return
       }
@@ -151,31 +153,41 @@ export function MisFormularios() {
             {editRespuesta?.asignacion.plantilla.campos.length === 0 && (
               <p className="text-sm text-muted-foreground">Este formulario no tiene campos.</p>
             )}
-            {editRespuesta?.asignacion.plantilla.campos.map(campo => (
-              <div key={campo.nombre}>
-                <p className="text-xs font-medium mb-1">
-                  {campo.label}
-                  {campo.requerido && <span className="text-red-500 ml-0.5">*</span>}
-                </p>
-                {campo.tipo === 'seleccion' ? (
-                  <Select value={form[campo.nombre] ?? ''} onValueChange={v => setField(campo.nombre, v)}>
-                    <SelectTrigger><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
-                    <SelectContent>
-                      {(campo.opciones ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
-                        <SelectItem key={o} value={o}>{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
-                    value={form[campo.nombre] ?? ''}
-                    onChange={e => setField(campo.nombre, e.target.value)}
-                    placeholder={campo.tipo === 'texto' ? `${campo.label}...` : undefined}
-                  />
-                )}
-              </div>
-            ))}
+            {editRespuesta?.asignacion.plantilla.campos.map(campo => {
+              const esAdmin = campo.rellena === 'admin'
+              const valorAdmin = editRespuesta.asignacion.datosAdmin?.[campo.nombre]
+              if (esAdmin && !valorAdmin) return null
+              return (
+                <div key={campo.nombre}>
+                  <p className="text-xs font-medium mb-1 flex items-center gap-1.5">
+                    {campo.label}
+                    {!esAdmin && campo.requerido && <span className="text-red-500">*</span>}
+                    {esAdmin && <span className="text-xs text-blue-500 font-normal">(completado por RRHH)</span>}
+                  </p>
+                  {esAdmin ? (
+                    <p className="text-sm bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-2 text-blue-900 dark:text-blue-100">
+                      {valorAdmin}
+                    </p>
+                  ) : campo.tipo === 'seleccion' ? (
+                    <Select value={form[campo.nombre] ?? ''} onValueChange={v => setField(campo.nombre, v ?? '')}>
+                      <SelectTrigger><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
+                      <SelectContent>
+                        {(campo.opciones ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
+                          <SelectItem key={o} value={o}>{o}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
+                      value={form[campo.nombre] ?? ''}
+                      onChange={e => setField(campo.nombre, e.target.value)}
+                      placeholder={campo.tipo === 'texto' ? `${campo.label}...` : undefined}
+                    />
+                  )}
+                </div>
+              )
+            })}
           </div>
           <DialogFooter className="shrink-0 border-t border-border pt-4">
             <Button variant="outline" onClick={() => setEditRespuesta(null)}>Cancelar</Button>
@@ -193,14 +205,24 @@ export function MisFormularios() {
             <DialogTitle>{viewRespuesta?.asignacion.nombre}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {viewRespuesta?.asignacion.plantilla.campos.map(campo => (
-              <div key={campo.nombre}>
-                <p className="text-xs font-medium text-muted-foreground mb-1">{campo.label}</p>
-                <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
-                  {viewRespuesta.datos?.[campo.nombre] || <span className="text-muted-foreground italic">Sin respuesta</span>}
-                </p>
-              </div>
-            ))}
+            {viewRespuesta?.asignacion.plantilla.campos.map(campo => {
+              const esAdmin = campo.rellena === 'admin'
+              const valor = esAdmin
+                ? viewRespuesta.asignacion.datosAdmin?.[campo.nombre]
+                : viewRespuesta.datos?.[campo.nombre]
+              if (esAdmin && !valor) return null
+              return (
+                <div key={campo.nombre}>
+                  <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1.5">
+                    {campo.label}
+                    {esAdmin && <span className="text-xs text-blue-500">(RRHH)</span>}
+                  </p>
+                  <p className={`text-sm rounded-md px-3 py-2 ${esAdmin ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100' : 'bg-muted/40'}`}>
+                    {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
+                  </p>
+                </div>
+              )
+            })}
           </div>
         </DialogContent>
       </Dialog>

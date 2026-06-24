@@ -6,7 +6,22 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+// Registry context so SelectItem can register its value→label mapping
+const SelectItemRegistryContext = React.createContext<(value: string, label: string) => void>(() => {})
+
+function Select({ children, ...props }: SelectPrimitive.Root.Props<string>) {
+  const [itemsMap, setItemsMap] = React.useState<Record<string, string>>({})
+  const registerItem = React.useCallback((value: string, label: string) => {
+    setItemsMap(prev => prev[value] === label ? prev : { ...prev, [value]: label })
+  }, [])
+  return (
+    <SelectItemRegistryContext.Provider value={registerItem}>
+      <SelectPrimitive.Root items={Object.keys(itemsMap).length > 0 ? itemsMap : undefined} {...props}>
+        {children}
+      </SelectPrimitive.Root>
+    </SelectItemRegistryContext.Provider>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -113,6 +128,12 @@ function SelectItem({
   children,
   ...props
 }: SelectPrimitive.Item.Props) {
+  const registerItem = React.useContext(SelectItemRegistryContext)
+  React.useEffect(() => {
+    if (props.value != null && typeof children === 'string') {
+      registerItem(String(props.value), children)
+    }
+  }, [props.value, children, registerItem])
   return (
     <SelectPrimitive.Item
       data-slot="select-item"

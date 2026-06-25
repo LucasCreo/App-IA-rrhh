@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { writeFile } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
 export async function GET() {
@@ -54,6 +54,7 @@ export async function POST(req: Request) {
     const ext = path.extname(archivo.name)
     const filename = `${user.employeeId}-${Date.now()}${ext}`
     const dest = path.join(process.cwd(), 'public', 'uploads', 'ausencias', filename)
+    await mkdir(path.dirname(dest), { recursive: true })
     await writeFile(dest, Buffer.from(await archivo.arrayBuffer()))
     archivoUrl = `/uploads/ausencias/${filename}`
   }

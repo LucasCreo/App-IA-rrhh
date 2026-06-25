@@ -52,27 +52,33 @@ export async function POST() {
       ? isAllDay ? new Date(item.end.date!) : new Date(item.end.dateTime!)
       : null
 
-    await prisma.evento.upsert({
-      where: { googleEventId: item.id } as never,
-      update: {
-        titulo: item.summary,
-        descripcion: item.description ?? null,
-        fechaInicio,
-        fechaFin,
-        todoElDia: isAllDay,
-      },
-      create: {
-        titulo: item.summary,
-        descripcion: item.description ?? null,
-        fechaInicio,
-        fechaFin,
-        todoElDia: isAllDay,
-        tipo: 'Google Calendar',
-        googleEventId: item.id,
-        creadoPorId: decoded.userId,
-        asignados: { create: { employeeId: decoded.employeeId } },
-      },
-    })
+    const existing = await prisma.evento.findFirst({ where: { googleEventId: item.id } })
+    if (existing) {
+      await prisma.evento.update({
+        where: { id: existing.id },
+        data: {
+          titulo: item.summary,
+          descripcion: item.description ?? null,
+          fechaInicio,
+          fechaFin,
+          todoElDia: isAllDay,
+        },
+      })
+    } else {
+      await prisma.evento.create({
+        data: {
+          titulo: item.summary,
+          descripcion: item.description ?? null,
+          fechaInicio,
+          fechaFin,
+          todoElDia: isAllDay,
+          tipo: 'Google Calendar',
+          googleEventId: item.id,
+          creadoPorId: decoded.userId,
+          asignados: { create: { employeeId: decoded.employeeId } },
+        },
+      })
+    }
   }
 
   const googleIds = items.map(i => i.id).filter(Boolean) as string[]

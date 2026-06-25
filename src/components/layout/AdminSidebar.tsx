@@ -86,7 +86,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 z-30 bg-background border-b border-border flex items-center px-4 gap-3">
+      <div className="print:hidden md:hidden fixed top-0 left-0 right-0 h-14 z-30 bg-background border-b border-border flex items-center px-4 gap-3">
         <button
           onClick={() => setMobileOpen(true)}
           className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -103,7 +103,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
       )}
 
     <aside className={cn(
-      'fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r border-border overflow-hidden',
+      'print:hidden fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r border-border overflow-hidden',
       'transition-all duration-200 shrink-0',
       'md:sticky md:top-0 md:h-screen md:z-auto md:translate-x-0',
       mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',

@@ -29,6 +29,7 @@ interface Evento {
   fechaFin?: string | null
   todoElDia: boolean
   tipo: string
+  subtipo?: string | null
   comentarioAdmin?: string | null
   creadoPorId: number
   creadoPor?: { email: string; role: string }
@@ -68,13 +69,15 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   const [anio, setAnio] = useState(now.getFullYear())
   const [eventos, setEventos] = useState<Evento[]>([])
   const [tipos, setTipos] = useState<TipoEvento[]>([])
+  const [tiposAusencia, setTiposAusencia] = useState<{ id: number; nombre: string }[]>([])
   const [dialog, setDialog] = useState<{ mode: DialogMode; evento?: Evento; fecha?: string } | null>(null)
   const [form, setForm] = useState({
     titulo: '', descripcion: '',
     fechaInicio: '', horaInicio: '08:00',
     fechaFin: '', horaFin: '',
     todoElDia: true,
-    tipo: 'PERSONAL',
+    tipo: '',
+    subtipo: '',
     employeeIds: [] as number[],
   })
   const [comentarioAdmin, setComentarioAdmin] = useState('')
@@ -96,6 +99,9 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
 
   useEffect(() => {
     fetch('/api/configuracion/tipos-evento').then(r => r.json()).then(setTipos)
+    fetch('/api/ausencias/tipos').then(r => r.json()).then((ts: { id: number; nombre: string; activo: boolean }[]) =>
+      setTiposAusencia(ts.filter(t => t.activo))
+    )
   }, [])
 
   useEffect(() => {
@@ -115,7 +121,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   const tiposDisponibles = tipos.filter(t => isAdmin ? t.permiteAdmin : t.permiteEmpleado)
 
   function defaultTipo() {
-    return tiposDisponibles[0]?.nombre ?? 'PERSONAL'
+    return tiposDisponibles[0]?.nombre ?? ''
   }
 
   function openDay(fecha: string) {
@@ -128,7 +134,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
       titulo: '', descripcion: '',
       fechaInicio: fecha, horaInicio: '08:00',
       fechaFin: '', horaFin: '',
-      todoElDia: true, tipo,
+      todoElDia: true, tipo, subtipo: '',
       employeeIds: currentEmployeeId ? [currentEmployeeId] : [],
     })
     setDialog({ mode: 'create', fecha })
@@ -154,6 +160,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
         fechaFin: dateFin, horaFin: timeFin,
         todoElDia: e.todoElDia,
         tipo: e.tipo,
+        subtipo: e.subtipo ?? '',
         employeeIds: e.asignados.map(a => a.employeeId),
       })
       setDialog({ mode: 'edit', evento: e })
@@ -426,6 +433,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getTipoColor(dialog.evento?.tipo ?? '') }} />
                   {formatTipoLabel(dialog.evento?.tipo ?? '')}
+                  {dialog.evento?.subtipo && <span className="text-muted-foreground">· {dialog.evento.subtipo}</span>}
                 </span>
               </p>
             </div>
@@ -444,6 +452,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getTipoColor(dialog.evento?.tipo ?? '') }} />
                   {formatTipoLabel(dialog.evento?.tipo ?? '')}
+                  {dialog.evento?.subtipo && <span className="text-muted-foreground">· {dialog.evento.subtipo}</span>}
                 </span>
               </p>
               <p className="text-xs text-muted-foreground border-t pt-2">Creado por: {dialog.evento?.creadoPor?.email}</p>
@@ -525,6 +534,21 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Subtipo (only when AUSENCIA) */}
+              {form.tipo === 'AUSENCIA' && tiposAusencia.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Subtipo de ausencia</label>
+                  <select
+                    value={form.subtipo}
+                    onChange={e => setForm(f => ({ ...f, subtipo: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Sin especificar</option>
+                    {tiposAusencia.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+                  </select>
                 </div>
               )}
 

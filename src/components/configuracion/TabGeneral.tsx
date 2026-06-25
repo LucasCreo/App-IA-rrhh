@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { BookOpen } from 'lucide-react'
 
 export function TabGeneral() {
   const router = useRouter()
@@ -47,6 +49,7 @@ export function TabGeneral() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Configuración General</CardTitle>
@@ -101,5 +104,23 @@ export function TabGeneral() {
         </Button>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Manuales de uso</CardTitle>
+        <CardDescription>Documentación para administradores y empleados. Se pueden imprimir o guardar como PDF desde el navegador.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-3">
+        <Link href="/admin/manual" target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+          <BookOpen size={15} />
+          Manual de administrador
+        </Link>
+        <Link href="/empleado/manual" target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+          <BookOpen size={15} />
+          Manual de empleado
+        </Link>
+      </CardContent>
+    </Card>
+    </>
   )
 }

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Users, SlidersHorizontal, Eye, EyeOff, GripVertical } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
+import { WelcomeAdmin } from '@/components/admin/WelcomeAdmin'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -83,6 +84,7 @@ export default function AdminDashboard() {
 
   return (
     <>
+      <WelcomeAdmin />
       <AdminHeader title="Dashboard" actions={
         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setSettingsOpen(true)}>
           <SlidersHorizontal size={13} />

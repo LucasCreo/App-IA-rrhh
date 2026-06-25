@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff, BookOpen } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -43,7 +43,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 z-30 bg-background border-b border-border flex items-center px-4 gap-3">
+      <div className="print:hidden md:hidden fixed top-0 left-0 right-0 h-14 z-30 bg-background border-b border-border flex items-center px-4 gap-3">
         <button
           onClick={() => setMobileOpen(true)}
           className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -60,7 +60,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
       )}
 
     <aside className={cn(
-      'fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r border-border overflow-hidden',
+      'print:hidden fixed inset-y-0 left-0 z-50 flex flex-col bg-background border-r border-border overflow-hidden',
       'transition-all duration-200 shrink-0',
       'md:sticky md:top-0 md:h-screen md:z-auto md:translate-x-0',
       mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
@@ -97,10 +97,12 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
       <nav className="flex-1 px-2 py-4 space-y-1">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = href === '/empleado' ? pathname === '/empleado' : pathname.startsWith(href)
+          const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
           return (
             <Link
               key={href}
               href={href}
+              data-tour={tourKey}
               title={collapsed ? label : undefined}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
@@ -117,12 +119,30 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
         })}
       </nav>
 
+      <div className="px-2 pb-1">
+        <Link
+          href="/empleado/manual"
+          title={collapsed ? 'Manual de uso' : undefined}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+            collapsed && 'justify-center',
+            pathname.startsWith('/empleado/manual')
+              ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          )}
+        >
+          <BookOpen size={16} className="shrink-0" />
+          {!collapsed && 'Manual de uso'}
+        </Link>
+      </div>
+
       <div className={cn(
         'border-t border-border py-3 mt-auto',
         collapsed ? 'px-2 flex flex-col items-center gap-2' : 'px-3 flex items-center gap-2'
       )}>
         <Link
           href="/empleado/perfil"
+          data-tour="perfil"
           title={collapsed ? 'Mi Perfil' : undefined}
           className={cn(
             'flex items-center gap-2 rounded-md transition-colors min-w-0',

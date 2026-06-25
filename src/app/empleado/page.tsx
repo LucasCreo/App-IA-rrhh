@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList } from 'lucide-react'
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
+import { TourEmpleado } from '@/components/empleado/TourEmpleado'
 
 export default async function EmpleadoPage() {
   const cookieStore = await cookies()
@@ -41,6 +42,7 @@ export default async function EmpleadoPage() {
 
   return (
     <div className="flex flex-col h-full">
+      <TourEmpleado />
       <header className="h-14 border-b border-border bg-background flex items-center px-6">
         <h1 className="font-semibold text-green-900 dark:text-green-400">Inicio</h1>
       </header>

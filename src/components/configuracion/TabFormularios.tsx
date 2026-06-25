@@ -20,6 +20,7 @@ interface Campo {
   tipo: 'texto' | 'numero' | 'fecha' | 'seleccion'
   opciones?: string
   requerido: boolean
+  rellena?: 'admin' | 'empleado'
 }
 
 interface Plantilla {
@@ -83,7 +84,7 @@ export function TabFormularios() {
   }
 
   function addCampo() {
-    setEditCampos(prev => [...prev, { nombre: '', label: '', tipo: 'texto', requerido: false }])
+    setEditCampos(prev => [...prev, { nombre: '', label: '', tipo: 'texto', requerido: false, rellena: 'empleado' }])
   }
 
   function removeCampo(i: number) {
@@ -245,6 +246,18 @@ export function TabFormularios() {
                         <div className="flex items-center gap-1.5">
                           <input type="checkbox" checked={campo.requerido} onChange={e => updateCampo(i, 'requerido', e.target.checked)} className="w-3.5 h-3.5 accent-green-700" />
                           <span className="text-xs text-muted-foreground">Requerido</span>
+                        </div>
+                        <div className="flex items-center rounded-md border overflow-hidden text-xs">
+                          <button
+                            type="button"
+                            className={`px-2 py-1 transition-colors ${(campo.rellena ?? 'empleado') === 'empleado' ? 'bg-green-700 text-white' : 'text-muted-foreground hover:bg-muted'}`}
+                            onClick={() => updateCampo(i, 'rellena', 'empleado')}
+                          >Empleado</button>
+                          <button
+                            type="button"
+                            className={`px-2 py-1 transition-colors ${campo.rellena === 'admin' ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-muted'}`}
+                            onClick={() => updateCampo(i, 'rellena', 'admin')}
+                          >Admin</button>
                         </div>
                       </div>
                       {campo.tipo === 'seleccion' && (

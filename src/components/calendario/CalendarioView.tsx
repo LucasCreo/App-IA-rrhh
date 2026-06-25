@@ -40,6 +40,7 @@ interface Props {
   empleados?: Empleado[]
   currentUserId?: number
   currentEmployeeId?: number
+  googleConnected?: boolean
 }
 
 type DialogMode = 'create' | 'edit' | 'view' | 'view-employee' | 'day'
@@ -61,7 +62,7 @@ function extractTime(isoStr: string): string {
   return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
 }
 
-export function CalendarioView({ isAdmin = false, empleados = [], currentUserId, currentEmployeeId }: Props) {
+export function CalendarioView({ isAdmin = false, empleados = [], currentUserId, currentEmployeeId, googleConnected }: Props) {
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth() + 1)
   const [anio, setAnio] = useState(now.getFullYear())
@@ -96,6 +97,13 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   useEffect(() => {
     fetch('/api/configuracion/tipos-evento').then(r => r.json()).then(setTipos)
   }, [])
+
+  useEffect(() => {
+    if (!googleConnected) return
+    fetch('/api/calendario/google/sync', { method: 'POST' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) load() })
+  }, [googleConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function prevMes() { if (mes === 1) { setMes(12); setAnio(a => a - 1) } else setMes(m => m - 1) }
   function nextMes() { if (mes === 12) { setMes(1); setAnio(a => a + 1) } else setMes(m => m + 1) }

@@ -6,6 +6,7 @@ import { CalendarDays, Tag, Hash } from 'lucide-react'
 import { CambiarPasswordButton } from '@/components/empleado/CambiarPasswordButton'
 import { SolicitarModificacion } from '@/components/empleado/SolicitarModificacion'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
+import { GoogleCalendarSync } from '@/components/empleado/GoogleCalendarSync'
 
 export default async function PerfilPage() {
   const cookieStore = await cookies()
@@ -20,7 +21,7 @@ export default async function PerfilPage() {
       where: { id: decoded.employeeId },
       include: { categoria: true, valoresCampos: { include: { campo: true } } },
     }),
-    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, googleRefreshToken: true, googleLastSync: true } }),
   ])
   if (!employee) redirect('/login')
 
@@ -109,6 +110,9 @@ export default async function PerfilPage() {
           </div>
           <CambiarPasswordButton />
         </div>
+
+        {/* Google Calendar */}
+        <GoogleCalendarSync connected={!!dbUser?.googleRefreshToken} lastSync={dbUser?.googleLastSync?.toISOString()} />
 
         {/* Solicitar modificación */}
         <SolicitarModificacion />

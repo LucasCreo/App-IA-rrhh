@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -13,6 +13,7 @@ const nav = [
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
+  { href: '/empleado/ausencias', label: 'Ausencias', icon: CalendarOff },
 ]
 
 interface Props {

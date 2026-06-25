@@ -176,18 +176,14 @@ export function TabCalendario() {
                 </div>
               </div>
             </div>
-            {!dialog?.tipo?.protegido && (
-              <>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm">Admins pueden crear</label>
-                  <Switch checked={form.permiteAdmin} onCheckedChange={v => setForm(f => ({ ...f, permiteAdmin: v }))} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm">Empleados pueden crear</label>
-                  <Switch checked={form.permiteEmpleado} onCheckedChange={v => setForm(f => ({ ...f, permiteEmpleado: v }))} />
-                </div>
-              </>
-            )}
+            <div className="flex items-center justify-between">
+              <label className="text-sm">Admins pueden crear</label>
+              <Switch checked={form.permiteAdmin} onCheckedChange={v => setForm(f => ({ ...f, permiteAdmin: v }))} />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-sm">Empleados pueden crear</label>
+              <Switch checked={form.permiteEmpleado} onCheckedChange={v => setForm(f => ({ ...f, permiteEmpleado: v }))} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancelar</Button>

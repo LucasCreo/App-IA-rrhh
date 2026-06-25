@@ -25,18 +25,23 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error)
+        setLoading(false)
+        return
+      }
+      router.push(data.role === 'ADMIN' ? '/admin' : '/empleado')
+    } catch {
+      setError('No se pudo conectar con el servidor')
       setLoading(false)
-      return
     }
-    router.push(data.role === 'ADMIN' ? '/admin' : '/empleado')
   }
 
   return (
@@ -138,9 +143,6 @@ export default function LoginPage() {
               {loading ? 'Ingresando...' : 'Ingresar'}
             </Button>
           </form>
-          <p className="mt-6 text-xs text-center text-muted-foreground">
-            Demo: admin@empresa.com / admin123
-          </p>
         </div>
       </div>
     </div>

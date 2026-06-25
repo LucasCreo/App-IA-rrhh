@@ -34,10 +34,6 @@ const TIPOS_CRITERIO = [
   { value: 'texto', label: 'Texto libre' },
 ]
 
-function criteriosFromRaw(raw: unknown): Criterio[] {
-  try { return Array.isArray(raw) ? raw as Criterio[] : [] } catch { return [] }
-}
-
 export function TabEvaluaciones() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -51,7 +47,7 @@ export function TabEvaluaciones() {
 
   function load() {
     fetch('/api/configuracion/plantillas-evaluacion').then(r => r.json()).then(data =>
-      setPlantillas(data.map((p: Plantilla & { criterios: unknown }) => ({ ...p, criterios: criteriosFromRaw(p.criterios) })))
+      setPlantillas(data as Plantilla[])
     )
   }
 

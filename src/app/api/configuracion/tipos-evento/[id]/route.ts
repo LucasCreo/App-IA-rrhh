@@ -13,11 +13,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { nombre, color, permiteAdmin, permiteEmpleado } = await req.json()
     const data: Record<string, unknown> = {}
     if (color) data.color = color
-    if (!tipo.protegido) {
-      if (nombre?.trim()) data.nombre = nombre.trim().toUpperCase()
-      if (permiteAdmin !== undefined) data.permiteAdmin = permiteAdmin !== false
-      if (permiteEmpleado !== undefined) data.permiteEmpleado = !!permiteEmpleado
-    }
+    if (permiteAdmin !== undefined) data.permiteAdmin = permiteAdmin !== false
+    if (permiteEmpleado !== undefined) data.permiteEmpleado = !!permiteEmpleado
+    if (!tipo.protegido && nombre?.trim()) data.nombre = nombre.trim().toUpperCase()
 
     const updated = await prisma.tipoEvento.update({ where: { id: Number(id) }, data })
     return NextResponse.json(updated)

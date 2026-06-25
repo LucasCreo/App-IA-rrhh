@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmpleadoDialog } from './EmpleadoDialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -166,6 +167,24 @@ export function EmpleadosTable() {
           </Popover.Portal>
         </Popover.Root>
 
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          onClick={async () => {
+            const rows = await fetch('/api/empleados/export').then(r => r.json())
+            const ws = XLSX.utils.json_to_sheet(rows.map((e: Record<string, string>) => ({
+              'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
+              'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono,
+              'Categoría': e.categoria, 'Estado': e.estado, 'Fecha Ingreso': e.fechaIngreso,
+            })))
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, 'Empleados')
+            XLSX.writeFile(wb, 'legajos.xlsx')
+          }}
+        >
+          <Download size={14} className="mr-1" /> Exportar
+        </Button>
         <Button className="bg-green-700 hover:bg-green-800 shrink-0" onClick={() => setDialog(true)}>
           <Plus size={15} className="mr-1" /> Nuevo Empleado
         </Button>

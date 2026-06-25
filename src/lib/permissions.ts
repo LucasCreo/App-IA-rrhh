@@ -10,6 +10,7 @@ export const PERMISOS = {
   GESTIONAR_CALENDARIO: 'GESTIONAR_CALENDARIO',
   GESTIONAR_EVALUACIONES: 'GESTIONAR_EVALUACIONES',
   GESTIONAR_FORMULARIOS: 'GESTIONAR_FORMULARIOS',
+  GESTIONAR_AUSENCIAS: 'GESTIONAR_AUSENCIAS',
 } as const
 
 export type Permiso = typeof PERMISOS[keyof typeof PERMISOS]
@@ -28,4 +29,5 @@ export const LABELS_PERMISOS: Record<Permiso, string> = {
   GESTIONAR_CALENDARIO: 'Gestionar calendario',
   GESTIONAR_EVALUACIONES: 'Gestionar evaluaciones de desempeño',
   GESTIONAR_FORMULARIOS: 'Gestionar formularios',
+  GESTIONAR_AUSENCIAS: 'Gestionar ausencias y vacaciones',
 }

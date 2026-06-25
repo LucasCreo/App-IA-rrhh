@@ -20,6 +20,7 @@ interface Asignacion {
   createdAt: string
   _count: { respuestas: number }
   enviadas: number
+  respuestas: { employee: { nombre: string; apellido: string } }[]
 }
 
 interface Campo { nombre: string; label: string; tipo: string; opciones?: string; rellena?: 'admin' | 'empleado' }
@@ -153,6 +154,7 @@ export function AsignacionesList() {
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium">Nombre</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Plantilla</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Asignados a</th>
                 <th className="text-center px-4 py-2.5 font-medium">Progreso</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Fecha límite</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Creada</th>
@@ -171,6 +173,14 @@ export function AsignacionesList() {
                     <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400">
                       {a.plantilla.nombre}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell">
+                    {(() => {
+                      const names = a.respuestas.map(r => `${r.employee.apellido}, ${r.employee.nombre}`)
+                      if (names.length === 0) return '—'
+                      if (names.length <= 2) return names.join(' · ')
+                      return `${names.slice(0, 2).join(' · ')} y ${names.length - 2} más`
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(

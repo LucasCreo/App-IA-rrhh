@@ -68,6 +68,8 @@ model Employee {
   eventosAsignados         EventoEmpleado[]
   evaluaciones             Evaluacion[]
   respuestasFormulario     RespuestaFormulario[]
+  ausencias                SolicitudAusencia[]
+  saldosVacaciones         SaldoVacaciones[]
 }
 
 model Category {
@@ -223,8 +225,9 @@ model Evento {
   fechaFin        DateTime?
   todoElDia       Boolean   @default(true)
   tipo            String    @default("PERSONAL")
+  subtipo         String?
   comentarioAdmin String?  @db.NVarChar(Max)
-  googleEventId   String?   @unique
+  googleEventId   String?
   creadoPorId     Int
   createdAt       DateTime  @default(now())
 
@@ -351,6 +354,50 @@ model RespuestaFormulario {
   employee   Employee             @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([asignacionId, employeeId])
+}
+
+model TipoAusencia {
+  id                 Int      @id @default(autoincrement())
+  nombre             String   @unique
+  color              String   @default("#6b7280")
+  requiereAprobacion Boolean  @default(true)
+  afectaSaldo        Boolean  @default(false)
+  activo             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  solicitudes SolicitudAusencia[]
+}
+
+model SolicitudAusencia {
+  id              Int       @id @default(autoincrement())
+  employeeId      Int
+  tipoAusenciaId  Int
+  fechaInicio     DateTime
+  fechaFin        DateTime
+  dias            Int
+  motivo          String?   @db.NVarChar(Max)
+  archivoUrl      String?   @db.NVarChar(500)
+  estado          String    @default("PENDIENTE")
+  comentarioAdmin String?   @db.NVarChar(Max)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipoAusencia TipoAusencia @relation(fields: [tipoAusenciaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model SaldoVacaciones {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  anio        Int
+  diasTotales Int      @default(14)
+  diasUsados  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([employeeId, anio])
 }
 
 model AuditLog {

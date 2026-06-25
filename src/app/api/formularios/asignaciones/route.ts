@@ -6,20 +6,26 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const asignaciones = await prisma.asignacionFormulario.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      plantilla: { select: { nombre: true } },
-      _count: { select: { respuestas: true } },
-    },
-  })
+  const [asignaciones, enviadasRaw] = await Promise.all([
+    prisma.asignacionFormulario.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        plantilla: { select: { nombre: true } },
+        _count: { select: { respuestas: true } },
+        respuestas: {
+          select: { employee: { select: { nombre: true, apellido: true } } },
+        },
+      },
+    }),
+    prisma.respuestaFormulario.groupBy({
+      by: ['asignacionId'],
+      where: { estado: 'ENVIADO' },
+      _count: true,
+    }),
+  ])
 
-  const result = await Promise.all(asignaciones.map(async a => {
-    const enviadas = await prisma.respuestaFormulario.count({
-      where: { asignacionId: a.id, estado: 'ENVIADO' },
-    })
-    return { ...a, enviadas }
-  }))
+  const enviadasMap = new Map(enviadasRaw.map(e => [e.asignacionId, e._count]))
+  const result = asignaciones.map(a => ({ ...a, enviadas: enviadasMap.get(a.id) ?? 0 }))
 
   return NextResponse.json(result)
 }

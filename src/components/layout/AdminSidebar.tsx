@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
@@ -15,6 +15,7 @@ const nav = [
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
   { href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' },
   { href: '/admin/formularios', label: 'Formularios', icon: ClipboardCheck, permiso: 'GESTIONAR_FORMULARIOS' },
+  { href: '/admin/ausencias', label: 'Ausencias', icon: CalendarOff, permiso: 'GESTIONAR_AUSENCIAS' },
   { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList, permiso: 'VER_AUDITORIA' },
 ]
 const NAV_DASHBOARD = nav[0]

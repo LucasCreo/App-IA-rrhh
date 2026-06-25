@@ -11,7 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const ronda = await prisma.rondaEvaluacion.findUnique({
     where: { id: Number(id) },
     include: {
-      plantilla: true,
+      plantilla: { include: { criterios: { orderBy: { orden: 'asc' } } } },
       evaluaciones: {
         include: {
           employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
@@ -24,7 +24,6 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
   return NextResponse.json({
     ...ronda,
-    plantilla: { ...ronda.plantilla, criterios: JSON.parse(ronda.plantilla.criterios ?? '[]') },
     evaluaciones: ronda.evaluaciones.map(e => ({
       ...e,
       resultados: JSON.parse(e.resultados ?? '{}'),

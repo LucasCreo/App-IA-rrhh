@@ -10,16 +10,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const { nombre, descripcion, activo, criterios } = await req.json()
 
-  const plantilla = await prisma.plantillaEvaluacion.update({
+  await prisma.plantillaEvaluacion.update({
     where: { id: Number(id) },
     data: {
       ...(nombre !== undefined && { nombre: nombre.trim() }),
       ...(descripcion !== undefined && { descripcion: descripcion?.trim() || null }),
       ...(activo !== undefined && { activo }),
-      ...(criterios !== undefined && { criterios: JSON.stringify(criterios) }),
     },
   })
-  return NextResponse.json(plantilla)
+
+  if (criterios !== undefined) {
+    await prisma.criterioEvaluacion.deleteMany({ where: { plantillaId: Number(id) } })
+    if (criterios.length > 0) {
+      await prisma.criterioEvaluacion.createMany({
+        data: criterios.map((c: { nombre: string; label: string; tipo: string }, i: number) => ({
+          plantillaId: Number(id),
+          nombre: c.nombre,
+          label: c.label,
+          tipo: c.tipo,
+          orden: i,
+        })),
+      })
+    }
+  }
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -9,12 +9,12 @@ export async function GET() {
 
   const plantillas = await prisma.plantillaEvaluacion.findMany({
     orderBy: { nombre: 'asc' },
-    include: { _count: { select: { rondas: true } } },
+    include: {
+      criterios: { orderBy: { orden: 'asc' } },
+      _count: { select: { rondas: true } },
+    },
   })
-  return NextResponse.json(plantillas.map(p => ({
-    ...p,
-    criterios: JSON.parse(p.criterios ?? '[]'),
-  })))
+  return NextResponse.json(plantillas)
 }
 
 export async function POST(req: NextRequest) {

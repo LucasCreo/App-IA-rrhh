@@ -12,11 +12,8 @@ export async function GET() {
     include: {
       employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
       ronda: {
-        select: {
-          id: true,
-          nombre: true,
-          estado: true,
-          plantilla: { select: { nombre: true, criterios: true } },
+        include: {
+          plantilla: { include: { criterios: { orderBy: { orden: 'asc' } } } },
         },
       },
     },
@@ -26,10 +23,12 @@ export async function GET() {
     ...e,
     resultados: JSON.parse(e.resultados ?? '{}'),
     ronda: {
-      ...e.ronda,
+      id: e.ronda.id,
+      nombre: e.ronda.nombre,
+      estado: e.ronda.estado,
       plantilla: {
-        ...e.ronda.plantilla,
-        criterios: JSON.parse(e.ronda.plantilla.criterios ?? '[]'),
+        nombre: e.ronda.plantilla.nombre,
+        criterios: e.ronda.plantilla.criterios,
       },
     },
   })))

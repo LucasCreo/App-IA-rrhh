@@ -9,14 +9,34 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params
   const { nombre, descripcion, activo, campos } = await req.json()
 
-  const data: Record<string, unknown> = {}
-  if (nombre !== undefined) data.nombre = nombre.trim()
-  if (descripcion !== undefined) data.descripcion = descripcion?.trim() || null
-  if (activo !== undefined) data.activo = activo
-  if (campos !== undefined) data.campos = JSON.stringify(campos)
+  await prisma.plantillaFormulario.update({
+    where: { id: Number(id) },
+    data: {
+      ...(nombre !== undefined && { nombre: nombre.trim() }),
+      ...(descripcion !== undefined && { descripcion: descripcion?.trim() || null }),
+      ...(activo !== undefined && { activo }),
+    },
+  })
 
-  const plantilla = await prisma.plantillaFormulario.update({ where: { id: Number(id) }, data })
-  return NextResponse.json(plantilla)
+  if (campos !== undefined) {
+    await prisma.campoFormulario.deleteMany({ where: { plantillaId: Number(id) } })
+    if (campos.length > 0) {
+      await prisma.campoFormulario.createMany({
+        data: campos.map((c: { nombre: string; label: string; tipo: string; opciones?: string; requerido: boolean; rellena?: string }, i: number) => ({
+          plantillaId: Number(id),
+          nombre: c.nombre,
+          label: c.label,
+          tipo: c.tipo,
+          opciones: c.opciones ?? null,
+          requerido: c.requerido,
+          rellena: c.rellena ?? 'empleado',
+          orden: i,
+        })),
+      })
+    }
+  }
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

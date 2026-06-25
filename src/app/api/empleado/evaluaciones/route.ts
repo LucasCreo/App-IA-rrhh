@@ -10,7 +10,7 @@ export async function GET() {
     where: { employeeId: user.employeeId, completada: true },
     include: {
       ronda: {
-        include: { plantilla: true },
+        include: { plantilla: { include: { criterios: { orderBy: { orden: 'asc' } } } } },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -19,12 +19,5 @@ export async function GET() {
   return NextResponse.json(evaluaciones.map(e => ({
     ...e,
     resultados: JSON.parse(e.resultados ?? '{}'),
-    ronda: {
-      ...e.ronda,
-      plantilla: {
-        ...e.ronda.plantilla,
-        criterios: JSON.parse(e.ronda.plantilla.criterios ?? '[]'),
-      },
-    },
   })))
 }

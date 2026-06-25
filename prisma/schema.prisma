@@ -17,6 +17,7 @@ model User {
   employeeId   Int?      @unique
   avatarUrl           String?
   googleRefreshToken  String?
+  googleLastSync      DateTime?
   createdAt    DateTime  @default(now())
 
   rol       Rol?       @relation(fields: [rolId], references: [id])
@@ -80,7 +81,7 @@ model Document {
   nombreArchivo   String
   filePath        String
   periodo         String?
-  metadata        String?
+  metadata        String?   @db.NVarChar(Max)
   fechaCarga      DateTime  @default(now())
   cargadoPorId    Int
   employeeId      Int
@@ -102,7 +103,7 @@ model TipoDocumento {
   nombre        String     @unique
   descripcion   String?
   accion        String     @default("FIRMA")
-  campos        String?
+  campos        String?   @db.NVarChar(Max)
   tienePeriodo  Boolean    @default(true)
   protegido     Boolean    @default(false)
   documentos    Document[]
@@ -181,7 +182,7 @@ model TipoSolicitud {
   descripcion        String?
   activo             Boolean  @default(true)
   requiereAprobacion Boolean  @default(true)
-  campos             String   @default("[]")
+  campos             String   @default("[]") @db.NVarChar(Max)
   createdAt          DateTime @default(now())
 
   solicitudes SolicitudDocumento[]
@@ -191,9 +192,9 @@ model SolicitudDocumento {
   id                 Int      @id @default(autoincrement())
   employeeId         Int
   tipoId             Int
-  nombreArchivo      String?
+  nombreArchivo      String?  @db.NVarChar(Max)
   descripcion        String?
-  metadata           String   @default("{}")
+  metadata           String   @default("{}") @db.NVarChar(Max)
   estado             String   @default("PENDIENTE")
   comentario         String?
   comentarioVisible  Boolean  @default(false)
@@ -222,8 +223,8 @@ model Evento {
   fechaFin        DateTime?
   todoElDia       Boolean   @default(true)
   tipo            String    @default("PERSONAL")
-  comentarioAdmin String?
-  googleEventId   String?
+  comentarioAdmin String?  @db.NVarChar(Max)
+  googleEventId   String?   @unique
   creadoPorId     Int
   createdAt       DateTime  @default(now())
 
@@ -254,12 +255,23 @@ model TipoEvento {
 model PlantillaEvaluacion {
   id          Int      @id @default(autoincrement())
   nombre      String   @unique
-  descripcion String?
+  descripcion String?  @db.NVarChar(Max)
   activo      Boolean  @default(true)
-  criterios   String   @default("[]")
   createdAt   DateTime @default(now())
 
-  rondas RondaEvaluacion[]
+  rondas    RondaEvaluacion[]
+  criterios CriterioEvaluacion[]
+}
+
+model CriterioEvaluacion {
+  id          Int    @id @default(autoincrement())
+  plantillaId Int
+  nombre      String
+  label       String
+  tipo        String
+  orden       Int    @default(0)
+
+  plantilla PlantillaEvaluacion @relation(fields: [plantillaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model RondaEvaluacion {
@@ -277,8 +289,8 @@ model Evaluacion {
   id         Int      @id @default(autoincrement())
   rondaId    Int
   employeeId Int
-  resultados String   @default("{}")
-  comentario String?
+  resultados String   @default("{}") @db.NVarChar(Max)
+  comentario String?  @db.NVarChar(Max)
   completada Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -294,10 +306,24 @@ model PlantillaFormulario {
   nombre      String   @unique
   descripcion String?
   activo      Boolean  @default(true)
-  campos      String   @default("[]")
   createdAt   DateTime @default(now())
 
   asignaciones AsignacionFormulario[]
+  campos       CampoFormulario[]
+}
+
+model CampoFormulario {
+  id          Int     @id @default(autoincrement())
+  plantillaId Int
+  nombre      String
+  label       String
+  tipo        String
+  opciones    String?
+  requerido   Boolean @default(false)
+  rellena     String  @default("empleado")
+  orden       Int     @default(0)
+
+  plantilla PlantillaFormulario @relation(fields: [plantillaId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model AsignacionFormulario {
@@ -305,6 +331,7 @@ model AsignacionFormulario {
   nombre      String
   plantillaId Int
   fechaLimite DateTime?
+  datosAdmin  String    @default("{}") @db.NVarChar(Max)
   createdAt   DateTime  @default(now())
 
   plantilla  PlantillaFormulario  @relation(fields: [plantillaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -315,7 +342,7 @@ model RespuestaFormulario {
   id           Int      @id @default(autoincrement())
   asignacionId Int
   employeeId   Int
-  datos        String   @default("{}")
+  datos        String   @default("{}") @db.NVarChar(Max)
   estado       String   @default("PENDIENTE")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

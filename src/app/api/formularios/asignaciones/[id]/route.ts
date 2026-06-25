@@ -52,7 +52,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const asignacion = await prisma.asignacionFormulario.findUnique({
     where: { id: Number(id) },
     include: {
-      plantilla: true,
+      plantilla: { include: { campos: { orderBy: { orden: 'asc' } } } },
       respuestas: {
         include: {
           employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
@@ -66,10 +66,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json({
     ...asignacion,
     datosAdmin: (() => { try { return JSON.parse(asignacion.datosAdmin) } catch { return {} } })(),
-    plantilla: {
-      ...asignacion.plantilla,
-      campos: (() => { try { return JSON.parse(asignacion.plantilla.campos) } catch { return [] } })(),
-    },
     respuestas: asignacion.respuestas.map(r => ({
       ...r,
       datos: (() => { try { return JSON.parse(r.datos) } catch { return {} } })(),

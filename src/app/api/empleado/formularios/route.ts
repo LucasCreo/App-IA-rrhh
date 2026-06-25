@@ -14,7 +14,7 @@ export async function GET() {
     where: { employeeId: decoded.employeeId },
     include: {
       asignacion: {
-        include: { plantilla: true },
+        include: { plantilla: { include: { campos: { orderBy: { orden: 'asc' } } } } },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -25,10 +25,7 @@ export async function GET() {
     datos: (() => { try { return JSON.parse(r.datos) } catch { return {} } })(),
     asignacion: {
       ...r.asignacion,
-      plantilla: {
-        ...r.asignacion.plantilla,
-        campos: (() => { try { return JSON.parse(r.asignacion.plantilla.campos) } catch { return [] } })(),
-      },
+      datosAdmin: (() => { try { return JSON.parse(r.asignacion.datosAdmin) } catch { return {} } })(),
     },
   })))
 }

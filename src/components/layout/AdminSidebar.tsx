@@ -41,16 +41,16 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   const { theme, toggle } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [navOrder, setNavOrder] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return NAV_DRAGGABLE.map(n => n.href)
+  const [navOrder, setNavOrder] = useState<string[]>(() => NAV_DRAGGABLE.map(n => n.href))
+  useEffect(() => {
     try {
       const saved = localStorage.getItem('admin-nav-order')
-      if (!saved) return NAV_DRAGGABLE.map(n => n.href)
+      if (!saved) return
       const parsed = JSON.parse(saved) as string[]
       const current = NAV_DRAGGABLE.map(n => n.href)
-      return [...parsed.filter(h => current.includes(h)), ...current.filter(h => !parsed.includes(h))]
-    } catch { return NAV_DRAGGABLE.map(n => n.href) }
-  })
+      setNavOrder([...parsed.filter(h => current.includes(h)), ...current.filter(h => !parsed.includes(h))])
+    } catch {}
+  }, [])
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 

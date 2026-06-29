@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EVALUACIONES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { nombre, plantillaId, employeeIds } = await req.json()
+  const { nombre, descripcion, plantillaId, employeeIds } = await req.json()
   if (!nombre?.trim() || !plantillaId || !employeeIds?.length) {
     return NextResponse.json({ error: 'Faltan campos' }, { status: 400 })
   }
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
   const ronda = await prisma.rondaEvaluacion.create({
     data: {
       nombre: nombre.trim(),
+      descripcion: descripcion?.trim() || null,
       plantillaId: Number(plantillaId),
       evaluaciones: {
         create: (employeeIds as number[]).map(eid => ({ employeeId: eid })),

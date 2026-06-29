@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { getCalendarWithToken, toGoogleEventBody } from '@/lib/google'
+import { pushEventoToGoogleCalendars } from '@/lib/google'
 
 export async function GET(req: NextRequest) {
   try {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     const fechaInicioDate = new Date(fechaInicio)
     const fechaFinDate = fechaFin ? new Date(fechaFin) : null
 
-    let evento = await prisma.evento.create({
+    const evento = await prisma.evento.create({
       data: {
         titulo: titulo.trim(),
         descripcion: descripcion?.trim() || null,
@@ -89,20 +89,14 @@ export async function POST(req: NextRequest) {
       include: { asignados: { select: { employeeId: true } } },
     })
 
-    // Push a Google Calendar si el creador tiene token
-    const userRecord = await prisma.user.findUnique({ where: { id: user.userId }, select: { googleRefreshToken: true } })
-    if (userRecord?.googleRefreshToken) {
-      try {
-        const gcal = getCalendarWithToken(userRecord.googleRefreshToken)
-        const gEvent = await gcal.events.insert({
-          calendarId: 'primary',
-          requestBody: toGoogleEventBody({ titulo: evento.titulo, descripcion: evento.descripcion, fechaInicio: evento.fechaInicio, fechaFin: evento.fechaFin, todoElDia: evento.todoElDia }),
-        })
-        if (gEvent.data.id) {
-          await prisma.evento.update({ where: { id: evento.id }, data: { googleEventId: gEvent.data.id } })
-        }
-      } catch { /* Google no disponible: la operación local persiste */ }
-    }
+    // Push a Google Calendar: creador + empleados asignados (sus users)
+    const asignadosUserIds = asignados.length > 0
+      ? (await prisma.employee.findMany({
+          where: { id: { in: asignados } },
+          select: { user: { select: { id: true } } },
+        })).map(e => e.user?.id).filter((id): id is number => typeof id === 'number')
+      : []
+    await pushEventoToGoogleCalendars(evento.id, [user.userId, ...asignadosUserIds])
 
     return NextResponse.json(evento, { status: 201 })
   } catch (e: any) {

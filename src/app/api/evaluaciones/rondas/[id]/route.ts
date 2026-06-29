@@ -36,10 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { estado } = await req.json()
+  const body = await req.json()
+  const data: { estado?: string; descripcion?: string | null } = {}
+  if (body.estado !== undefined) data.estado = body.estado
+  if (body.descripcion !== undefined) data.descripcion = body.descripcion?.trim() || null
   const ronda = await prisma.rondaEvaluacion.update({
     where: { id: Number(id) },
-    data: { estado },
+    data,
   })
   return NextResponse.json(ronda)
 }

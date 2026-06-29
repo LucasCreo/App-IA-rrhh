@@ -17,6 +17,7 @@ interface Entry {
   empleadoId: string
   legajoDetectado: string | null
   matched: boolean
+  detectando: boolean
 }
 interface Props { open: boolean; onClose: () => void; onSaved: () => void }
 
@@ -31,9 +32,17 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-function extractLegajo(filename: string): string | null {
-  const match = filename.match(/(\d+)/)
-  return match ? match[1] : null
+async function detectarLegajoPdf(file: File): Promise<string | null> {
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch('/api/lotes/detectar-legajo', { method: 'POST', body: fd })
+    if (!r.ok) return null
+    const data = await r.json()
+    return data.legajo ?? null
+  } catch {
+    return null
+  }
 }
 
 export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
@@ -63,23 +72,36 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   }, [open])
 
   function addFiles(files: File[], currentEmpleados: Empleado[]) {
-    setEntries(prev => {
-      const next = [...prev]
-      for (const file of files) {
-        const legajoDetectado = extractLegajo(file.name)
+    const startIndex = entries.length
+    setEntries(prev => [
+      ...prev,
+      ...files.map(file => ({ file, legajoDetectado: null, empleadoId: '', matched: false, detectando: true })),
+    ])
+
+    files.forEach((file, i) => {
+      const targetIndex = startIndex + i
+      detectarLegajoPdf(file).then(legajoDetectado => {
         const emp = legajoDetectado
           ? currentEmpleados.find(e => e.legajo === legajoDetectado)
           : undefined
-        next.push({ file, legajoDetectado, empleadoId: emp ? String(emp.id) : '', matched: !!emp })
-      }
-      return next
+        setEntries(prev => prev.map((entry, idx) => {
+          if (idx !== targetIndex) return entry
+          return {
+            ...entry,
+            legajoDetectado,
+            empleadoId: emp ? String(emp.id) : '',
+            matched: !!emp,
+            detectando: false,
+          }
+        }))
+      })
     })
   }
 
   function setEntryEmpleado(index: number, empleadoId: string) {
     setEntries(prev => prev.map((e, i) => {
       if (i !== index) return e
-      return { ...e, empleadoId, matched: empleados.some(em => String(em.id) === empleadoId) }
+      return { ...e, empleadoId, matched: empleados.some(em => String(em.id) === empleadoId), detectando: false }
     }))
   }
 
@@ -117,8 +139,9 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
     }
   }
 
-  const canSubmit = !!nombre.trim() && entries.every(e => e.empleadoId) && !loading
-  const pendingCount = entries.filter(e => !e.empleadoId).length
+  const detectandoCount = entries.filter(e => e.detectando).length
+  const canSubmit = !!nombre.trim() && entries.length > 0 && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0
+  const pendingCount = entries.filter(e => !e.empleadoId && !e.detectando).length
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -193,7 +216,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             >
               <Upload size={20} className="mx-auto mb-1 text-green-600 dark:text-green-400" />
               <p className="text-sm text-muted-foreground">Click para agregar PDFs</p>
-              <p className="text-xs text-muted-foreground mt-0.5">El legajo se detecta automáticamente del nombre del archivo</p>
+              <p className="text-xs text-muted-foreground mt-0.5">El legajo se detecta automáticamente del contenido del PDF</p>
               <input
                 ref={fileRef}
                 type="file"
@@ -220,15 +243,25 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
                 <div key={i} className="bg-muted/40 rounded-lg px-3 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      {entry.empleadoId
-                        ? <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-                        : <AlertCircle size={14} className="text-yellow-500 shrink-0" />
+                      {entry.detectando
+                        ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin" />
+                        : entry.empleadoId
+                          ? <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                          : <AlertCircle size={14} className="text-yellow-500 shrink-0" />
                       }
                       <span className="text-xs font-medium truncate">{entry.file.name}</span>
-                      {entry.legajoDetectado && (
+                      {entry.detectando ? (
+                        <span className="text-xs text-muted-foreground shrink-0">detectando legajo…</span>
+                      ) : entry.legajoDetectado && entry.matched ? (
                         <span className="text-xs text-muted-foreground shrink-0">
                           legajo detectado: {entry.legajoDetectado}
                         </span>
+                      ) : entry.legajoDetectado ? (
+                        <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">
+                          legajo {entry.legajoDetectado} no existe en el sistema
+                        </span>
+                      ) : (
+                        <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">sin legajo detectado</span>
                       )}
                     </div>
                     <button
@@ -245,7 +278,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
                     <SelectContent>
                       {empleados.map(e => (
                         <SelectItem key={e.id} value={String(e.id)}>
-                          {e.legajo} — {e.apellido}, {e.nombre}
+                          {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
                         </SelectItem>
                       ))}
                     </SelectContent>

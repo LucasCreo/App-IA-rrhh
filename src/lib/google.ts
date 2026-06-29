@@ -1,4 +1,5 @@
 import { google } from 'googleapis'
+import { prisma } from '@/lib/prisma'
 
 export function getOAuthClient() {
   return new google.auth.OAuth2(
@@ -35,5 +36,43 @@ export function toGoogleEventBody(evento: {
     end: evento.todoElDia
       ? { date: dateStr(addDay(end)) }
       : { dateTime: end.toISOString() },
+  }
+}
+
+// Pushea el evento al Google Calendar de cada userId que tenga refresh token.
+// Devuelve el primer googleEventId obtenido (para guardar en la fila del evento).
+export async function pushEventoToGoogleCalendars(eventoId: number, userIds: number[]) {
+  const uniq = [...new Set(userIds.filter(Boolean))]
+  if (uniq.length === 0) return
+
+  const [evento, users] = await Promise.all([
+    prisma.evento.findUnique({ where: { id: eventoId } }),
+    prisma.user.findMany({
+      where: { id: { in: uniq }, googleRefreshToken: { not: null } },
+      select: { id: true, googleRefreshToken: true },
+    }),
+  ])
+  if (!evento || users.length === 0) return
+
+  const body = toGoogleEventBody({
+    titulo: evento.titulo,
+    descripcion: evento.descripcion,
+    fechaInicio: evento.fechaInicio,
+    fechaFin: evento.fechaFin,
+    todoElDia: evento.todoElDia,
+  })
+
+  let firstGoogleId: string | null = evento.googleEventId ?? null
+  for (const u of users) {
+    try {
+      const gcal = getCalendarWithToken(u.googleRefreshToken!)
+      const res = await gcal.events.insert({ calendarId: 'primary', requestBody: body })
+      if (!firstGoogleId && res.data.id) firstGoogleId = res.data.id
+    } catch (e) {
+      console.error(`[google] insert event failed for userId=${u.id}:`, (e as Error).message)
+    }
+  }
+  if (firstGoogleId && firstGoogleId !== evento.googleEventId) {
+    await prisma.evento.update({ where: { id: eventoId }, data: { googleEventId: firstGoogleId } })
   }
 }

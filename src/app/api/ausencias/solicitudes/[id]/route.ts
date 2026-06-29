@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { pushEventoToGoogleCalendars } from '@/lib/google'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -27,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (estado === 'APROBADA') {
     // Crear evento en el calendario
-    await prisma.evento.create({
+    const evento = await prisma.evento.create({
       data: {
         titulo: `Ausencia — ${solicitud.tipoAusencia.nombre}`,
         descripcion: solicitud.motivo ?? null,
@@ -40,6 +41,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         asignados: { create: { employeeId: solicitud.employeeId } },
       },
     })
+
+    // Push a Google Calendar del empleado y del admin que aprueba
+    const empleado = await prisma.employee.findUnique({
+      where: { id: solicitud.employeeId },
+      select: { user: { select: { id: true } } },
+    })
+    const empleadoUserId = empleado?.user?.id
+    await pushEventoToGoogleCalendars(evento.id, [empleadoUserId, user.userId].filter((id): id is number => typeof id === 'number'))
 
     // Descontar del saldo de vacaciones si aplica
     if (solicitud.tipoAusencia.afectaSaldo) {

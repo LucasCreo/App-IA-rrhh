@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getOAuthClient } from '@/lib/google'
+import { getOAuthClient, pushEventoToGoogleCalendars } from '@/lib/google'
 import { google } from 'googleapis'
 
 export async function POST() {
@@ -89,11 +89,30 @@ export async function POST() {
     },
   })
 
+  // Push de eventos creados en la app (sin googleEventId) al Google Calendar del usuario
+  const pendientes = await prisma.evento.findMany({
+    where: {
+      googleEventId: null,
+      OR: [
+        { creadoPorId: decoded.userId },
+        { asignados: { some: { employeeId: decoded.employeeId } } },
+      ],
+    },
+    select: { id: true },
+  })
+  for (const ev of pendientes) {
+    await pushEventoToGoogleCalendars(ev.id, [decoded.userId])
+  }
+
   const syncedAt = new Date()
   await prisma.user.update({
     where: { id: decoded.userId },
     data: { googleLastSync: syncedAt },
   })
 
-  return NextResponse.json({ synced: items.length, syncedAt: syncedAt.toISOString() })
+  return NextResponse.json({
+    synced: items.length,
+    pushed: pendientes.length,
+    syncedAt: syncedAt.toISOString(),
+  })
 }

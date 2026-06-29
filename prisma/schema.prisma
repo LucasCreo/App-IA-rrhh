@@ -280,6 +280,7 @@ model CriterioEvaluacion {
 model RondaEvaluacion {
   id          Int      @id @default(autoincrement())
   nombre      String
+  descripcion String?  @db.NVarChar(Max)
   plantillaId Int
   estado      String   @default("ACTIVA")
   createdAt   DateTime @default(now())

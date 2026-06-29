@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,6 +35,7 @@ export function RondasList() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([])
   const [empleados, setEmpleados] = useState<Employee[]>([])
   const [nombre, setNombre] = useState('')
+  const [descripcion, setDescripcion] = useState('')
   const [plantillaId, setPlantillaId] = useState('')
   const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set())
   const [busqueda, setBusqueda] = useState('')
@@ -49,6 +51,7 @@ export function RondasList() {
   function openDialog() {
     setOpen(true)
     setNombre('')
+    setDescripcion('')
     setPlantillaId('')
     setSeleccionados(new Set())
     setBusqueda('')
@@ -93,7 +96,7 @@ export function RondasList() {
       const res = await fetch('/api/evaluaciones/rondas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, plantillaId: Number(plantillaId), employeeIds: Array.from(seleccionados) }),
+        body: JSON.stringify({ nombre, descripcion, plantillaId: Number(plantillaId), employeeIds: Array.from(seleccionados) }),
       })
       if (!res.ok) { toast.error('Error al crear la ronda'); return }
       toast.success('Ronda creada')
@@ -154,6 +157,16 @@ export function RondasList() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Nombre de la ronda</p>
               <Input placeholder="Ej: Evaluación semestral 2025" value={nombre} onChange={e => setNombre(e.target.value)} />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Descripción <span className="text-muted-foreground/70">(opcional, visible para el empleado)</span></p>
+              <Textarea
+                placeholder="Contexto, objetivos o instrucciones para esta evaluación…"
+                value={descripcion}
+                onChange={e => setDescripcion(e.target.value)}
+                rows={3}
+                className="text-sm resize-none"
+              />
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>

@@ -24,6 +24,7 @@ interface Evaluacion {
 interface Ronda {
   id: number
   nombre: string
+  descripcion?: string | null
   estado: string
   createdAt: string
   plantilla: { nombre: string; criterios: Criterio[] }
@@ -125,6 +126,13 @@ export function RondaDetalle({ id }: { id: number }) {
           {cerrada ? 'Reabrir ronda' : 'Cerrar ronda'}
         </Button>
       </div>
+
+      {ronda.descripcion && (
+        <div className="border rounded-lg p-3 bg-muted/30">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Descripción (visible para el empleado)</p>
+          <p className="text-sm whitespace-pre-wrap">{ronda.descripcion}</p>
+        </div>
+      )}
 
       <div className="divide-y rounded-lg border overflow-hidden">
         {ronda.evaluaciones.map(ev => (

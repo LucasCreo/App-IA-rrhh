@@ -12,6 +12,7 @@ interface Evaluacion {
   createdAt: string
   ronda: {
     nombre: string
+    descripcion?: string | null
     plantilla: { criterios: Criterio[] }
   }
 }
@@ -47,6 +48,10 @@ export function MisEvaluaciones() {
                 <p className="text-xs text-muted-foreground">{new Date(ev.createdAt).toLocaleDateString('es-AR')}</p>
               </div>
             </div>
+
+            {ev.ronda.descripcion && (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ev.ronda.descripcion}</p>
+            )}
 
             {numericos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

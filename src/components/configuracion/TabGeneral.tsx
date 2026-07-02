@@ -49,7 +49,7 @@ export function TabGeneral() {
   }
 
   return (
-    <>
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>Configuración General</CardTitle>
@@ -121,6 +121,6 @@ export function TabGeneral() {
         </Link>
       </CardContent>
     </Card>
-    </>
+    </div>
   )
 }

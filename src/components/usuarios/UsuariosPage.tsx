@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Plus, Trash2, Pencil, ShieldCheck, User, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TODOS_LOS_PERMISOS, LABELS_PERMISOS, type Permiso } from '@/lib/permissions'
@@ -204,7 +205,11 @@ function TabUsuarios() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-xs">Cargando...</td></tr>
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="border-t">
+                  <td className="px-4 py-3" colSpan={4}><Skeleton className="h-8 w-full" /></td>
+                </tr>
+              ))
             ) : usuarios.length === 0 ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-xs">No hay usuarios</td></tr>
             ) : usuarios.map(u => (
@@ -355,7 +360,7 @@ function TabRoles() {
 
       {loading ? (
         <div className="space-y-3">
-          {[...Array(2)].map((_, i) => <div key={i} className="h-16 bg-muted/40 rounded-xl animate-pulse" />)}
+          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
         </div>
       ) : (
         <div className="space-y-3">

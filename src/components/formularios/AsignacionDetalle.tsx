@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { CheckCircle2, Circle, ChevronLeft, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
 
 interface Campo {
@@ -95,7 +96,13 @@ export function AsignacionDetalle({ id }: { id: number }) {
     fetch(`/api/formularios/asignaciones/${id}`).then(r => r.json()).then(setAsignacion)
   }, [id])
 
-  if (!asignacion) return <p className="text-sm text-muted-foreground">Cargando...</p>
+  if (!asignacion) return (
+    <div className="space-y-3">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-4 w-64" />
+      {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)}
+    </div>
+  )
 
   const enviadas = asignacion.respuestas.filter(r => r.estado === 'ENVIADO').length
   const campos = asignacion.plantilla.campos

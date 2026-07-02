@@ -41,7 +41,7 @@ export function TabFirma() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Proveedor de Firma Electrónica</CardTitle>

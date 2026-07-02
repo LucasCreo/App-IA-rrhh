@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
@@ -13,10 +13,17 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 
 interface Categoria { id: number; nombre: string; _count: { employees: number } }
 
-export function CategoriasTable() {
+export interface CategoriasTableHandle { openNew: () => void }
+
+export const CategoriasTable = forwardRef<CategoriasTableHandle, { showTopButton?: boolean }>(function CategoriasTable(
+  { showTopButton = true },
+  ref,
+) {
   const [data, setData] = useState<Categoria[]>([])
   const [dialog, setDialog] = useState<{ open: boolean; cat?: Categoria }>({ open: false })
   const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  useImperativeHandle(ref, () => ({ openNew: () => setDialog({ open: true }) }), [])
 
   const load = () => fetch('/api/categorias').then(r => r.json()).then(setData)
   useEffect(() => { load() }, [])
@@ -32,11 +39,13 @@ export function CategoriasTable() {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
-        <Button className="bg-green-700 hover:bg-green-800" onClick={() => setDialog({ open: true })}>
-          <Plus size={16} className="mr-1" /> Nueva Categoría
-        </Button>
-      </div>
+      {showTopButton && (
+        <div className="flex justify-end mb-4">
+          <Button className="bg-green-700 hover:bg-green-800" onClick={() => setDialog({ open: true })}>
+            <Plus size={16} className="mr-1" /> Nueva Categoría
+          </Button>
+        </div>
+      )}
       <Table>
         <TableHeader>
           <TableRow>
@@ -92,4 +101,4 @@ export function CategoriasTable() {
       </AlertDialog>
     </div>
   )
-}
+})

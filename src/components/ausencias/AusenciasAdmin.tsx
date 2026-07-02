@@ -41,7 +41,6 @@ function TabSolicitudes() {
   const [filtro, setFiltro] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('TODAS')
   const [reviewing, setReviewing] = useState<Solicitud | null>(null)
   const [comentario, setComentario] = useState('')
-  const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -52,17 +51,24 @@ function TabSolicitudes() {
 
   async function resolver(estado: 'APROBADA' | 'RECHAZADA') {
     if (!reviewing) return
-    setSaving(true)
-    const res = await fetch(`/api/ausencias/solicitudes/${reviewing.id}`, {
+    const target = reviewing
+    const prevSnapshot = data
+    // Optimista: actualizar UI y cerrar diálogo
+    setData(prev => prev.map(s => s.id === target.id ? { ...s, estado, comentarioAdmin: comentario } : s))
+    setReviewing(null)
+    setComentario('')
+    toast.success(estado === 'APROBADA' ? 'Solicitud aprobada' : 'Solicitud rechazada')
+
+    const res = await fetch(`/api/ausencias/solicitudes/${target.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado, comentarioAdmin: comentario }),
     })
-    setSaving(false)
-    if (!res.ok) { toast.error('Error al procesar la solicitud'); return }
-    toast.success(estado === 'APROBADA' ? 'Solicitud aprobada' : 'Solicitud rechazada')
-    setReviewing(null)
-    setComentario('')
+    if (!res.ok) {
+      setData(prevSnapshot)
+      toast.error('Error al procesar la solicitud')
+      return
+    }
     load()
   }
 
@@ -188,10 +194,10 @@ function TabSolicitudes() {
           )}
           {reviewing?.estado === 'PENDIENTE' && (
             <DialogFooter className="gap-2">
-              <Button variant="destructive" size="sm" disabled={saving} onClick={() => resolver('RECHAZADA')}>
+              <Button variant="destructive" size="sm" onClick={() => resolver('RECHAZADA')}>
                 <XCircle size={14} className="mr-1" /> Rechazar
               </Button>
-              <Button className="bg-green-600 hover:bg-green-700" size="sm" disabled={saving} onClick={() => resolver('APROBADA')}>
+              <Button className="bg-green-600 hover:bg-green-700" size="sm" onClick={() => resolver('APROBADA')}>
                 <CheckCircle2 size={14} className="mr-1" /> Aprobar
               </Button>
             </DialogFooter>

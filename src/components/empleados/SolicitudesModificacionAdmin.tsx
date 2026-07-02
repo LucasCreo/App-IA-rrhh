@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Check, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Solicitud {
   id: number
@@ -29,14 +30,25 @@ export function SolicitudesModificacionAdmin({ employeeId }: { employeeId: numbe
   useEffect(() => { load() }, [employeeId])
 
   async function marcarRevisado(id: number) {
-    const res = await fetch(`/api/solicitudes-modificacion/${id}`, { method: 'PATCH' })
-    if (!res.ok) { toast.error('Error al actualizar'); return }
+    const prev = solicitudes
+    // Optimista: marcar como REVISADO inmediatamente
+    setSolicitudes(prev.map(s => s.id === id ? { ...s, estado: 'REVISADO' } : s))
     toast.success('Marcado como revisado')
-    load()
+
+    const res = await fetch(`/api/solicitudes-modificacion/${id}`, { method: 'PATCH' })
+    if (!res.ok) {
+      setSolicitudes(prev)
+      toast.error('Error al actualizar')
+      return
+    }
     router.refresh()
   }
 
-  if (loading) return null
+  if (loading) return (
+    <div className="space-y-2">
+      {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-md" />)}
+    </div>
+  )
   if (solicitudes.length === 0) return (
     <p className="text-xs text-muted-foreground py-2">Sin solicitudes de modificación.</p>
   )

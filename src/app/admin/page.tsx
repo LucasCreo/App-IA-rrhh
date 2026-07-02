@@ -94,7 +94,7 @@ export default function AdminDashboard() {
       <div className="p-6">
 
         {data ? (
-          <>
+          <div className="space-y-6">
             {widgetOrder.map(id => {
               if (hidden.has(id)) return null
               if (id === 'kpis') return <KPICards key={id} data={data} />
@@ -106,15 +106,13 @@ export default function AdminDashboard() {
                 />
               )
               if (id === 'eventos') return (
-                <div key={id} className="mt-6">
-                  <ProximosEventos href="/admin/calendario" />
-                </div>
+                <ProximosEventos key={id} href="/admin/calendario" />
               )
               return null
             })}
 
             {(showSolicitudes || showIncorporados) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {showSolicitudes && (
                   <div className="rounded-xl border bg-card shadow-sm">
                     <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -173,7 +171,7 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
-          </>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">

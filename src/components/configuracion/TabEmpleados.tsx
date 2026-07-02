@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,7 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { CategoriasTable } from '@/components/categorias/CategoriasTable'
+import { CategoriasTable, type CategoriasTableHandle } from '@/components/categorias/CategoriasTable'
 import { Plus } from 'lucide-react'
 
 const LABELS: Record<string, string> = {
@@ -33,6 +33,7 @@ interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible
 interface PendingDelete { id: number; nombre: string; count: number }
 
 export function TabEmpleados() {
+  const categoriasRef = useRef<CategoriasTableHandle>(null)
   const [fields, setFields] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [showFormCampo, setShowFormCampo] = useState(false)
@@ -266,11 +267,22 @@ export function TabEmpleados() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Categorías</CardTitle>
-          <CardDescription>Definí las categorías laborales disponibles para los empleados.</CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle>Categorías</CardTitle>
+              <CardDescription>Definí las categorías laborales disponibles para los empleados.</CardDescription>
+            </div>
+            <Button
+              size="sm"
+              className="bg-green-700 hover:bg-green-800 shrink-0"
+              onClick={() => categoriasRef.current?.openNew()}
+            >
+              <Plus size={14} className="mr-1" /> Nueva
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <CategoriasTable />
+          <CategoriasTable ref={categoriasRef} showTopButton={false} />
         </CardContent>
       </Card>
 

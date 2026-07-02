@@ -67,7 +67,7 @@ export function Charts({ documentosPorEstado, empleadosPorCategoria }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="bg-card rounded-xl border border-border p-5">
         <p className="font-semibold text-foreground">Estado de Documentos</p>
         <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalDocs} documentos en total</p>

@@ -53,7 +53,7 @@ export function TourEmpleado() {
   const [slide, setSlide] = useState(0)
 
   useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) setOpen(true)
+    setOpen(true) // TEMPORAL: mostrar en cada login para pruebas
   }, [])
 
   function close() {
@@ -85,6 +85,7 @@ export function TourEmpleado() {
         </button>
 
         <div className="px-8 py-8 text-center">
+          <p className="text-xs text-muted-foreground mb-4">{slide + 1} de {slides.length}</p>
           <div className="flex justify-center mb-5">
             <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center">
               <Icon size={26} className="text-green-700 dark:text-green-400" />
@@ -94,8 +95,17 @@ export function TourEmpleado() {
           <p className="text-sm text-muted-foreground leading-relaxed">{current.description}</p>
         </div>
 
-        <div className="px-8 pb-6 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{slide + 1} de {slides.length}</span>
+        <div className="pl-4 pr-8 pb-6 flex items-center justify-between">
+          <div>
+            {!isLast && (
+              <button
+                onClick={close}
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-foreground border border-border hover:bg-muted transition-colors"
+              >
+                Omitir
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             {slide > 0 && (
               <button

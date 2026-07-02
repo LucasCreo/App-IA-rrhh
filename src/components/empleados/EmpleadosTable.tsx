@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { Popover } from '@base-ui/react/popover'
 import { Button } from '@/components/ui/button'
@@ -25,12 +25,15 @@ interface Empleado {
 
 export function EmpleadosTable() {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<{ employees: Empleado[]; total: number; pages: number }>({ employees: [], total: 0, pages: 1 })
-  const [q, setQ] = useState('')
-  const [estado, setEstado] = useState('')
-  const [categoriaId, setCategoriaId] = useState('')
+  const [q, setQ] = useState(() => searchParams.get('q') ?? '')
+  const [qDebounced, setQDebounced] = useState(q)
+  const [estado, setEstado] = useState(() => searchParams.get('estado') ?? '')
+  const [categoriaId, setCategoriaId] = useState(() => searchParams.get('categoriaId') ?? '')
   const [cats, setCats] = useState<Categoria[]>([])
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => Number(searchParams.get('page') ?? '1') || 1)
   const [dialog, setDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; legajo: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -39,16 +42,33 @@ export function EmpleadosTable() {
     fetch('/api/categorias').then(r => r.json()).then(setCats)
   }, [])
 
+  // Debounce del input de búsqueda (300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q), 300)
+    return () => clearTimeout(t)
+  }, [q])
+
+  // Sincronizar filtros con la URL (usando qDebounced, no q, para no ensuciar el historial en cada tecla)
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (qDebounced) params.set('q', qDebounced)
+    if (estado) params.set('estado', estado)
+    if (categoriaId) params.set('categoriaId', categoriaId)
+    if (page > 1) params.set('page', String(page))
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [qDebounced, estado, categoriaId, page, pathname, router])
+
   const load = useCallback(() => {
     setLoading(true)
-    const params = new URLSearchParams({ q, page: String(page) })
+    const params = new URLSearchParams({ q: qDebounced, page: String(page) })
     if (estado) params.set('estado', estado)
     if (categoriaId) params.set('categoriaId', categoriaId)
     fetch(`/api/empleados?${params}`)
       .then(r => r.json())
       .then(setData)
       .finally(() => setLoading(false))
-  }, [q, estado, categoriaId, page])
+  }, [qDebounced, estado, categoriaId, page])
 
   useEffect(() => { load() }, [load])
 

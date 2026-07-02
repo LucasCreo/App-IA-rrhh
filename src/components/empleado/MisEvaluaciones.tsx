@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ClipboardCheck } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Criterio { nombre: string; label: string; tipo: 'numerico' | 'texto' }
 
@@ -25,7 +26,11 @@ export function MisEvaluaciones() {
     fetch('/api/empleado/evaluaciones').then(r => r.json()).then(setEvaluaciones).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando…</p>
+  if (loading) return (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)}
+    </div>
+  )
 
   if (evaluaciones.length === 0) return (
     <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">

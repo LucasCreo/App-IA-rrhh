@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Documento {
   id: number
@@ -172,11 +173,9 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   if (loading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="h-14 border-b border-border bg-background animate-pulse shrink-0" />
+        <div className="h-14 border-b border-border shrink-0" />
         <div className="p-6 space-y-3">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-12 bg-muted/40 rounded-xl animate-pulse" />
-          ))}
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
         </div>
       </div>
     )

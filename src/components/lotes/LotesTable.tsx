@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Layers, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CrearLoteDialog } from './CrearLoteDialog'
 
 interface LoteStats {
@@ -62,9 +63,7 @@ export function LotesTable() {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="space-y-3">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 bg-muted/40 rounded-xl animate-pulse" />
-            ))}
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
           </div>
         ) : lotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">

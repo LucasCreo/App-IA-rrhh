@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
+import { sendMail } from '@/lib/email'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -59,6 +60,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         create: { employeeId: solicitud.employeeId, anio, diasTotales: 14, diasUsados: solicitud.dias },
       })
     }
+  }
+
+  // Notificar al empleado por email
+  const emp = await prisma.employee.findUnique({
+    where: { id: solicitud.employeeId },
+    select: { nombre: true, email: true },
+  })
+  if (emp?.email) {
+    const fmt = (d: Date) => new Date(d).toLocaleDateString('es-AR')
+    const rango = `${fmt(solicitud.fechaInicio)} — ${fmt(solicitud.fechaFin)}`
+    const esAprobada = estado === 'APROBADA'
+    // Fire-and-forget
+    sendMail({
+      to: emp.email,
+      subject: `Solicitud de ausencia ${esAprobada ? 'aprobada' : 'rechazada'}`,
+      title: `Tu solicitud de ausencia fue ${esAprobada ? 'aprobada' : 'rechazada'}`,
+      bodyHtml: `
+        <p>Hola ${emp.nombre},</p>
+        <p>Tu solicitud de <strong>${solicitud.tipoAusencia.nombre}</strong> para el período <strong>${rango}</strong> fue <strong>${esAprobada ? 'aprobada' : 'rechazada'}</strong>.</p>
+        ${comentarioAdmin ? `<p><em>Comentario del administrador:</em> ${comentarioAdmin}</p>` : ''}
+      `,
+      ctaLabel: 'Ver en el portal',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/ausencias`,
+    }).catch(e => console.error('[email/ausencia-resolucion] fallo:', e))
   }
 
   return NextResponse.json({ ok: true })

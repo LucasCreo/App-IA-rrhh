@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
+import { sendMail } from '@/lib/email'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -69,6 +70,35 @@ export async function POST(req: Request) {
       motivo: motivo?.trim() || null,
       archivoUrl,
     },
+    include: {
+      employee: { select: { nombre: true, apellido: true, legajo: true } },
+      tipoAusencia: { select: { nombre: true } },
+    },
   })
+
+  // Notificar a admins con email
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', email: { not: '' } },
+    select: { email: true },
+  })
+  const fmt = (d: Date) => d.toLocaleDateString('es-AR')
+  const rango = `${fmt(inicio)} — ${fmt(fin)}`
+  // Fire-and-forget: no bloqueamos la respuesta esperando los emails
+  Promise.all(admins.map(a => sendMail({
+    to: a.email,
+    subject: `Nueva solicitud de ausencia — ${solicitud.employee.apellido}, ${solicitud.employee.nombre}`,
+    title: 'Nueva solicitud de ausencia pendiente',
+    bodyHtml: `
+      <p><strong>${solicitud.employee.apellido}, ${solicitud.employee.nombre}</strong> (legajo ${solicitud.employee.legajo}) solicita una ausencia:</p>
+      <ul>
+        <li><strong>Tipo:</strong> ${solicitud.tipoAusencia.nombre}</li>
+        <li><strong>Período:</strong> ${rango} (${dias} días hábiles)</li>
+        ${motivo?.trim() ? `<li><strong>Motivo:</strong> ${motivo.trim()}</li>` : ''}
+      </ul>
+    `,
+    ctaLabel: 'Revisar solicitud',
+    ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/ausencias`,
+  }))).catch(e => console.error('[email/ausencia-solicitud] fallo:', e))
+
   return NextResponse.json(solicitud, { status: 201 })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { sendMail } from '@/lib/email'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -67,5 +68,29 @@ export async function POST(req: NextRequest) {
     },
     include: { tipo: true },
   })
+
+  // Notificar a admins
+  const [empleado, admins] = await Promise.all([
+    prisma.employee.findUnique({ where: { id: user.employeeId }, select: { nombre: true, apellido: true, legajo: true } }),
+    prisma.user.findMany({ where: { role: 'ADMIN', email: { not: '' } }, select: { email: true } }),
+  ])
+  if (empleado) {
+    // Fire-and-forget
+    Promise.all(admins.map(a => sendMail({
+      to: a.email,
+      subject: `Solicitud de documento — ${empleado.apellido}, ${empleado.nombre}`,
+      title: 'Nueva solicitud de documento',
+      bodyHtml: `
+        <p><strong>${empleado.apellido}, ${empleado.nombre}</strong> (legajo ${empleado.legajo}) solicita:</p>
+        <ul>
+          <li><strong>Tipo:</strong> ${tipo.nombre}</li>
+          ${descripcion?.trim() ? `<li><strong>Detalle:</strong> ${descripcion.trim()}</li>` : ''}
+        </ul>
+      `,
+      ctaLabel: 'Ver solicitudes',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes`,
+    }))).catch(e => console.error('[email/doc-solicitud] fallo:', e))
+  }
+
   return NextResponse.json(solicitud)
 }

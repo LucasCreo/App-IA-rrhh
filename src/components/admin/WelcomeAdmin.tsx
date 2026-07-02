@@ -53,7 +53,7 @@ export function WelcomeAdmin() {
   const [slide, setSlide] = useState(0)
 
   useEffect(() => {
-    setOpen(true) // TEMPORAL: mostrar en cada login para pruebas
+    if (!localStorage.getItem(STORAGE_KEY)) setOpen(true)
   }, [])
 
   function close() {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { sendMail } from '@/lib/email'
 
 export async function GET(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
@@ -28,5 +29,26 @@ export async function POST(req: NextRequest) {
   const solicitud = await prisma.solicitudModificacion.create({
     data: { employeeId: user.employeeId, comentario: comentario.trim() },
   })
+
+  // Notificar a admins
+  const [empleado, admins] = await Promise.all([
+    prisma.employee.findUnique({ where: { id: user.employeeId }, select: { nombre: true, apellido: true, legajo: true } }),
+    prisma.user.findMany({ where: { role: 'ADMIN', email: { not: '' } }, select: { email: true } }),
+  ])
+  if (empleado) {
+    // Fire-and-forget
+    Promise.all(admins.map(a => sendMail({
+      to: a.email,
+      subject: `Solicitud de modificación de datos — ${empleado.apellido}, ${empleado.nombre}`,
+      title: 'Nueva solicitud de modificación de datos',
+      bodyHtml: `
+        <p><strong>${empleado.apellido}, ${empleado.nombre}</strong> (legajo ${empleado.legajo}) solicita modificar sus datos:</p>
+        <blockquote style="border-left:3px solid #ccc;margin:12px 0;padding:6px 12px;color:#444">${comentario.trim()}</blockquote>
+      `,
+      ctaLabel: 'Ver legajo',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/empleados/${user.employeeId}`,
+    }))).catch(e => console.error('[email/mod-solicitud] fallo:', e))
+  }
+
   return NextResponse.json(solicitud, { status: 201 })
 }

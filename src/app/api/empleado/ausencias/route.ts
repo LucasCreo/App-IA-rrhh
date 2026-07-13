@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { sendMail } from '@/lib/email'
+import { parseClientDate } from '@/lib/dates'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -38,8 +39,8 @@ export async function POST(req: Request) {
   if (!tipoAusenciaId || !fechaInicio || !fechaFin)
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
 
-  const inicio = new Date(fechaInicio)
-  const fin = new Date(fechaFin)
+  const inicio = parseClientDate(fechaInicio)
+  const fin = parseClientDate(fechaFin)
   if (fin < inicio) return NextResponse.json({ error: 'La fecha de fin debe ser posterior al inicio' }, { status: 400 })
 
   let dias = 0

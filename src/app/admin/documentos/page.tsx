@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { SolicitudesTab } from '@/components/solicitudes/SolicitudesTab'
@@ -12,7 +13,9 @@ const TABS = [
 ]
 
 export default function DocumentosPage() {
-  const [tab, setTab] = useState('documentos')
+  const searchParams = useSearchParams()
+  const initial = searchParams.get('tab') === 'solicitudes' ? 'solicitudes' : 'documentos'
+  const [tab, setTab] = useState(initial)
 
   return (
     <>

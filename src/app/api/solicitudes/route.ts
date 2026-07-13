@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         </ul>
       `,
       ctaLabel: 'Ver solicitudes',
-      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes`,
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/documentos?tab=solicitudes`,
     }))).catch(e => console.error('[email/doc-solicitud] fallo:', e))
   }
 

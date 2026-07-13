@@ -250,7 +250,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                     {!employeeId && <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>}
                     <p className="text-xs text-muted-foreground">{!employeeId && doc.employee.legajo}{doc.periodo ? `${!employeeId ? ' · ' : ''}${doc.periodo}` : ''}</p>
                   </div>
-                  <StatusBadge estado={doc.estado} />
+                  <StatusBadge estado={doc.estado} accion={doc.tipoDocumento?.accion} />
                 </div>
                 <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm">
                   <FileText size={14} /> <span className="truncate">{doc.nombreArchivo}</span>
@@ -324,7 +324,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                         <FileText size={14} /> {doc.nombreArchivo}
                       </a>
                     </TableCell>
-                    <TableCell><StatusBadge estado={doc.estado} /></TableCell>
+                    <TableCell><StatusBadge estado={doc.estado} accion={doc.tipoDocumento?.accion} /></TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
                     </TableCell>

@@ -111,11 +111,11 @@ export function TabGeneral() {
         <CardDescription>Documentación para administradores y empleados. Se pueden imprimir o guardar como PDF desde el navegador.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
-        <Link href="/admin/manual" target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+        <Link href="/admin/manual" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
           <BookOpen size={15} />
           Manual de administrador
         </Link>
-        <Link href="/empleado/manual" target="_blank" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+        <Link href="/manual/empleado" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
           <BookOpen size={15} />
           Manual de empleado
         </Link>

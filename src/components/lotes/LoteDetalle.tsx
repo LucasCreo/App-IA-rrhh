@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AgregarRecibosDialog } from './AgregarRecibosDialog'
 
 interface Documento {
   id: number
@@ -79,6 +80,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [editDescripcion, setEditDescripcion] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [agregando, setAgregando] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -209,33 +211,41 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="h-14 border-b border-border bg-background flex items-center justify-between px-6 gap-4 shrink-0">
-        <Link href="/admin/lotes" className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-          <ArrowLeft size={18} />
+      <header className="h-14 border-b border-border bg-background flex items-center px-6 shrink-0">
+        <Link href="/admin/lotes" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft size={16} />
+          Volver a lotes
         </Link>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
-            onClick={() => setConfirmDelete(true)}
-            title="Eliminar lote"
-          >
-            <Trash2 size={14} />
-          </Button>
-          <Button
-            size="sm"
-            className="bg-green-700 hover:bg-green-800 shrink-0"
-            onClick={enviarTodos}
-            disabled={!canEnviarTodos || sending}
-          >
-            <Send size={14} className="mr-1.5" />
-            {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
-          </Button>
-        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
+        {/* Action bar */}
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900 dark:hover:bg-red-950/30"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 size={15} className="mr-1.5" />
+            Eliminar lote
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setAgregando(true)}
+          >
+            <Plus size={15} className="mr-1.5" />
+            Agregar recibos
+          </Button>
+          <Button
+            className="bg-green-700 hover:bg-green-800 text-white"
+            onClick={enviarTodos}
+            disabled={!canEnviarTodos || sending}
+          >
+            <Send size={15} className="mr-1.5" />
+            {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
+          </Button>
+        </div>
+
         {/* Stats card */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-4">
           {/* Name / description (editable) */}
@@ -403,6 +413,12 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         description="Los recibos asociados no se eliminarán."
         onConfirm={doDeleteLote}
         onCancel={() => setConfirmDelete(false)}
+      />
+      <AgregarRecibosDialog
+        open={agregando}
+        loteId={loteId}
+        onClose={() => setAgregando(false)}
+        onSaved={() => { setAgregando(false); fetchData() }}
       />
     </div>
   )

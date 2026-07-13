@@ -23,9 +23,9 @@ export function MisDocumentos({ employeeId }: Props) {
   const [acting, setActing] = useState<number | null>(null)
 
   function load() {
-    fetch(`/api/documentos?employeeId=${employeeId}&esRecibo=false`)
+    fetch(`/api/documentos?employeeId=${employeeId}&recibo=false`)
       .then(r => r.json())
-      .then(d => setDocs(Array.isArray(d) ? d : []))
+      .then(data => setDocs(data.docs ?? []))
   }
 
   useEffect(() => { load() }, [employeeId])
@@ -64,7 +64,7 @@ export function MisDocumentos({ employeeId }: Props) {
                 {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
               </p>
             </div>
-            <StatusBadge estado={doc.estado} />
+            <StatusBadge estado={doc.estado} accion={accion} />
             <div className="flex items-center gap-1 shrink-0">
               {pendienteLectura && (
                 <Button

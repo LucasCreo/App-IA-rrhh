@@ -4,6 +4,41 @@ import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendToSign, checkSignatureStatus } from '@/lib/signature'
+import { sendMail } from '@/lib/email'
+
+async function notificarEmpleado(docId: number, accion: string) {
+  try {
+    const doc = await prisma.document.findUnique({
+      where: { id: docId },
+      include: {
+        employee: { select: { nombre: true, email: true } },
+        tipoDocumento: { select: { nombre: true } },
+      },
+    })
+    console.log('[email/documento] docId=', docId, 'employee.email=', doc?.employee?.email)
+    if (!doc?.employee?.email) {
+      console.warn('[email/documento] empleado sin email, skip')
+      return
+    }
+    const tipo = doc.tipoDocumento?.nombre ?? 'Documento'
+    const requiereFirma = accion === 'FIRMA'
+    await sendMail({
+      to: doc.employee.email,
+      subject: `Nuevo documento disponible: ${tipo}`,
+      title: requiereFirma ? 'Tenés un documento pendiente de firma' : 'Nuevo documento disponible',
+      bodyHtml: `
+        <p>Hola ${doc.employee.nombre},</p>
+        <p>Se cargó un nuevo documento en tu portal: <strong>${tipo}</strong>${doc.periodo ? ` (${doc.periodo})` : ''}.</p>
+        ${requiereFirma ? '<p>Requiere tu firma para completarse.</p>' : ''}
+      `,
+      ctaLabel: 'Ver en el portal',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos`,
+    })
+    console.log('[email/documento] enviado a', doc.employee.email)
+  } catch (e) {
+    console.error('[email/documento] fallo:', e)
+  }
+}
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,6 +59,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
       data: { estado: 'ENVIADO_A_FIRMA' },
     })
     await logAction(user.userId, 'NOTIFICAR', 'Documento', `Doc ${doc.id} notificado para ${accion}`)
+    await notificarEmpleado(doc.id, accion)
     return NextResponse.json({ ok: true })
   }
 
@@ -34,6 +70,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
       data: { estado: 'ENVIADO_A_FIRMA', firmaExternalId: externalId },
     })
     await logAction(user.userId, 'ENVIAR_FIRMA', 'Documento', `ID externo: ${externalId}`)
+    await notificarEmpleado(doc.id, accion)
     return NextResponse.json({ ok: true, externalId })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Error desconocido'

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { sendMail } from '@/lib/email'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -51,5 +52,30 @@ export async function POST(req: Request) {
       },
     },
   })
+
+  // Notificar a cada empleado asignado
+  const empleados = await prisma.employee.findMany({
+    where: { id: { in: employeeIds as number[] } },
+    select: { nombre: true, email: true },
+  })
+  const fechaTexto = fechaLimite
+    ? new Date(fechaLimite).toLocaleDateString('es-AR')
+    : null
+  Promise.all(empleados
+    .filter(e => e.email)
+    .map(e => sendMail({
+      to: e.email,
+      subject: `Nuevo formulario asignado: ${nombre.trim()}`,
+      title: 'Tenés un formulario para completar',
+      bodyHtml: `
+        <p>Hola ${e.nombre},</p>
+        <p>Se te asignó un nuevo formulario: <strong>${nombre.trim()}</strong>.</p>
+        ${fechaTexto ? `<p>Fecha límite: <strong>${fechaTexto}</strong>.</p>` : ''}
+      `,
+      ctaLabel: 'Completar formulario',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos?tab=formularios`,
+    }))
+  ).catch(err => console.error('[email/formulario-asignado] fallo:', err))
+
   return NextResponse.json(asignacion, { status: 201 })
 }

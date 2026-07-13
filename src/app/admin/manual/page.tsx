@@ -1,6 +1,7 @@
 'use client'
 
-import { Printer } from 'lucide-react'
+import { Printer, ArrowLeft } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -41,8 +42,15 @@ function Note({ children }: { children: React.ReactNode }) {
 }
 
 export default function ManualAdminPage() {
+  const router = useRouter()
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
+      <button
+        onClick={() => router.back()}
+        className="print:hidden inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted transition-colors mb-6"
+      >
+        <ArrowLeft size={15} /> Volver
+      </button>
       {/* Header */}
       <div className="flex items-start justify-between mb-8 print:mb-6">
         <div>
@@ -65,6 +73,9 @@ export default function ManualAdminPage() {
         </Sub>
         <Sub title="Cambio de contraseña">
           <p>Acceda a <strong>Mi perfil</strong> desde el menú lateral y actualice su contraseña en la sección correspondiente.</p>
+        </Sub>
+        <Sub title="Recuperar contraseña">
+          <p>Si olvidó su contraseña, use la opción <strong>¿Olvidaste tu contraseña?</strong> debajo del campo de contraseña en el login. Ingresando su usuario o email recibirá un mail con un link válido por 1 hora para restablecerla.</p>
         </Sub>
       </Section>
 
@@ -105,9 +116,12 @@ export default function ManualAdminPage() {
           <Steps items={[
             'Acceda a Documentos › Lotes.',
             'Cree un nuevo lote indicando nombre, período y tipo de documento.',
-            'Arrastre o seleccione los archivos. El sistema intentará asociar cada archivo al empleado según el nombre del archivo.',
-            'Revise las asignaciones y confirme.',
+            'Arrastre o seleccione los archivos PDF. El sistema lee el contenido de cada PDF y detecta automáticamente el legajo del empleado.',
+            'Verifique el resultado de la detección junto a cada archivo (verde si matcheó con un empleado, amarillo si el legajo no existe o no se detectó).',
+            'Ajuste manualmente los archivos sin asignar seleccionando el empleado del desplegable.',
+            'Confirme la creación del lote.',
           ]} />
+          <Note>La detección funciona con PDFs de texto seleccionable (no imágenes escaneadas) que contengan el campo "Legajo" seguido de un número.</Note>
         </Sub>
         <Sub title="Estados de documento">
           <p><strong>Borrador:</strong> visible solo para administradores. <strong>Publicado:</strong> visible para el empleado. <strong>Firmado:</strong> el empleado ha confirmado la recepción.</p>
@@ -142,7 +156,12 @@ export default function ManualAdminPage() {
           <p>Se configuran en <strong>Configuración › Calendario</strong>. Cada tipo define si puede ser creado por administradores, por empleados, y qué color se muestra en el calendario.</p>
         </Sub>
         <Sub title="Sincronización con Google Calendar">
-          <p>Si el usuario vincula su cuenta de Google desde el portal del empleado, los eventos creados en la aplicación se reflejarán automáticamente en Google Calendar y viceversa (al recargar la página).</p>
+          <p>Al vincular una cuenta de Google desde el perfil, los eventos se sincronizan en ambas direcciones:</p>
+          <ul className="list-disc list-inside space-y-0.5 mt-1">
+            <li>Al crear un evento en la app, se pushea al Google Calendar del creador y de todos los empleados asignados que tengan Google conectado.</li>
+            <li>Al aprobar una ausencia, se pushea al calendar del empleado y al del admin que aprueba.</li>
+            <li>El botón <strong>Sincronizar Google</strong> del calendario también trae los eventos creados directamente en Google Calendar hacia la app.</li>
+          </ul>
         </Sub>
       </Section>
 
@@ -160,6 +179,7 @@ export default function ManualAdminPage() {
           <Steps items={[
             'Acceda a Evaluaciones.',
             'Haga clic en Nueva ronda.',
+            'Ingrese el nombre y una descripción opcional. La descripción es visible para el empleado cuando ve su evaluación, útil para dar contexto u objetivos de la ronda.',
             'Seleccione la plantilla y asigne los empleados a evaluar.',
             'La ronda quedará en estado ACTIVA hasta que se cierre manualmente.',
           ]} />
@@ -250,6 +270,18 @@ export default function ManualAdminPage() {
       <Section title="11. Gestión de usuarios">
         <p>Acceda a <strong>Configuración › Usuarios</strong> para crear cuentas de acceso al sistema, asignar roles y vincular cada usuario con un empleado de la nómina.</p>
         <Note>Solo los usuarios con rol de administrador completo pueden gestionar otros usuarios y sus permisos.</Note>
+      </Section>
+
+      <Section title="12. Notificaciones por email">
+        <p>El sistema envía notificaciones automáticas por correo electrónico en las siguientes acciones:</p>
+        <ul className="list-disc list-inside space-y-0.5 mt-1">
+          <li><strong>Nueva solicitud de ausencia:</strong> reciben mail todos los administradores.</li>
+          <li><strong>Aprobación/rechazo de ausencia:</strong> recibe mail el empleado con el comentario del administrador.</li>
+          <li><strong>Solicitud de modificación de datos:</strong> reciben mail los administradores.</li>
+          <li><strong>Solicitud de documento:</strong> reciben mail los administradores.</li>
+          <li><strong>Recuperación de contraseña:</strong> el usuario recibe un link válido por 1 hora para restablecer su clave.</li>
+        </ul>
+        <Note>Los envíos son automáticos y no bloquean el uso de la aplicación. Si un mail no llega, verifique la carpeta de correo no deseado.</Note>
       </Section>
 
       <div className="mt-10 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 print:mt-6">

@@ -232,7 +232,7 @@ export function TabSolicitudes() {
 
       {/* Edit dialog */}
       <Dialog open={editTipo !== null} onOpenChange={v => !v && setEditTipo(null)}>
-        <DialogContent className="sm:max-w-lg flex flex-col max-h-[85vh] overflow-hidden">
+        <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Editar tipo de documento</DialogTitle>
           </DialogHeader>

@@ -193,7 +193,7 @@ export function TabFormularios() {
       </Card>
 
       <Dialog open={editPlantilla !== null} onOpenChange={v => !v && setEditPlantilla(null)}>
-        <DialogContent className="sm:max-w-lg flex flex-col max-h-[85vh] overflow-hidden">
+        <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Editar plantilla</DialogTitle>
           </DialogHeader>

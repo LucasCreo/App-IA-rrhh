@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { sendMail } from '@/lib/email'
 
 export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EVALUACIONES)
@@ -42,5 +43,28 @@ export async function POST(req: NextRequest) {
       },
     },
   })
+
+  // Notificar a cada empleado incluido en la ronda
+  const empleados = await prisma.employee.findMany({
+    where: { id: { in: employeeIds as number[] } },
+    select: { nombre: true, email: true },
+  })
+  Promise.all(empleados
+    .filter(e => e.email)
+    .map(e => sendMail({
+      to: e.email,
+      subject: `Nueva evaluación: ${nombre.trim()}`,
+      title: 'Tenés una nueva evaluación',
+      bodyHtml: `
+        <p>Hola ${e.nombre},</p>
+        <p>Fuiste incluido en una nueva ronda de evaluación: <strong>${nombre.trim()}</strong>.</p>
+        ${descripcion?.trim() ? `<p>${descripcion.trim()}</p>` : ''}
+        <p>Los resultados estarán disponibles en tu portal cuando el administrador los cargue.</p>
+      `,
+      ctaLabel: 'Ver mis evaluaciones',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado`,
+    }))
+  ).catch(err => console.error('[email/ronda-nueva] fallo:', err))
+
   return NextResponse.json(ronda)
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { getCalendarWithToken, toGoogleEventBody } from '@/lib/google'
+import { parseClientDate } from '@/lib/dates'
 
 async function canModify(user: Awaited<ReturnType<typeof getCurrentUser>>, eventoId: number) {
   if (!user) return false
@@ -40,8 +41,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!tipoEvento) return NextResponse.json({ error: 'Tipo de evento inválido' }, { status: 400 })
     if (esEmpleado && !tipoEvento.permiteEmpleado) return NextResponse.json({ error: 'No permitido' }, { status: 403 })
 
-    const fechaInicioDate = new Date(fechaInicio)
-    const fechaFinDate = fechaFin ? new Date(fechaFin) : null
+    const fechaInicioDate = parseClientDate(fechaInicio)
+    const fechaFinDate = fechaFin ? parseClientDate(fechaFin) : null
 
     const evento = await prisma.$transaction(async tx => {
       if (!esEmpleado && Array.isArray(employeeIds)) {

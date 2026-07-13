@@ -4,6 +4,7 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendToSign } from '@/lib/signature'
+import { sendMail } from '@/lib/email'
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -46,5 +47,32 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   }
 
   await logAction(user.userId, 'ENVIAR_FIRMA_LOTE', 'Lote', `ID ${id}: ${sent} enviados`)
+
+  // Notificar a cada empleado con documentos publicados en este lote
+  const publicados = await prisma.document.findMany({
+    where: { loteId: Number(id), estado: 'ENVIADO_A_FIRMA' },
+    include: {
+      employee: { select: { nombre: true, email: true } },
+      tipoDocumento: { select: { nombre: true } },
+    },
+  })
+  const requiereFirma = accion === 'FIRMA'
+  const tipo = publicados[0]?.tipoDocumento?.nombre ?? 'Documento'
+  Promise.all(publicados
+    .filter(d => d.employee?.email)
+    .map(d => sendMail({
+      to: d.employee.email,
+      subject: `Nuevo documento disponible: ${tipo}`,
+      title: requiereFirma ? 'Tenés un documento pendiente de firma' : 'Nuevo documento disponible',
+      bodyHtml: `
+        <p>Hola ${d.employee.nombre},</p>
+        <p>Se cargó un nuevo documento en tu portal: <strong>${tipo}</strong>${d.periodo ? ` (${d.periodo})` : ''}.</p>
+        ${requiereFirma ? '<p>Requiere tu firma para completarse.</p>' : ''}
+      `,
+      ctaLabel: 'Ver en el portal',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos`,
+    }))
+  ).catch(e => console.error('[email/lote-enviar] fallo:', e))
+
   return NextResponse.json({ sent, errors })
 }

@@ -4,8 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, X, CheckCircle2, AlertCircle } from 'lucide-react'
@@ -18,18 +16,7 @@ interface Entry {
   matched: boolean
   detectando: boolean
 }
-interface Props { open: boolean; onClose: () => void; onSaved: () => void }
-
-const MESES = [
-  { value: '01', label: 'Enero' }, { value: '02', label: 'Febrero' },
-  { value: '03', label: 'Marzo' }, { value: '04', label: 'Abril' },
-  { value: '05', label: 'Mayo' }, { value: '06', label: 'Junio' },
-  { value: '07', label: 'Julio' }, { value: '08', label: 'Agosto' },
-  { value: '09', label: 'Septiembre' }, { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' },
-]
-const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
+interface Props { open: boolean; loteId: number; onClose: () => void; onSaved: () => void }
 
 async function detectarLegajoPdf(file: File): Promise<string | null> {
   try {
@@ -44,12 +31,8 @@ async function detectarLegajoPdf(file: File): Promise<string | null> {
   }
 }
 
-export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
+export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
-  const [nombre, setNombre] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
-  const [ano, setAno] = useState(String(new Date().getFullYear()))
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -59,8 +42,6 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
     fetch('/api/empleados?all=true&estado=ACTIVO')
       .then(r => r.json())
       .then(d => setEmpleados(d.employees ?? []))
-    setNombre('')
-    setDescripcion('')
     setEntries([])
   }, [open])
 
@@ -99,93 +80,47 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   }
 
   async function handleSubmit() {
-    if (!nombre.trim()) { toast.error('Ingresá un nombre para el lote'); return }
+    if (entries.length === 0) { toast.error('Agregá al menos un archivo'); return }
     const invalid = entries.filter(e => !e.empleadoId)
     if (invalid.length > 0) { toast.error(`${invalid.length} archivo(s) sin empleado asignado`); return }
 
     setLoading(true)
     try {
       const fd = new FormData()
-      fd.append('nombre', nombre.trim())
-      if (descripcion.trim()) fd.append('descripcion', descripcion.trim())
-      fd.append('periodo', `${ano}-${mes}`)
       entries.forEach((e, i) => {
         fd.append(`file_${i}`, e.file)
         fd.append(`employeeId_${i}`, e.empleadoId)
       })
 
-      const r = await fetch('/api/lotes', { method: 'POST', body: fd })
+      const r = await fetch(`/api/lotes/${loteId}/documentos`, { method: 'POST', body: fd })
       const data = await r.json()
-      if (!r.ok) { toast.error(data.error ?? 'Error al crear el lote'); return }
+      if (!r.ok) { toast.error(data.error ?? 'Error al agregar recibos'); return }
 
       if (data.errors?.length > 0) {
-        toast.warning(`Lote creado con ${data.uploaded} recibo(s). ${data.errors.length} no pudieron subirse.`)
+        toast.warning(`${data.uploaded} recibo(s) agregados. ${data.errors.length} con error.`)
       } else {
-        toast.success(`Lote creado — ${data.uploaded} recibo(s) cargados`)
+        toast.success(`${data.uploaded} recibo(s) agregados`)
       }
       onSaved()
     } catch {
-      toast.error('Error al crear el lote')
+      toast.error('Error al agregar recibos')
     } finally {
       setLoading(false)
     }
   }
 
   const detectandoCount = entries.filter(e => e.detectando).length
-  const canSubmit = !!nombre.trim() && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0
+  const canSubmit = entries.length > 0 && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0
   const pendingCount = entries.filter(e => !e.empleadoId && !e.detectando).length
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Nuevo Lote de Recibos</DialogTitle>
+          <DialogTitle>Agregar recibos al lote</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
-          {/* Nombre */}
-          <div>
-            <Label>Nombre del lote</Label>
-            <Input
-              className="mt-1"
-              placeholder="Ej: Recibos Junio 2026"
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-            />
-          </div>
-
-          {/* Descripcion */}
-          <div>
-            <Label>Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-            <Textarea
-              className="mt-1 resize-none"
-              rows={2}
-              placeholder="Notas internas sobre este lote…"
-              value={descripcion}
-              onChange={e => setDescripcion(e.target.value)}
-            />
-          </div>
-
-          {/* Periodo */}
-          <div>
-            <Label>Período</Label>
-            <div className="flex gap-2 mt-1">
-              <Select value={mes} onValueChange={v => v && setMes(v)}>
-                <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={ano} onValueChange={v => v && setAno(v)}>
-                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Upload area */}
           <div>
             <Label>Archivos PDF</Label>
             <div
@@ -209,7 +144,6 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* File entries */}
           {entries.length > 0 && (
             <div className="space-y-2">
               {pendingCount > 0 && (
@@ -274,7 +208,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             onClick={handleSubmit}
             disabled={!canSubmit}
           >
-            {loading ? 'Creando...' : entries.length > 0 ? `Crear Lote (${entries.length} recibo${entries.length !== 1 ? 's' : ''})` : 'Crear Lote'}
+            {loading ? 'Agregando...' : entries.length > 0 ? `Agregar ${entries.length} recibo${entries.length !== 1 ? 's' : ''}` : 'Agregar recibos'}
           </Button>
         </DialogFooter>
       </DialogContent>

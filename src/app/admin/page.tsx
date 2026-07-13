@@ -120,7 +120,7 @@ export default function AdminDashboard() {
                         <FileText size={14} className="text-muted-foreground" />
                         <span className="text-sm font-semibold">Solicitudes pendientes</span>
                       </div>
-                      <Link href="/admin/solicitudes" className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todas</Link>
+                      <Link href="/admin/documentos?tab=solicitudes" className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todas</Link>
                     </div>
                     {data.recentSolicitudes.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-8">Sin solicitudes pendientes</p>

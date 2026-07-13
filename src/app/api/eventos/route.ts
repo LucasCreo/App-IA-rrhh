@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
+import { parseClientDate } from '@/lib/dates'
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,8 +72,8 @@ export async function POST(req: NextRequest) {
       asignados = employeeIds
     }
 
-    const fechaInicioDate = new Date(fechaInicio)
-    const fechaFinDate = fechaFin ? new Date(fechaFin) : null
+    const fechaInicioDate = parseClientDate(fechaInicio)
+    const fechaFinDate = fechaFin ? parseClientDate(fechaFin) : null
 
     const evento = await prisma.evento.create({
       data: {

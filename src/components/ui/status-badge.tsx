@@ -11,15 +11,29 @@ const CONFIG: Record<string, { label: string; dot: string; bg: string; text: str
   ERROR:           { label: 'Error',     dot: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-950/40', text: 'text-orange-700 dark:text-orange-400' },
 }
 
-export function StatusBadge({ estado }: { estado: string }) {
+const LECTURA_LABELS: Record<string, string> = {
+  ENVIADO_A_FIRMA: 'Pendiente de lectura',
+  FIRMADO: 'Leído',
+}
+
+const NINGUNA_LABELS: Record<string, string> = {
+  ENVIADO_A_FIRMA: 'Enviado',
+  FIRMADO: 'Enviado',
+}
+
+export function StatusBadge({ estado, accion }: { estado: string; accion?: string }) {
   const cfg = CONFIG[estado] ?? {
     label: estado, dot: 'bg-gray-400', bg: 'bg-gray-100', text: 'text-gray-700',
   }
 
+  const label = accion === 'LECTURA' ? (LECTURA_LABELS[estado] ?? cfg.label)
+    : accion === 'NINGUNA' ? (NINGUNA_LABELS[estado] ?? cfg.label)
+    : cfg.label
+
   return (
     <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium', cfg.bg, cfg.text)}>
       <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', cfg.dot, cfg.pulse && 'animate-pulse')} />
-      {cfg.label}
+      {label}
     </span>
   )
 }

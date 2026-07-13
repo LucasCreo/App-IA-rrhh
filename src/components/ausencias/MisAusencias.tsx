@@ -24,7 +24,7 @@ const ESTADO_BADGE: Record<string, React.ReactElement> = {
 }
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
 }
 
 export function MisAusencias() {

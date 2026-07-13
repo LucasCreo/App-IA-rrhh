@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ const FEATURES = [
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -38,7 +39,15 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push(data.role === 'ADMIN' ? '/admin' : '/empleado')
+      const next = searchParams.get('next')
+      const defaultDest = data.role === 'ADMIN' ? '/admin' : '/empleado'
+      // Validar que el next sea del rol correcto para evitar loop de redirección
+      const target = next && next.startsWith('/') &&
+        !(data.role === 'ADMIN' && next.startsWith('/empleado')) &&
+        !(data.role === 'EMPLOYEE' && next.startsWith('/admin'))
+        ? next
+        : defaultDest
+      router.push(target)
     } catch {
       setError('No se pudo conectar con el servidor')
       setLoading(false)
@@ -48,15 +57,25 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel */}
-      <div className="hidden md:flex md:w-1/2 flex-col justify-between p-12 text-white relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #14532d 0%, #166534 50%, #15803d 100%)' }}>
+      <div
+        className="hidden md:flex md:w-1/2 flex-col justify-between p-12 text-white relative overflow-hidden animate-[gradient-shift_18s_ease_infinite]"
+        style={{
+          background: 'linear-gradient(135deg, #14532d 0%, #166534 30%, #15803d 55%, #166534 80%, #14532d 100%)',
+          backgroundSize: '300% 300%',
+        }}>
+
+        {/* Ambient blobs */}
+        <div className="absolute w-72 h-72 rounded-full bg-green-400 opacity-30 blur-3xl pointer-events-none animate-[blob-drift_14s_ease-in-out_infinite]"
+          style={{ top: '-40px', left: '-60px' }} />
+        <div className="absolute w-96 h-96 rounded-full bg-emerald-500 opacity-30 blur-3xl pointer-events-none animate-[blob-drift_14s_ease-in-out_infinite]"
+          style={{ bottom: '-80px', right: '-100px', animationDelay: '-7s' }} />
 
         {/* Dot grid texture */}
         <div className="absolute inset-0 opacity-[0.07]"
           style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
 
         {/* Top: brand */}
-        <div className="relative">
+        <div className="relative fade-in-up">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-lg font-bold tracking-tight">
               L
@@ -68,7 +87,7 @@ export default function LoginPage() {
 
         {/* Center: headline + features */}
         <div className="relative space-y-8">
-          <div>
+          <div className="fade-in-up" style={{ animationDelay: '120ms' }}>
             <h2 className="text-4xl font-bold leading-tight mb-3">
               Toda la gestión<br />de tu equipo,<br />en un solo lugar.
             </h2>
@@ -78,10 +97,14 @@ export default function LoginPage() {
           </div>
 
           <ul className="space-y-4">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <li key={title} className="flex items-start gap-3">
-                <div className="mt-0.5 w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <Icon size={15} className="text-green-300" />
+            {FEATURES.map(({ icon: Icon, title, desc }, i) => (
+              <li
+                key={title}
+                className="flex items-start gap-3 fade-in-up group"
+                style={{ animationDelay: `${260 + i * 100}ms` }}
+              >
+                <div className="mt-0.5 w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:bg-white/20 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(134,239,172,0.35)]">
+                  <Icon size={15} className="text-green-300 transition-colors group-hover:text-green-200" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold leading-tight">{title}</p>
@@ -93,7 +116,7 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom: tagline */}
-        <p className="relative text-xs text-green-500">© {new Date().getFullYear()} LPA · Sistema interno</p>
+        <p className="relative text-xs text-green-500 fade-in-up" style={{ animationDelay: '700ms' }}>© {new Date().getFullYear()} LPA · Sistema interno</p>
       </div>
 
       {/* Right panel - form */}

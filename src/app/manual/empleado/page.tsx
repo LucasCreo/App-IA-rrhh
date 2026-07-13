@@ -1,6 +1,7 @@
 'use client'
 
-import { Printer } from 'lucide-react'
+import { Printer, ArrowLeft } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -41,8 +42,15 @@ function Note({ children }: { children: React.ReactNode }) {
 }
 
 export default function ManualEmpleadoPage() {
+  const router = useRouter()
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
+      <button
+        onClick={() => router.back()}
+        className="print:hidden inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted transition-colors mb-6"
+      >
+        <ArrowLeft size={15} /> Volver
+      </button>
       {/* Header */}
       <div className="flex items-start justify-between mb-8 print:mb-6">
         <div>
@@ -63,7 +71,10 @@ export default function ManualEmpleadoPage() {
         <Sub title="Cierre de sesión">
           <p>Haga clic en el ícono de cierre de sesión ubicado en la parte inferior del menú lateral, a la derecha de su nombre.</p>
         </Sub>
-        <Note>Si no recuerda su contraseña o tiene dificultades para ingresar, comuníquese con el área de Recursos Humanos.</Note>
+        <Sub title="Recuperar contraseña">
+          <p>Si olvidó su contraseña, haga clic en <strong>¿Olvidaste tu contraseña?</strong> debajo del campo de contraseña en la pantalla de inicio de sesión. Ingrese su usuario o email registrado y recibirá un mail con un link válido por 1 hora para elegir una nueva contraseña.</p>
+        </Sub>
+        <Note>Si sigue sin poder ingresar después de recuperar su contraseña, comuníquese con el área de Recursos Humanos.</Note>
       </Section>
 
       <Section title="2. Inicio — Panel principal">
@@ -151,6 +162,7 @@ export default function ManualEmpleadoPage() {
             <li><strong>Aprobada:</strong> la solicitud fue aceptada.</li>
             <li><strong>Rechazada:</strong> la solicitud fue denegada. Puede ver el motivo haciendo clic en la solicitud.</li>
           </ul>
+          <p className="mt-2">Cuando Recursos Humanos apruebe o rechace su solicitud, recibirá un mail automático con el resultado y el comentario del administrador (si lo hubo).</p>
         </Sub>
         <Sub title="Saldo de vacaciones">
           <p>En la parte superior de la pantalla de Ausencias se muestra su saldo de días de vacaciones disponibles para el año en curso.</p>

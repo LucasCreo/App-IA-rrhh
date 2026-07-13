@@ -121,12 +121,12 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
 
       <div className="px-2 pb-1">
         <Link
-          href="/empleado/manual"
+          href="/manual/empleado"
           title={collapsed ? 'Manual de uso' : undefined}
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
             collapsed && 'justify-center',
-            pathname.startsWith('/empleado/manual')
+            pathname.startsWith('/manual/empleado')
               ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           )}

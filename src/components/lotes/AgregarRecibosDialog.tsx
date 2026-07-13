@@ -6,28 +6,34 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Upload, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Upload, X, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react'
+import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
 
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
+interface DetectedData { legajo: string | null; cuil: string | null; nombre: string | null; apellido: string | null }
 interface Entry {
   file: File
   empleadoId: string
   legajoDetectado: string | null
+  cuilDetectado: string | null
+  nombreDetectado: string | null
+  apellidoDetectado: string | null
   matched: boolean
   detectando: boolean
 }
 interface Props { open: boolean; loteId: number; onClose: () => void; onSaved: () => void }
 
-async function detectarLegajoPdf(file: File): Promise<string | null> {
+async function detectarLegajoPdf(file: File): Promise<DetectedData> {
+  const empty = { legajo: null, cuil: null, nombre: null, apellido: null }
   try {
     const fd = new FormData()
     fd.append('file', file)
     const r = await fetch('/api/lotes/detectar-legajo', { method: 'POST', body: fd })
-    if (!r.ok) return null
+    if (!r.ok) return empty
     const data = await r.json()
-    return data.legajo ?? null
+    return { legajo: data.legajo ?? null, cuil: data.cuil ?? null, nombre: data.nombre ?? null, apellido: data.apellido ?? null }
   } catch {
-    return null
+    return empty
   }
 }
 
@@ -36,6 +42,18 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [creatingEmp, setCreatingEmp] = useState<{ entryIndex: number; prefill: any } | null>(null)
+
+  async function refreshEmpleadosAndAssign(entryIndex: number, legajo: string | null) {
+    const r = await fetch('/api/empleados?all=true&estado=ACTIVO')
+    const d = await r.json()
+    const list: Empleado[] = d.employees ?? []
+    setEmpleados(list)
+    const nuevo = legajo ? list.find(e => e.legajo === legajo) : undefined
+    if (nuevo) {
+      setEntries(prev => prev.map((e, i) => i !== entryIndex ? e : { ...e, empleadoId: String(nuevo.id), matched: true }))
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -49,20 +67,26 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
     const startIndex = entries.length
     setEntries(prev => [
       ...prev,
-      ...files.map(file => ({ file, legajoDetectado: null, empleadoId: '', matched: false, detectando: true })),
+      ...files.map(file => ({
+        file, legajoDetectado: null, cuilDetectado: null, nombreDetectado: null, apellidoDetectado: null,
+        empleadoId: '', matched: false, detectando: true,
+      })),
     ])
 
     files.forEach((file, i) => {
       const targetIndex = startIndex + i
-      detectarLegajoPdf(file).then(legajoDetectado => {
-        const emp = legajoDetectado
-          ? currentEmpleados.find(e => e.legajo === legajoDetectado)
+      detectarLegajoPdf(file).then(detected => {
+        const emp = detected.legajo
+          ? currentEmpleados.find(e => e.legajo === detected.legajo)
           : undefined
         setEntries(prev => prev.map((entry, idx) => {
           if (idx !== targetIndex) return entry
           return {
             ...entry,
-            legajoDetectado,
+            legajoDetectado: detected.legajo,
+            cuilDetectado: detected.cuil,
+            nombreDetectado: detected.nombre,
+            apellidoDetectado: detected.apellido,
             empleadoId: emp ? String(emp.id) : '',
             matched: !!emp,
             detectando: false,
@@ -114,7 +138,8 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
   const pendingCount = entries.filter(e => !e.empleadoId && !e.detectando).length
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <>
+    <Dialog open={open && !creatingEmp} onOpenChange={v => { if (!v && !creatingEmp) onClose() }}>
       <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>Agregar recibos al lote</DialogTitle>
@@ -183,18 +208,38 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
                       <X size={14} />
                     </button>
                   </div>
-                  <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Seleccioná el empleado…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {empleados.map(e => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="Seleccioná el empleado…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empleados.map(e => (
+                          <SelectItem key={e.id} value={String(e.id)}>
+                            {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!entry.detectando && entry.legajoDetectado && !entry.matched && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs shrink-0"
+                        onClick={() => setCreatingEmp({
+                          entryIndex: i,
+                          prefill: {
+                            legajo: entry.legajoDetectado ?? '',
+                            cuil: '', nombre: '', apellido: '',
+                            email: '', telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
+                          },
+                        })}
+                      >
+                        <UserPlus size={12} className="mr-1" /> Crear empleado
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -213,5 +258,20 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {creatingEmp && (
+      <EmpleadoDialog
+        open={true}
+        onClose={() => setCreatingEmp(null)}
+        onSaved={() => {
+          const legajo = creatingEmp.prefill.legajo || null
+          const idx = creatingEmp.entryIndex
+          setCreatingEmp(null)
+          refreshEmpleadosAndAssign(idx, legajo)
+        }}
+        empleado={creatingEmp.prefill}
+      />
+    )}
+    </>
   )
 }

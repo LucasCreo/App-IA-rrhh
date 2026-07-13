@@ -39,6 +39,22 @@ const TIPOS_CAMPO = [
   { value: 'seleccion', label: 'Selección' },
 ]
 
+function slugify(s: string) {
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function uniqueSlug(base: string, existing: string[]) {
+  const slug = base || 'campo'
+  if (!existing.includes(slug)) return slug
+  let n = 2
+  while (existing.includes(`${slug}_${n}`)) n++
+  return `${slug}_${n}`
+}
+
 export function TabFormularios() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -92,12 +108,23 @@ export function TabFormularios() {
   }
 
   function updateCampo(i: number, key: keyof Campo, value: string | boolean) {
-    setEditCampos(prev => prev.map((c, j) => j !== i ? c : { ...c, [key]: value }))
+    setEditCampos(prev => prev.map((c, j) => {
+      if (j !== i) return c
+      const updated = { ...c, [key]: value }
+      if (key === 'label' && typeof value === 'string') {
+        const others = prev.filter((_, k) => k !== i).map(x => x.nombre).filter(Boolean)
+        updated.nombre = uniqueSlug(slugify(value), others)
+      }
+      return updated
+    }))
   }
 
   async function saveEdit() {
     if (!editPlantilla || !editNombre.trim()) { toast.error('El nombre no puede estar vacío'); return }
-    const camposValidos = editCampos.filter(c => c.nombre.trim() && c.label.trim())
+    const camposValidos = editCampos.filter(c => c.label.trim()).map(c => ({
+      ...c,
+      nombre: c.nombre || uniqueSlug(slugify(c.label), []),
+    }))
     const res = await fetch(`/api/configuracion/plantillas-formulario/${editPlantilla.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -222,13 +249,7 @@ export function TabFormularios() {
                       <div className="flex gap-2">
                         <Input
                           className="flex-1 h-7 text-xs"
-                          placeholder="Nombre interno (sin espacios)"
-                          value={campo.nombre}
-                          onChange={e => updateCampo(i, 'nombre', e.target.value.replace(/\s/g, '_').toLowerCase())}
-                        />
-                        <Input
-                          className="flex-1 h-7 text-xs"
-                          placeholder="Etiqueta visible"
+                          placeholder="Etiqueta del campo (ej: Fecha de nacimiento)"
                           value={campo.label}
                           onChange={e => updateCampo(i, 'label', e.target.value)}
                         />

@@ -11,7 +11,7 @@ import {
 import { CategoriaDialog } from './CategoriaDialog'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 
-interface Categoria { id: number; nombre: string; _count: { employees: number } }
+interface Categoria { id: number; nombre: string; nivel: number | null; rolPorDefecto: string | null; _count: { employees: number } }
 
 export interface CategoriasTableHandle { openNew: () => void }
 
@@ -50,14 +50,20 @@ export const CategoriasTable = forwardRef<CategoriasTableHandle, { showTopButton
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
+            <TableHead>Nivel</TableHead>
+            <TableHead>Rol sugerido</TableHead>
             <TableHead>Empleados</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map(cat => (
+          {[...data].sort((a, b) => (a.nivel ?? 99) - (b.nivel ?? 99)).map(cat => (
             <TableRow key={cat.id}>
               <TableCell className="font-medium">{cat.nombre}</TableCell>
+              <TableCell className="text-muted-foreground">{cat.nivel ?? '—'}</TableCell>
+              <TableCell className="text-muted-foreground text-sm">
+                {cat.rolPorDefecto === 'ADMIN' ? 'Admin' : cat.rolPorDefecto === 'EMPLOYEE' ? 'Empleado' : '—'}
+              </TableCell>
               <TableCell>{cat._count.employees}</TableCell>
               <TableCell className="text-right space-x-2">
                 <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, cat })}>

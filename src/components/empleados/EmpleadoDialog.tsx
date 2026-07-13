@@ -13,10 +13,12 @@ import { Paperclip, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 
-interface Categoria { id: number; nombre: string }
+interface Categoria { id: number; nombre: string; nivel?: number | null; rolPorDefecto?: string | null }
+interface EmpleadoLite { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nivel: number | null; nombre: string } | null }
 interface Empleado {
   id?: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
+  managerId?: number | null
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
@@ -24,7 +26,7 @@ interface Props { open: boolean; onClose: () => void; onSaved: () => void; emple
 
 const empty: Empleado = {
   legajo: '', nombre: '', apellido: '', cuil: '', email: '',
-  telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
+  telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO', managerId: null,
 }
 
 const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
@@ -37,6 +39,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [form, setForm] = useState<Empleado>(empleado ?? empty)
   const [cats, setCats] = useState<Categoria[]>([])
   const [catsLoaded, setCatsLoaded] = useState(false)
+  const [posiblesJefes, setPosiblesJefes] = useState<EmpleadoLite[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -53,6 +56,10 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     fetch('/api/categorias').then(r => r.json()).then(data => { setCats(data); setCatsLoaded(true) })
     fetch('/api/configuracion/empleados-campos').then(r => r.json()).then(setFieldConfig)
     fetch('/api/configuracion/campos-personalizados').then(r => r.json()).then(setCamposCustom)
+    fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => {
+      const list: EmpleadoLite[] = d.employees ?? []
+      setPosiblesJefes(list.filter(e => e.id !== empleado?.id))
+    })
     setForm(empleado ?? empty)
     setPassword('')
     setUsername('')
@@ -285,12 +292,59 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                           <SelectValue placeholder="Seleccionar" />
                         </SelectTrigger>
                         <SelectContent>
-                          {cats.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                          {cats.map(c => (
+                            <SelectItem key={c.id} value={String(c.id)}>
+                              {c.nombre}{c.nivel != null ? ` (nivel ${c.nivel})` : ''}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
+                    {isNew && crearUsuario && form.categoriaId > 0 && (() => {
+                      const cat = cats.find(c => c.id === form.categoriaId)
+                      if (!cat?.rolPorDefecto) return null
+                      return (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          El usuario se creará con rol: <strong>{cat.rolPorDefecto === 'ADMIN' ? 'Admin' : 'Empleado'}</strong>
+                        </p>
+                      )
+                    })()}
                   </div>
                 )}
+                <div>
+                  <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+                  <Select
+                    value={form.managerId ? String(form.managerId) : '__none__'}
+                    onValueChange={v => setForm(f => ({ ...f, managerId: v === '__none__' ? null : Number(v) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin jefe directo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin jefe directo</SelectItem>
+                      {(() => {
+                        const miNivel = cats.find(c => c.id === form.categoriaId)?.nivel ?? null
+                        return posiblesJefes
+                          .filter(e => {
+                            if (miNivel == null) return true
+                            const suNivel = e.categoria?.nivel ?? null
+                            if (suNivel == null) return true
+                            return suNivel <= miNivel
+                          })
+                          .map(e => (
+                            <SelectItem key={e.id} value={String(e.id)}>
+                              {`${e.apellido}, ${e.nombre} — ${e.legajo}${e.categoria?.nivel != null ? ` (nivel ${e.categoria.nivel})` : ''}`}
+                            </SelectItem>
+                          ))
+                      })()}
+                    </SelectContent>
+                  </Select>
+                  {cats.find(c => c.id === form.categoriaId)?.nivel != null && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Solo se muestran empleados de nivel igual o superior al de la categoría seleccionada.
+                    </p>
+                  )}
+                </div>
                 {isVisible('estado') && (
                   <div>
                     <Label>Estado</Label>

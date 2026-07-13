@@ -67,11 +67,14 @@ model Employee {
   telefono     String?
   fechaIngreso DateTime
   categoriaId  Int
+  managerId    Int?
   estado       String    @default("ACTIVO")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   categoria       Category             @relation(fields: [categoriaId], references: [id])
+  manager         Employee?            @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinados    Employee[]           @relation("EmployeeManager")
   user            User?
   documents       Document[]
   valoresCampos   ValorCampoEmpleado[]
@@ -85,9 +88,11 @@ model Employee {
 }
 
 model Category {
-  id        Int        @id @default(autoincrement())
-  nombre    String     @unique
-  employees Employee[]
+  id             Int        @id @default(autoincrement())
+  nombre         String     @unique
+  nivel          Int?
+  rolPorDefecto  String?
+  employees      Employee[]
 }
 
 model Document {

@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, Network } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
   { href: '/admin/empleados', label: 'Legajos', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
+  { href: '/admin/organigrama', label: 'Organigrama', icon: Network, permiso: 'GESTIONAR_EMPLEADOS' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },

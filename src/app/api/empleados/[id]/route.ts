@@ -38,6 +38,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
           categoriaId: Number(body.categoriaId),
+          managerId: body.managerId ? Number(body.managerId) : null,
           estado: body.estado,
         },
         include: { categoria: true },

@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
   if (all) {
     const employees = await prisma.employee.findMany({
       where,
-      select: { id: true, nombre: true, apellido: true, legajo: true },
+      select: {
+        id: true, nombre: true, apellido: true, legajo: true,
+        categoria: { select: { id: true, nivel: true, nombre: true } },
+      },
       orderBy: { apellido: 'asc' },
     })
     return NextResponse.json({ employees, total: employees.length, page: 1, pages: 1 })
@@ -77,17 +80,20 @@ export async function POST(req: NextRequest) {
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
           categoriaId: Number(body.categoriaId),
+          managerId: body.managerId ? Number(body.managerId) : null,
           estado: body.estado ?? 'ACTIVO',
         },
         include: { categoria: true },
       })
       if (body.crearUsuario) {
+        const rolFinal = body.role
+          ?? (newEmp.categoria?.rolPorDefecto === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE')
         await tx.user.create({
           data: {
             email: body.email,
             username: body.username || null,
             passwordHash: await hashPassword(body.password),
-            role: 'EMPLOYEE',
+            role: rolFinal,
             employeeId: newEmp.id,
           },
         })

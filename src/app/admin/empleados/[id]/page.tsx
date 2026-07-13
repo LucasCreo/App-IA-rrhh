@@ -17,10 +17,12 @@ import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulari
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft } from 'lucide-react'
 
-interface Categoria { id: number; nombre: string }
+interface Categoria { id: number; nombre: string; nivel?: number | null; rolPorDefecto?: string | null }
+interface EmpleadoLite { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nivel: number | null; nombre: string } | null }
 interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
+  managerId?: number | null
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
@@ -34,6 +36,7 @@ export default function EmpleadoDetailPage() {
   const router = useRouter()
   const [form, setForm] = useState<Empleado | null>(null)
   const [cats, setCats] = useState<Categoria[]>([])
+  const [posiblesJefes, setPosiblesJefes] = useState<EmpleadoLite[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -52,10 +55,12 @@ export default function EmpleadoDetailPage() {
       fetch('/api/configuracion/empleados-campos').then(r => r.json()),
       fetch('/api/configuracion/campos-personalizados').then(r => r.json()),
       fetch(`/api/empleados/${id}`).then(r => r.json()),
-    ]).then(([catsData, fieldCfg, camposCfg, empData]) => {
+      fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()),
+    ]).then(([catsData, fieldCfg, camposCfg, empData, jefesData]) => {
       setCats(catsData)
       setFieldConfig(fieldCfg)
       setCamposCustom(camposCfg)
+      setPosiblesJefes((jefesData.employees ?? []).filter((e: EmpleadoLite) => e.id !== empData.id))
       setForm({
         id: empData.id,
         legajo: empData.legajo,
@@ -67,6 +72,7 @@ export default function EmpleadoDetailPage() {
         fechaIngreso: empData.fechaIngreso,
         categoriaId: empData.categoriaId,
         estado: empData.estado,
+        managerId: empData.managerId ?? null,
       })
       const map: Record<number, string> = {}
       for (const v of empData.valoresCampos ?? []) map[v.campoId] = v.valor
@@ -241,6 +247,38 @@ export default function EmpleadoDetailPage() {
                 </Select>
               </div>
             )}
+            <div>
+              <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Select
+                value={form.managerId ? String(form.managerId) : '__none__'}
+                onValueChange={v => setForm(f => f ? { ...f, managerId: v === '__none__' ? null : Number(v) } : f)}
+              >
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Sin jefe directo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin jefe directo</SelectItem>
+                  {(() => {
+                    const miNivel = cats.find(c => c.id === form.categoriaId)?.nivel ?? null
+                    return posiblesJefes
+                      .filter(e => {
+                        if (miNivel == null) return true
+                        const suNivel = e.categoria?.nivel ?? null
+                        if (suNivel == null) return true
+                        return suNivel <= miNivel
+                      })
+                      .map(e => (
+                        <SelectItem key={e.id} value={String(e.id)}>
+                          {`${e.apellido}, ${e.nombre} — ${e.legajo}${e.categoria?.nivel != null ? ` (nivel ${e.categoria.nivel})` : ''}`}
+                        </SelectItem>
+                      ))
+                  })()}
+                </SelectContent>
+              </Select>
+              {cats.find(c => c.id === form.categoriaId)?.nivel != null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Solo se muestran empleados de nivel igual o superior al de la categoría seleccionada.
+                </p>
+              )}
+            </div>
             {isVisible('estado') && (
               <div>
                 <Label>Estado</Label>

@@ -4,6 +4,7 @@ import { getCurrentUser, requirePermiso, hashPassword } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -17,7 +18,8 @@ export async function GET(req: NextRequest) {
   const page = Number(searchParams.get('page') ?? '1')
   const limit = 20
 
-  const where = {
+  const scope = await getScopedEmployeeIds(user.userId)
+  const where: Prisma.EmployeeWhereInput = {
     AND: [
       q ? {
         OR: [
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest) {
       } : {},
       estado ? { estado } : {},
       categoriaId ? { categoriaId } : {},
+      scope ? { id: { in: [...scope] } } : {},
     ],
   }
 
@@ -66,6 +69,18 @@ export async function POST(req: NextRequest) {
 
   if (body.crearUsuario && !body.password) {
     return NextResponse.json({ error: 'Se requiere una contraseña para crear el usuario' }, { status: 400 })
+  }
+
+  // Si el user está scopeado, el nuevo empleado debe reportar a alguien dentro de su scope
+  const scopeCreate = await getScopedEmployeeIds(user.userId)
+  if (scopeCreate) {
+    const targetManager = body.managerId ? Number(body.managerId) : null
+    if (!targetManager || !scopeCreate.has(targetManager)) {
+      return NextResponse.json(
+        { error: 'Solo podés crear empleados que reporten a vos o a alguien de tu equipo' },
+        { status: 403 }
+      )
+    }
   }
 
   try {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Fragment } from 'react'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -235,9 +235,8 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                     {activeCampos.map(campo => {
                       if (campo.tipo === 'mes_anio') {
                         return (
-                          <>
+                          <Fragment key={campo.nombre}>
                             <Select
-                              key={`${campo.nombre}__mes`}
                               value={entry.campoValues[`${campo.nombre}__mes`] ?? ''}
                               onValueChange={v => v && setCampoValue(i, `${campo.nombre}__mes`, v)}
                             >
@@ -247,7 +246,6 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                               </SelectContent>
                             </Select>
                             <Select
-                              key={`${campo.nombre}__ano`}
                               value={entry.campoValues[`${campo.nombre}__ano`] ?? ''}
                               onValueChange={v => v && setCampoValue(i, `${campo.nombre}__ano`, v)}
                             >
@@ -256,7 +254,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                                 {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                          </>
+                          </Fragment>
                         )
                       }
                       return (

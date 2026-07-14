@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -37,8 +38,21 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
   const limit = user.role === 'EMPLOYEE' ? 1000 : 50
 
+  const scope = user.role === 'ADMIN' ? await getScopedEmployeeIds(user.userId) : null
+
+  // Si el admin está scopeado y pidió un employeeId puntual, verificar que esté dentro del scope
+  if (scope && effectiveEmployeeId && !scope.has(effectiveEmployeeId)) {
+    return NextResponse.json({ docs: [], total: 0, page: 1, pages: 0 })
+  }
+
+  const employeeIdFilter = effectiveEmployeeId
+    ? { employeeId: effectiveEmployeeId }
+    : scope
+      ? { employeeId: { in: [...scope] } }
+      : {}
+
   const where = {
-    ...(effectiveEmployeeId ? { employeeId: effectiveEmployeeId } : {}),
+    ...employeeIdFilter,
     ...(estado ? { estado } : {}),
     ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
     ...(periodo ? { periodo: { contains: periodo } } : {}),
@@ -70,6 +84,11 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get('file') as File
   const employeeId = Number(formData.get('employeeId'))
+
+  const scopePost = await getScopedEmployeeIds(user.userId)
+  if (scopePost && !scopePost.has(employeeId)) {
+    return NextResponse.json({ error: 'No autorizado sobre ese empleado' }, { status: 403 })
+  }
   const periodo = (formData.get('periodo') as string | null) || null
   const metadataRaw = formData.get('metadata') as string | null
   const tipoDocumentoIdRaw = formData.get('tipoDocumentoId')

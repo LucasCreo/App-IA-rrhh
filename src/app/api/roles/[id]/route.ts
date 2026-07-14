@@ -8,7 +8,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { nombre, descripcion, permisos } = await req.json()
+  const { nombre, descripcion, scopeJerarquico, permisos } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
 
   const permisosValidos = (permisos ?? []).filter((p: string) => TODOS_LOS_PERMISOS.includes(p as any))
@@ -20,6 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       nombre: nombre.trim(),
       descripcion: descripcion?.trim() || null,
+      scopeJerarquico: !!scopeJerarquico,
       permisos: {
         create: permisosValidos.map((p: string) => ({ permiso: p })),
       },

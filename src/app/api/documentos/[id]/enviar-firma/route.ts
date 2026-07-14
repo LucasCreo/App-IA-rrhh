@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendToSign, checkSignatureStatus } from '@/lib/signature'
 import { sendMail } from '@/lib/email'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 async function notificarEmpleado(docId: number, accion: string) {
   try {
@@ -50,6 +51,11 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     include: { tipoDocumento: { select: { accion: true } } },
   })
   if (!doc) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
+
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope && !scope.has(doc.employeeId)) {
+    return NextResponse.json({ error: 'No autorizado sobre ese documento' }, { status: 403 })
+  }
 
   const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
 

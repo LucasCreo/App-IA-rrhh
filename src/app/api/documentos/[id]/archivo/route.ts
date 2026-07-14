@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { readFile } from 'fs/promises'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -13,6 +14,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (user.role === 'EMPLOYEE' && doc.employeeId !== user.employeeId) {
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+  }
+
+  if (user.role === 'ADMIN') {
+    const scope = await getScopedEmployeeIds(user.userId)
+    if (scope && !scope.has(doc.employeeId)) {
+      return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+    }
   }
 
   try {

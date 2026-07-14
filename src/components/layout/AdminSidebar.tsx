@@ -4,20 +4,20 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, Network } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, Network, UserCircle, Newspaper } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
   { href: '/admin/empleados', label: 'Legajos', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
   { href: '/admin/organigrama', label: 'Organigrama', icon: Network, permiso: 'GESTIONAR_EMPLEADOS' },
+  { href: '/admin/portal', label: 'Portal interno', icon: Newspaper, permiso: 'VER_DASHBOARD' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
   { href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' },
   { href: '/admin/formularios', label: 'Formularios', icon: ClipboardCheck, permiso: 'GESTIONAR_FORMULARIOS' },
   { href: '/admin/ausencias', label: 'Ausencias', icon: CalendarOff, permiso: 'GESTIONAR_AUSENCIAS' },
-  { href: '/admin/auditoria', label: 'Auditoría', icon: ClipboardList, permiso: 'VER_AUDITORIA' },
 ]
 const NAV_DASHBOARD = nav[0]
 const NAV_DRAGGABLE = nav.slice(1)
@@ -34,9 +34,10 @@ interface Props {
   pendingModificaciones?: number
   pendingSolicitudes?: number
   permisos?: string[] | null // null = full access
+  hasEmployeeId?: boolean
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null, hasEmployeeId = false }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -252,6 +253,15 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
+          {hasEmployeeId && (
+            <Link
+              href="/empleado"
+              title="Ir a mi portal de empleado"
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            >
+              <UserCircle size={14} />
+            </Link>
+          )}
           <button
             onClick={logout}
             title="Cerrar sesión"

@@ -27,6 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         pendingModificaciones={pendingModificaciones}
         pendingSolicitudes={pendingSolicitudes}
         permisos={permisos}
+        hasEmployeeId={!!user?.employeeId}
       />
       <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0">
         {children}

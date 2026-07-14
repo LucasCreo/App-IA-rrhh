@@ -24,14 +24,19 @@ interface Entry {
 interface Props { open: boolean; loteId: number; onClose: () => void; onSaved: () => void }
 
 async function detectarLegajoPdf(file: File): Promise<DetectedData> {
-  const empty = { legajo: null, cuil: null, nombre: null, apellido: null }
+  const empty: DetectedData = { legajo: null, cuil: null, nombre: null, apellido: null }
   try {
     const fd = new FormData()
     fd.append('file', file)
     const r = await fetch('/api/lotes/detectar-legajo', { method: 'POST', body: fd })
     if (!r.ok) return empty
     const data = await r.json()
-    return { legajo: data.legajo ?? null, cuil: data.cuil ?? null, nombre: data.nombre ?? null, apellido: data.apellido ?? null }
+    return {
+      legajo: data.legajo ?? null,
+      cuil: data.cuil ?? null,
+      nombre: data.nombre ?? null,
+      apellido: data.apellido ?? null,
+    }
   } catch {
     return empty
   }

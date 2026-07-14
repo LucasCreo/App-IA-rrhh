@@ -314,7 +314,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 <div>
                   <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                   <Select
-                    value={form.managerId ? String(form.managerId) : '__none__'}
+                    value={form.managerId ? String(form.managerId) : undefined}
                     onValueChange={v => setForm(f => ({ ...f, managerId: v === '__none__' ? null : Number(v) }))}
                   >
                     <SelectTrigger>

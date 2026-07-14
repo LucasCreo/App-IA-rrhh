@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff, BookOpen } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff, BookOpen, Shield, Newspaper } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const nav = [
   { href: '/empleado', label: 'Inicio', icon: LayoutDashboard },
+  { href: '/empleado/portal', label: 'Portal interno', icon: Newspaper },
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
@@ -22,9 +23,10 @@ interface Props {
   initials: string
   fullName: string
   avatarUrl?: string | null
+  isAdmin?: boolean
 }
 
-export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName, avatarUrl }: Props) {
+export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName, avatarUrl, isAdmin = false }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -167,6 +169,15 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
         >
           {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
+        {isAdmin && (
+          <Link
+            href="/admin"
+            title="Ir al panel de administración"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+          >
+            <Shield size={14} />
+          </Link>
+        )}
         <button
           onClick={logout}
           title="Cerrar sesión"

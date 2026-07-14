@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EVALUACIONES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const scope = await getScopedEmployeeIds(user.userId)
+
   const evaluaciones = await prisma.evaluacion.findMany({
+    where: scope ? { employeeId: { in: [...scope] } } : {},
     orderBy: [{ ronda: { nombre: 'asc' } }, { employee: { apellido: 'asc' } }],
     include: {
       employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },

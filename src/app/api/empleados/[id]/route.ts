@@ -4,14 +4,19 @@ import { getCurrentUser, requirePermiso, hashPassword } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
+  const empId = Number(id)
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope && !scope.has(empId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
   const emp = await prisma.employee.findUnique({
-    where: { id: Number(id) },
+    where: { id: empId },
     include: { categoria: true, valoresCampos: true, user: { select: { id: true, email: true, username: true } } },
   })
   if (!emp) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -23,6 +28,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
+  const empId = Number(id)
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope && !scope.has(empId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
   const body = await req.json()
 
   try {
@@ -91,9 +100,12 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
+  const empId = Number(id)
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope && !scope.has(empId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   try {
-    const emp = await prisma.employee.delete({ where: { id: Number(id) } })
+    const emp = await prisma.employee.delete({ where: { id: empId } })
     await logAction(user.userId, 'ELIMINAR', 'Empleado', `Legajo: ${emp.legajo}`)
     return NextResponse.json({ ok: true })
   } catch (e) {

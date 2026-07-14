@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { sendMail } from '@/lib/email'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -19,6 +20,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     include: { tipoAusencia: true },
   })
   if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope && !scope.has(solicitud.employeeId)) {
+    return NextResponse.json({ error: 'No autorizado sobre esta solicitud' }, { status: 403 })
+  }
   if (solicitud.estado !== 'PENDIENTE')
     return NextResponse.json({ error: 'La solicitud ya fue procesada' }, { status: 400 })
 

@@ -36,8 +36,11 @@ export async function proxy(req: NextRequest) {
     if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
       return redirectToLogin(req, true, true)
     }
-    if (pathname.startsWith('/empleado') && payload.role !== 'EMPLOYEE') {
-      return redirectToLogin(req, true, true)
+    // /empleado: admins con employeeId también pueden entrar (actúan como su propio empleado)
+    if (pathname.startsWith('/empleado')) {
+      const esEmpleado = payload.role === 'EMPLOYEE'
+      const esAdminConLegajo = payload.role === 'ADMIN' && !!payload.employeeId
+      if (!esEmpleado && !esAdminConLegajo) return redirectToLogin(req, true, true)
     }
     // /manual/* accesible por ambos roles (autenticados)
     return NextResponse.next()

@@ -6,6 +6,7 @@ import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
 import { TabDocumentos } from '@/components/configuracion/TabDocumentos'
 import { TabFirma } from '@/components/configuracion/TabFirma'
+import { TabAuditoria } from '@/components/configuracion/TabAuditoria'
 import { TabSolicitudes } from '@/components/configuracion/TabSolicitudes'
 import { TabCalendario } from '@/components/configuracion/TabCalendario'
 import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
@@ -15,9 +16,10 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   puedeGestionarUsuarios?: boolean
+  puedeVerAuditoria?: boolean
 }
 
-export function ConfiguracionClient({ puedeGestionarUsuarios }: Props) {
+export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria }: Props) {
   const [tab, setTab] = useState('general')
 
   const tabs = [
@@ -30,6 +32,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios }: Props) {
     { id: 'evaluaciones', label: 'Evaluaciones' },
     { id: 'formularios', label: 'Formularios' },
     ...(puedeGestionarUsuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
+    ...(puedeVerAuditoria ? [{ id: 'auditoria', label: 'Auditoría' }] : []),
   ]
 
   return (
@@ -61,6 +64,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios }: Props) {
         {tab === 'evaluaciones' && <TabEvaluaciones />}
         {tab === 'formularios' && <TabFormularios />}
         {tab === 'usuarios' && <UsuariosPage />}
+        {tab === 'auditoria' && <TabAuditoria />}
       </div>
     </>
   )

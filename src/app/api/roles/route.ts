@@ -19,6 +19,7 @@ export async function GET() {
     id: r.id,
     nombre: r.nombre,
     descripcion: r.descripcion ?? null,
+    scopeJerarquico: !!r.scopeJerarquico,
     createdAt: r.createdAt,
     permisos: r.permisos.map((p: any) => p.permiso),
     usuariosCount: r._count.usuarios,
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_USUARIOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { nombre, descripcion, permisos } = await req.json()
+  const { nombre, descripcion, scopeJerarquico, permisos } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
 
   const permisosValidos = (permisos ?? []).filter((p: string) => TODOS_LOS_PERMISOS.includes(p as any))
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       data: {
         nombre: nombre.trim(),
         descripcion: descripcion?.trim() || null,
+        scopeJerarquico: !!scopeJerarquico,
         permisos: {
           create: permisosValidos.map((p: string) => ({ permiso: p })),
         },
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
       id: rol.id,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
+      scopeJerarquico: rol.scopeJerarquico,
       permisos: rol.permisos.map((p: any) => p.permiso),
       usuariosCount: 0,
     }, { status: 201 })

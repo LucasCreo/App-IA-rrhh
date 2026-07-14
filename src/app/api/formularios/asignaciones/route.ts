@@ -2,25 +2,36 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { sendMail } from '@/lib/email'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const scope = user.role === 'ADMIN' ? await getScopedEmployeeIds(user.userId) : null
+  const scopeFilter = scope
+    ? { respuestas: { some: { employeeId: { in: [...scope] } } } }
+    : {}
+
   const [asignaciones, enviadasRaw] = await Promise.all([
     prisma.asignacionFormulario.findMany({
+      where: scopeFilter,
       orderBy: { createdAt: 'desc' },
       include: {
         plantilla: { select: { nombre: true } },
         _count: { select: { respuestas: true } },
         respuestas: {
+          where: scope ? { employeeId: { in: [...scope] } } : {},
           select: { employee: { select: { nombre: true, apellido: true } } },
         },
       },
     }),
     prisma.respuestaFormulario.groupBy({
       by: ['asignacionId'],
-      where: { estado: 'ENVIADO' },
+      where: {
+        estado: 'ENVIADO',
+        ...(scope ? { employeeId: { in: [...scope] } } : {}),
+      },
       _count: true,
     }),
   ])
@@ -40,6 +51,17 @@ export async function POST(req: Request) {
   if (!plantillaId) return NextResponse.json({ error: 'La plantilla es requerida' }, { status: 400 })
   if (!Array.isArray(employeeIds) || employeeIds.length === 0)
     return NextResponse.json({ error: 'Seleccioná al menos un empleado' }, { status: 400 })
+
+  const scopeCreate = await getScopedEmployeeIds(user.userId)
+  if (scopeCreate) {
+    const fueraDelScope = (employeeIds as number[]).filter(id => !scopeCreate.has(id))
+    if (fueraDelScope.length > 0) {
+      return NextResponse.json(
+        { error: 'Hay empleados seleccionados fuera de tu alcance' },
+        { status: 403 }
+      )
+    }
+  }
 
   const asignacion = await prisma.asignacionFormulario.create({
     data: {

@@ -24,19 +24,23 @@ interface Props {
 export function CategoriaDialog({ open, onClose, onSaved, categoria }: Props) {
   const [nombre, setNombre] = useState(categoria?.nombre ?? '')
   const [nivel, setNivel] = useState<string>(categoria?.nivel != null ? String(categoria.nivel) : '')
-  const [rolPorDefecto, setRolPorDefecto] = useState<string>(categoria?.rolPorDefecto ?? '__none__')
+  const [rolPorDefecto, setRolPorDefecto] = useState<string>(categoria?.rolPorDefecto ?? 'EMPLOYEE')
+  const [error, setError] = useState('')
 
   async function handleSave() {
+    if (!nombre.trim()) { setError('El nombre es requerido'); return }
+    const nivelNum = Number(nivel)
+    if (!nivel || Number.isNaN(nivelNum) || nivelNum < 1) {
+      setError('El nivel jerárquico es requerido (número entero mayor o igual a 1)')
+      return
+    }
+    setError('')
     const url = categoria ? `/api/categorias/${categoria.id}` : '/api/categorias'
     const method = categoria ? 'PUT' : 'POST'
     await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre,
-        nivel: nivel.trim() === '' ? null : Number(nivel),
-        rolPorDefecto: rolPorDefecto === '__none__' ? null : rolPorDefecto,
-      }),
+      body: JSON.stringify({ nombre, nivel: nivelNum, rolPorDefecto }),
     })
     onSaved()
     onClose()
@@ -50,11 +54,11 @@ export function CategoriaDialog({ open, onClose, onSaved, categoria }: Props) {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <Label>Nombre</Label>
+            <Label>Nombre <span className="text-red-500">*</span></Label>
             <Input className="mt-1" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Operario" />
           </div>
           <div>
-            <Label>Nivel jerárquico <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Label>Nivel jerárquico <span className="text-red-500">*</span></Label>
             <Input
               className="mt-1"
               type="number"
@@ -69,16 +73,16 @@ export function CategoriaDialog({ open, onClose, onSaved, categoria }: Props) {
             </p>
           </div>
           <div>
-            <Label>Rol sugerido al crear usuario <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-            <Select value={rolPorDefecto} onValueChange={v => setRolPorDefecto(v || '__none__')}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Sin sugerencia" /></SelectTrigger>
+            <Label>Rol al crear usuario <span className="text-red-500">*</span></Label>
+            <Select value={rolPorDefecto} onValueChange={v => v && setRolPorDefecto(v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Sin sugerencia</SelectItem>
-                <SelectItem value="ADMIN">Admin (acceso al panel de gestión)</SelectItem>
                 <SelectItem value="EMPLOYEE">Empleado (solo portal personal)</SelectItem>
+                <SelectItem value="ADMIN">Admin (acceso al panel de gestión)</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

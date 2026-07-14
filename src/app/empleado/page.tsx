@@ -6,6 +6,7 @@ import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList }
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
+import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
 
 export default async function EmpleadoPage() {
   const cookieStore = await cookies()
@@ -96,6 +97,8 @@ export default async function EmpleadoPage() {
             <p className="text-xs text-muted-foreground mt-0.5">Formularios pendientes</p>
           </Link>
         </div>
+
+        <UltimosPostsWidget baseHref="/empleado/portal" />
 
         {/* Últimos recibos */}
         {ultimosRecibos.length > 0 && (

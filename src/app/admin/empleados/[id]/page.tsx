@@ -250,7 +250,7 @@ export default function EmpleadoDetailPage() {
             <div>
               <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
               <Select
-                value={form.managerId ? String(form.managerId) : '__none__'}
+                value={form.managerId ? String(form.managerId) : undefined}
                 onValueChange={v => setForm(f => f ? { ...f, managerId: v === '__none__' ? null : Number(v) } : f)}
               >
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Sin jefe directo" /></SelectTrigger>

@@ -27,6 +27,9 @@ model User {
   lotes           Lote[]      @relation("LotesCargados")
   eventosCreados  Evento[]    @relation("EventosCreadosPor")
   resetTokens     PasswordResetToken[]
+  posts           Post[]         @relation("PostAutor")
+  postReacciones  PostReaction[] @relation("PostReactionUser")
+  postComentarios PostComment[]  @relation("PostCommentAutor")
 }
 
 model PasswordResetToken {
@@ -41,12 +44,13 @@ model PasswordResetToken {
 }
 
 model Rol {
-  id          Int          @id @default(autoincrement())
-  nombre      String       @unique
-  descripcion String?
-  createdAt   DateTime     @default(now())
-  permisos    RolPermiso[]
-  usuarios    User[]
+  id               Int          @id @default(autoincrement())
+  nombre           String       @unique
+  descripcion      String?
+  scopeJerarquico  Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  permisos         RolPermiso[]
+  usuarios         User[]
 }
 
 model RolPermiso {
@@ -93,6 +97,7 @@ model Category {
   nivel          Int?
   rolPorDefecto  String?
   employees      Employee[]
+  posts          Post[]
 }
 
 model Document {
@@ -115,6 +120,45 @@ model Document {
   tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id])
   lote          Lote?          @relation(fields: [loteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   loteId        Int?
+}
+
+model Post {
+  id           Int           @id @default(autoincrement())
+  autorId      Int
+  contenido    String        @db.NVarChar(Max)
+  imagenUrl    String?
+  alcance      String        @default("GLOBAL") // GLOBAL | CATEGORIA
+  categoriaId  Int?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  autor        User          @relation("PostAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  categoria    Category?     @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reacciones   PostReaction[]
+  comentarios  PostComment[]
+}
+
+model PostReaction {
+  postId    Int
+  userId    Int
+  tipo      String   @default("LIKE")
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation("PostReactionUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([postId, userId])
+}
+
+model PostComment {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  autorId   Int
+  contenido String   @db.NVarChar(Max)
+  createdAt DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  autor  User @relation("PostCommentAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model TipoDocumento {

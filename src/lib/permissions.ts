@@ -11,6 +11,7 @@ export const PERMISOS = {
   GESTIONAR_EVALUACIONES: 'GESTIONAR_EVALUACIONES',
   GESTIONAR_FORMULARIOS: 'GESTIONAR_FORMULARIOS',
   GESTIONAR_AUSENCIAS: 'GESTIONAR_AUSENCIAS',
+  PUBLICAR_FEED: 'PUBLICAR_FEED',
 } as const
 
 export type Permiso = typeof PERMISOS[keyof typeof PERMISOS]
@@ -30,4 +31,5 @@ export const LABELS_PERMISOS: Record<Permiso, string> = {
   GESTIONAR_EVALUACIONES: 'Gestionar evaluaciones de desempeño',
   GESTIONAR_FORMULARIOS: 'Gestionar formularios',
   GESTIONAR_AUSENCIAS: 'Gestionar ausencias y vacaciones',
+  PUBLICAR_FEED: 'Publicar en el portal interno',
 }

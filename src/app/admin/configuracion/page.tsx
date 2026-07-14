@@ -4,5 +4,6 @@ import { ConfiguracionClient } from '@/components/configuracion/ConfiguracionCli
 
 export default async function ConfiguracionPage() {
   const puedeGestionarUsuarios = !!(await requirePermiso(PERMISOS.GESTIONAR_USUARIOS))
-  return <ConfiguracionClient puedeGestionarUsuarios={puedeGestionarUsuarios} />
+  const puedeVerAuditoria = !!(await requirePermiso(PERMISOS.VER_AUDITORIA))
+  return <ConfiguracionClient puedeGestionarUsuarios={puedeGestionarUsuarios} puedeVerAuditoria={puedeVerAuditoria} />
 }

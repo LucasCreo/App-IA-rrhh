@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Users, SlidersHorizontal, Eye, EyeOff, GripVertical } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
+import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
 import { WelcomeAdmin } from '@/components/admin/WelcomeAdmin'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -110,6 +111,8 @@ export default function AdminDashboard() {
               )
               return null
             })}
+
+            <UltimosPostsWidget baseHref="/admin/portal" />
 
             {(showSolicitudes || showIncorporados) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

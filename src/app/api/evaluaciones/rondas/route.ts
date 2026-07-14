@@ -3,22 +3,41 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { sendMail } from '@/lib/email'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EVALUACIONES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const scope = await getScopedEmployeeIds(user.userId)
+  const scopeFilter = scope
+    ? { evaluaciones: { some: { employeeId: { in: [...scope] } } } }
+    : {}
+
   const rondas = await prisma.rondaEvaluacion.findMany({
+    where: scopeFilter,
     orderBy: { createdAt: 'desc' },
     include: {
       plantilla: { select: { nombre: true } },
-      _count: { select: { evaluaciones: true } },
+      _count: {
+        select: {
+          evaluaciones: scope
+            ? { where: { employeeId: { in: [...scope] } } }
+            : true,
+        },
+      },
     },
   })
 
   const conProgreso = await Promise.all(rondas.map(async r => ({
     ...r,
-    completadas: await prisma.evaluacion.count({ where: { rondaId: r.id, completada: true } }),
+    completadas: await prisma.evaluacion.count({
+      where: {
+        rondaId: r.id,
+        completada: true,
+        ...(scope ? { employeeId: { in: [...scope] } } : {}),
+      },
+    }),
   })))
 
   return NextResponse.json(conProgreso)
@@ -31,6 +50,17 @@ export async function POST(req: NextRequest) {
   const { nombre, descripcion, plantillaId, employeeIds } = await req.json()
   if (!nombre?.trim() || !plantillaId || !employeeIds?.length) {
     return NextResponse.json({ error: 'Faltan campos' }, { status: 400 })
+  }
+
+  const scopeCreate = await getScopedEmployeeIds(user.userId)
+  if (scopeCreate) {
+    const fueraDelScope = (employeeIds as number[]).filter(id => !scopeCreate.has(id))
+    if (fueraDelScope.length > 0) {
+      return NextResponse.json(
+        { error: 'Hay empleados seleccionados fuera de tu alcance' },
+        { status: 403 }
+      )
+    }
   }
 
   const ronda = await prisma.rondaEvaluacion.create({

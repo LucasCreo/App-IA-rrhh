@@ -16,6 +16,7 @@ interface Rol {
   id: number
   nombre: string
   descripcion: string | null
+  scopeJerarquico: boolean
   permisos: string[]
   usuariosCount: number
 }
@@ -283,7 +284,7 @@ function TabRoles() {
   const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<number | 'new' | null>(null)
-  const [form, setForm] = useState({ nombre: '', descripcion: '', permisos: [] as string[] })
+  const [form, setForm] = useState({ nombre: '', descripcion: '', scopeJerarquico: false, permisos: [] as string[] })
   const [saving, setSaving] = useState(false)
   const [deleteRole, setDeleteRole] = useState<Rol | null>(null)
 
@@ -297,12 +298,12 @@ function TabRoles() {
   useEffect(() => { fetchRoles() }, [])
 
   function startNew() {
-    setForm({ nombre: '', descripcion: '', permisos: [] })
+    setForm({ nombre: '', descripcion: '', scopeJerarquico: false, permisos: [] })
     setEditingId('new')
   }
 
   function startEdit(rol: Rol) {
-    setForm({ nombre: rol.nombre, descripcion: rol.descripcion ?? '', permisos: [...rol.permisos] })
+    setForm({ nombre: rol.nombre, descripcion: rol.descripcion ?? '', scopeJerarquico: rol.scopeJerarquico, permisos: [...rol.permisos] })
     setEditingId(rol.id)
   }
 
@@ -449,7 +450,7 @@ function TabRoles() {
 function RolForm({
   form, setForm, onTogglePermiso, onSave, onCancel, saving, isNew,
 }: {
-  form: { nombre: string; descripcion: string; permisos: string[] }
+  form: { nombre: string; descripcion: string; scopeJerarquico: boolean; permisos: string[] }
   setForm: (f: any) => void
   onTogglePermiso: (p: string) => void
   onSave: () => void
@@ -479,6 +480,23 @@ function RolForm({
             placeholder="Ej: Gestión de empleados y documentos"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.scopeJerarquico}
+            onChange={e => setForm((f: any) => ({ ...f, scopeJerarquico: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 accent-green-700"
+          />
+          <div>
+            <p className="text-sm font-medium">Alcance limitado a subordinados</p>
+            <p className="text-xs text-muted-foreground">
+              Cuando está activo, el usuario con este rol solo puede ver/editar empleados que están debajo suyo en el organigrama. Sin marcar = acceso global.
+            </p>
+          </div>
+        </label>
       </div>
 
       <div>

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Upload, X, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react'
+import { Upload, X, CheckCircle2, AlertCircle, UserPlus, Search } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
 
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
@@ -57,6 +58,8 @@ async function detectarLegajoPdf(file: File): Promise<DetectedData> {
 
 export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [empFilter, setEmpFilter] = useState('')
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
@@ -85,6 +88,8 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
     setNombre('')
     setDescripcion('')
     setEntries([])
+    setSelectedIds(new Set())
+    setEmpFilter('')
   }, [open])
 
   function addFiles(files: File[], currentEmpleados: Empleado[]) {
@@ -138,6 +143,9 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
       fd.append('nombre', nombre.trim())
       if (descripcion.trim()) fd.append('descripcion', descripcion.trim())
       fd.append('periodo', `${ano}-${mes}`)
+      const rosterIds = new Set(selectedIds)
+      entries.forEach(e => { if (e.empleadoId) rosterIds.add(Number(e.empleadoId)) })
+      fd.append('employeeIds', JSON.stringify([...rosterIds]))
       entries.forEach((e, i) => {
         fd.append(`file_${i}`, e.file)
         fd.append(`employeeId_${i}`, e.empleadoId)
@@ -161,7 +169,11 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   }
 
   const detectandoCount = entries.filter(e => e.detectando).length
-  const canSubmit = !!nombre.trim() && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0
+  const rosterSize = new Set([
+    ...selectedIds,
+    ...entries.filter(e => e.empleadoId).map(e => Number(e.empleadoId)),
+  ]).size
+  const canSubmit = !!nombre.trim() && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0 && rosterSize > 0
   const pendingCount = entries.filter(e => !e.empleadoId && !e.detectando).length
 
   return (
@@ -175,7 +187,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
           {/* Nombre */}
           <div>
-            <Label>Nombre del lote</Label>
+            <Label className="mb-1.5">Nombre del lote</Label>
             <Input
               className="mt-1"
               placeholder="Ej: Recibos Junio 2026"
@@ -186,7 +198,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
 
           {/* Descripcion */}
           <div>
-            <Label>Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Label className="mb-1.5">Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>
             <Textarea
               className="mt-1 resize-none"
               rows={2}
@@ -198,7 +210,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
 
           {/* Periodo */}
           <div>
-            <Label>Período</Label>
+            <Label className="mb-1.5">Período</Label>
             <div className="flex gap-2 mt-1">
               <Select value={mes} onValueChange={v => v && setMes(v)}>
                 <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
@@ -215,9 +227,69 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             </div>
           </div>
 
+          {/* Empleados */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="mb-1.5">Empleados del lote</Label>
+              <span className="text-xs text-muted-foreground">{selectedIds.size} de {empleados.length}</span>
+            </div>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border bg-muted/30">
+                <Checkbox
+                  checked={empleados.length > 0 && selectedIds.size === empleados.length}
+                  onCheckedChange={v => {
+                    if (v) setSelectedIds(new Set(empleados.map(e => e.id)))
+                    else setSelectedIds(new Set())
+                  }}
+                />
+                <span className="text-xs font-medium">Todos</span>
+                <div className="relative flex-1 ml-2">
+                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="h-7 pl-7 text-xs"
+                    placeholder="Buscar por nombre o legajo…"
+                    value={empFilter}
+                    onChange={e => setEmpFilter(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="max-h-52 overflow-y-auto">
+                {empleados
+                  .filter(e => {
+                    if (!empFilter) return true
+                    const q = empFilter.toLowerCase()
+                    return `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase().includes(q)
+                  })
+                  .map(emp => {
+                    const checked = selectedIds.has(emp.id)
+                    return (
+                      <label
+                        key={emp.id}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 cursor-pointer border-b border-border last:border-0"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={v => setSelectedIds(prev => {
+                            const next = new Set(prev)
+                            if (v) next.add(emp.id); else next.delete(emp.id)
+                            return next
+                          })}
+                        />
+                        <span className="font-mono text-muted-foreground shrink-0">{emp.legajo}</span>
+                        <span className="truncate">{emp.apellido}, {emp.nombre}</span>
+                      </label>
+                    )
+                  })}
+                {empleados.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">No hay empleados activos</p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Upload area */}
           <div>
-            <Label>Archivos PDF</Label>
+            <Label className="mb-1.5">Archivos PDF <span className="text-muted-foreground font-normal">(opcional)</span></Label>
             <div
               className="mt-1 border-2 border-dashed border-green-300 dark:border-green-800 rounded-lg p-4 text-center cursor-pointer hover:border-green-500 dark:hover:border-green-600 transition-colors"
               onClick={() => fileRef.current?.click()}
@@ -317,15 +389,25 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-t border-border pt-4">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <Button
-            className="bg-green-700 hover:bg-green-800"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-          >
-            {loading ? 'Creando...' : entries.length > 0 ? `Crear Lote (${entries.length} recibo${entries.length !== 1 ? 's' : ''})` : 'Crear Lote'}
-          </Button>
+        <DialogFooter className="shrink-0 border-t border-border pt-4 flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {!canSubmit && !loading && (
+            <p className="text-xs text-muted-foreground sm:mr-auto text-left">
+              {!nombre.trim() && 'Ingresá un nombre. '}
+              {detectandoCount > 0 && `Detectando legajo (${detectandoCount})… `}
+              {pendingCount > 0 && `${pendingCount} archivo(s) sin empleado. `}
+              {rosterSize === 0 && nombre.trim() && detectandoCount === 0 && pendingCount === 0 && 'Seleccioná al menos 1 empleado.'}
+            </p>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button
+              className="bg-green-700 hover:bg-green-800"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+            >
+              {loading ? 'Creando...' : entries.length > 0 ? `Crear Lote (${entries.length} recibo${entries.length !== 1 ? 's' : ''})` : 'Crear Lote'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

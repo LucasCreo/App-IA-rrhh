@@ -10,7 +10,9 @@ import { DocumentoUploadDialog } from './DocumentoUploadDialog'
 import { DocumentoMasivoDialog } from './DocumentoMasivoDialog'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Send, Trash2, Plus, RefreshCw, Download, Users } from 'lucide-react'
+import { FileText, Send, Trash2, Plus, RefreshCw, Download, Users, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
 interface Props { esRecibo?: boolean; employeeId?: number }
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -47,6 +49,15 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
   const [filtMes, setFiltMes] = useState('')
   const [filtAno, setFiltAno] = useState('')
   const [filtEstado, setFiltEstado] = useState('todos')
+  const [filtTipoId, setFiltTipoId] = useState('todos')
+  const [filtEmpleadoId, setFiltEmpleadoId] = useState('todos')
+  const [filtCategoriaId, setFiltCategoriaId] = useState('todos')
+  const [filtQ, setFiltQ] = useState('')
+  const [filtQDebounced, setFiltQDebounced] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [tipos, setTipos] = useState<{ id: number; nombre: string }[]>([])
+  const [empleados, setEmpleados] = useState<{ id: number; nombre: string; apellido: string; legajo: string }[]>([])
+  const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
@@ -59,6 +70,10 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
     const params = new URLSearchParams()
     if (filtPeriodo) params.set('periodo', filtPeriodo)
     if (filtEstado !== 'todos') params.set('estado', filtEstado)
+    if (filtTipoId !== 'todos') params.set('tipoDocumentoId', filtTipoId)
+    if (filtEmpleadoId !== 'todos') params.set('employeeId', filtEmpleadoId)
+    if (filtCategoriaId !== 'todos') params.set('categoriaId', filtCategoriaId)
+    if (filtQDebounced.trim()) params.set('q', filtQDebounced.trim())
     if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
     if (employeeId) params.set('employeeId', String(employeeId))
     params.set('page', String(page))
@@ -66,15 +81,33 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
       .then(r => r.json())
       .then(data => { setDocs(data.docs ?? []); setTotal(data.total ?? 0); setPages(data.pages ?? 1) })
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado, esRecibo, employeeId, page])
+  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtQDebounced, esRecibo, employeeId, page])
 
   useEffect(() => { load() }, [load])
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setFiltQDebounced(filtQ), 300)
+    return () => clearTimeout(t)
+  }, [filtQ])
 
   useEffect(() => {
     fetch('/api/empleados?all=true&estado=ACTIVO')
       .then(r => r.json())
-      .then(d => setTotalEmpleados(d.total))
-  }, [])
+      .then(d => {
+        setTotalEmpleados(d.total)
+        setEmpleados(d.employees ?? [])
+      })
+    fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+    fetch('/api/configuracion/tipos-documento').then(r => r.json()).then(d => {
+      const list = Array.isArray(d) ? d : []
+      setTipos(esRecibo === true
+        ? list.filter((t: { nombre: string }) => t.nombre === 'Recibo de Sueldo')
+        : esRecibo === false
+          ? list.filter((t: { nombre: string }) => t.nombre !== 'Recibo de Sueldo')
+          : list)
+    })
+  }, [esRecibo])
 
   async function handleSendToSign(id: number) {
     setSending(id)
@@ -146,10 +179,70 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
   const empleadosConRecibo = new Set(docs.map(d => d.employee.legajo)).size
   const sinRecibo = filtPeriodo ? Math.max(0, totalEmpleados - empleadosConRecibo) : null
 
+  const activeFiltersCount = [
+    filtMes, filtAno,
+    filtEstado !== 'todos' ? filtEstado : '',
+    filtTipoId !== 'todos' ? filtTipoId : '',
+    filtEmpleadoId !== 'todos' ? filtEmpleadoId : '',
+    filtCategoriaId !== 'todos' ? filtCategoriaId : '',
+    filtQDebounced.trim(),
+  ].filter(Boolean).length
+
+  function clearAllFilters() {
+    setFiltMes(''); setFiltAno('')
+    setFiltEstado('todos'); setFiltTipoId('todos')
+    setFiltEmpleadoId('todos'); setFiltCategoriaId('todos')
+    setFiltQ(''); setPage(1)
+  }
+
   return (
     <div>
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-4 items-end">
+      {/* Barra superior: acciones + toggle de filtros */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button
+          variant="outline"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={cn(activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
+        <div className="ml-auto flex gap-2 flex-wrap">
+          {borradores.length > 0 && (
+            <Button variant="outline" className="text-blue-600 border-blue-200" onClick={handleBulkSend} disabled={sendingBulk}>
+              <Send size={14} className="mr-1" />
+              {sendingBulk ? 'Enviando...' : `Notificar/Enviar ${borradores.length}`}
+            </Button>
+          )}
+          {docs.length > 0 && (
+            <Button variant="outline" onClick={exportCSV}>
+              <Download size={14} className="mr-1" /> CSV
+            </Button>
+          )}
+          {esRecibo === true && !employeeId && (
+            <Button variant="outline" onClick={() => setMasivoOpen(true)}>
+              <Users size={14} className="mr-1" /> Distribución masiva
+            </Button>
+          )}
+          <Button className="bg-green-700 hover:bg-green-800" onClick={() => esRecibo === true ? setUploadOpen(true) : setCargarOpen(true)}>
+            <Plus size={16} className="mr-1" /> {esRecibo === true ? 'Cargar Recibo' : 'Cargar Documento'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Panel de filtros colapsable */}
+      {filtersOpen && (
+      <div className="flex flex-wrap gap-3 mb-4 items-end p-4 bg-muted/30 border border-border rounded-lg">
         <div>
           <p className="text-xs text-muted-foreground mb-1">Mes</p>
           <Select value={filtMes} onValueChange={v => { if (v != null) { setFiltMes(v === 'todos' ? '' : v); setPage(1) } }}>
@@ -180,28 +273,60 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <div className="ml-auto flex gap-2">
-          {borradores.length > 0 && (
-            <Button variant="outline" className="text-blue-600 border-blue-200" onClick={handleBulkSend} disabled={sendingBulk}>
-              <Send size={14} className="mr-1" />
-              {sendingBulk ? 'Enviando...' : `Notificar/Enviar ${borradores.length}`}
-            </Button>
-          )}
-          {docs.length > 0 && (
-            <Button variant="outline" onClick={exportCSV}>
-              <Download size={14} className="mr-1" /> CSV
-            </Button>
-          )}
-          {esRecibo === true && !employeeId && (
-            <Button variant="outline" onClick={() => setMasivoOpen(true)}>
-              <Users size={14} className="mr-1" /> Distribución masiva
-            </Button>
-          )}
-          <Button className="bg-green-700 hover:bg-green-800" onClick={() => esRecibo === true ? setUploadOpen(true) : setCargarOpen(true)}>
-            <Plus size={16} className="mr-1" /> {esRecibo === true ? 'Cargar Recibo' : 'Cargar Documento'}
-          </Button>
+        {tipos.length > 0 && esRecibo !== true && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={filtTipoId} onValueChange={v => { setFiltTipoId(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {!employeeId && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Empleado</p>
+            <Select value={filtEmpleadoId} onValueChange={v => { setFiltEmpleadoId(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-64">
+                <SelectItem value="todos">Todos</SelectItem>
+                {empleados.map(e => (
+                  <SelectItem key={e.id} value={String(e.id)}>
+                    {e.apellido}, {e.nombre} · {e.legajo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {!employeeId && categorias.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Categoría</p>
+            <Select value={filtCategoriaId} onValueChange={v => { setFiltCategoriaId(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas</SelectItem>
+                {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="flex-1 min-w-52 max-w-xs">
+          <p className="text-xs text-muted-foreground mb-1">Buscar por nombre de archivo</p>
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8 h-9"
+              placeholder="contrato_2026…"
+              value={filtQ}
+              onChange={e => { setFiltQ(e.target.value); setPage(1) }}
+            />
+          </div>
         </div>
       </div>
+      )}
 
       {/* Resumen de cobertura */}
       {filtPeriodo && !loading && (

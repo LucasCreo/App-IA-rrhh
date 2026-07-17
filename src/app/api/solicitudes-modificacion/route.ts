@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { sendMail } from '@/lib/email'
+import { getScopedEmployeeIds, getDescendantEmployeeIds, esTopDelOrganigrama } from '@/lib/scope'
 
 export async function GET(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
@@ -12,11 +13,18 @@ export async function GET(req: NextRequest) {
   const employeeId = searchParams.get('employeeId')
 
   if (!employeeId) return NextResponse.json({ error: 'Falta employeeId' }, { status: 400 })
+  const empId = Number(employeeId)
+  const [scope, descendants] = await Promise.all([
+    getScopedEmployeeIds(user.userId),
+    getDescendantEmployeeIds(user.userId),
+  ])
+  if (scope && !scope.has(empId)) return NextResponse.json([], { status: 200 })
   const solicitudes = await prisma.solicitudModificacion.findMany({
-    where: { employeeId: Number(employeeId) },
+    where: { employeeId: empId },
     orderBy: { createdAt: 'desc' },
   })
-  return NextResponse.json(solicitudes)
+  const canApprove = descendants.has(empId)
+  return NextResponse.json(solicitudes.map(s => ({ ...s, canApprove })))
 }
 
 export async function POST(req: NextRequest) {
@@ -26,9 +34,15 @@ export async function POST(req: NextRequest) {
   const { comentario } = await req.json()
   if (!comentario?.trim()) return NextResponse.json({ error: 'El comentario es requerido' }, { status: 400 })
 
+  const autoAprobar = await esTopDelOrganigrama(user.employeeId)
   const solicitud = await prisma.solicitudModificacion.create({
-    data: { employeeId: user.employeeId, comentario: comentario.trim() },
+    data: {
+      employeeId: user.employeeId,
+      comentario: comentario.trim(),
+      estado: autoAprobar ? 'REVISADO' : 'PENDIENTE',
+    },
   })
+  if (autoAprobar) return NextResponse.json(solicitud, { status: 201 })
 
   // Notificar a admins
   const [empleado, admins] = await Promise.all([

@@ -168,7 +168,7 @@ function NuevoPost({ onCreated, categorias }: { onCreated: () => void; categoria
             </SelectContent>
           </Select>
           {alcance === 'CATEGORIA' && (
-            <Select value={categoriaId} onValueChange={setCategoriaId}>
+            <Select value={categoriaId} onValueChange={v => setCategoriaId(v ?? '')}>
               <SelectTrigger className="w-40 h-9 text-sm"><SelectValue placeholder="Elegir…" /></SelectTrigger>
               <SelectContent>
                 {categorias.map(c => (

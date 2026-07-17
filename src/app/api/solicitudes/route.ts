@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { sendMail } from '@/lib/email'
+import { esTopDelOrganigrama, getScopedEmployeeIds, getDescendantEmployeeIds } from '@/lib/scope'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -16,8 +17,15 @@ export async function GET(req: NextRequest) {
       const authed = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
       if (!authed) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
+      const [scope, descendants] = await Promise.all([
+        getScopedEmployeeIds(authed.userId),
+        getDescendantEmployeeIds(authed.userId),
+      ])
       const raw = await prisma.solicitudDocumento.findMany({
-        where: estado ? { estado } : {},
+        where: {
+          ...(estado ? { estado } : {}),
+          ...(scope ? { employeeId: { in: [...scope] } } : {}),
+        },
         include: {
           employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
           tipo: true,
@@ -27,6 +35,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(raw.map(s => ({
         ...s,
         tipo: { ...s.tipo, campos: JSON.parse(s.tipo.campos ?? '[]') },
+        canApprove: descendants.has(s.employeeId),
       })))
     }
 
@@ -56,7 +65,8 @@ export async function POST(req: NextRequest) {
   const tipo = await prisma.tipoSolicitud.findUnique({ where: { id: Number(tipoId) } })
   if (!tipo || !tipo.activo) return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
 
-  const estado = tipo.requiereAprobacion ? 'PENDIENTE' : 'APROBADO'
+  const autoAprobar = tipo.requiereAprobacion && await esTopDelOrganigrama(user.employeeId)
+  const estado = !tipo.requiereAprobacion || autoAprobar ? 'APROBADO' : 'PENDIENTE'
   const solicitud = await prisma.solicitudDocumento.create({
     data: {
       employeeId: user.employeeId,

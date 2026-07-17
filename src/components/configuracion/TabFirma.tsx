@@ -49,20 +49,20 @@ export function TabFirma() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>URL del endpoint de firma</Label>
+            <Label className="mb-1.5">URL del endpoint de firma</Label>
             <Input placeholder="https://proveedor.com/api/sign" value={form.providerUrl} onChange={e => setForm(f => ({ ...f, providerUrl: e.target.value }))} className="mt-1" />
             <p className="text-xs text-muted-foreground mt-1">POST con el PDF en base64. GET a esta URL/{'{id}'}/status para consultar.</p>
           </div>
           <div>
-            <Label>API Key</Label>
+            <Label className="mb-1.5">API Key</Label>
             <Input type="password" placeholder="sk-••••••••••••••••" value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} className="mt-1" />
           </div>
           <div>
-            <Label>Headers adicionales (JSON)</Label>
+            <Label className="mb-1.5">Headers adicionales (JSON)</Label>
             <Textarea rows={3} placeholder='{"X-Custom-Header": "valor"}' value={form.extraHeaders} onChange={e => setForm(f => ({ ...f, extraHeaders: e.target.value }))} className="mt-1 font-mono text-sm" />
           </div>
           <div>
-            <Label>Body adicional (JSON)</Label>
+            <Label className="mb-1.5">Body adicional (JSON)</Label>
             <Textarea rows={4} placeholder='{"empresa": "Mi Empresa S.A.", "firmante": "Juan Pérez"}' value={form.extraBody} onChange={e => setForm(f => ({ ...f, extraBody: e.target.value }))} className="mt-1 font-mono text-sm" />
             <p className="text-xs text-muted-foreground mt-1">Campos extra que se fusionan con el body del request de firma.</p>
           </div>

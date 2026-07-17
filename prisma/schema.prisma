@@ -13,15 +13,17 @@ model User {
   username     String?   @unique
   passwordHash String
   role         String    @default("EMPLOYEE")
-  rolId        Int?
   employeeId   Int?      @unique
+  managerUserId Int?
   avatarUrl           String?
   googleRefreshToken  String?
   googleLastSync      DateTime?
   createdAt    DateTime  @default(now())
 
-  rol       Rol?       @relation(fields: [rolId], references: [id])
   employee  Employee?  @relation(fields: [employeeId], references: [id])
+  permisos  UserPermiso[]
+  manager       User?     @relation("UserManager", fields: [managerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinados  User[]    @relation("UserManager")
   documents       Document[]  @relation("CargadoPor")
   auditLogs       AuditLog[]
   lotes           Lote[]      @relation("LotesCargados")
@@ -43,22 +45,12 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Rol {
-  id               Int          @id @default(autoincrement())
-  nombre           String       @unique
-  descripcion      String?
-  scopeJerarquico  Boolean      @default(false)
-  createdAt        DateTime     @default(now())
-  permisos         RolPermiso[]
-  usuarios         User[]
-}
-
-model RolPermiso {
-  rolId   Int
+model UserPermiso {
+  userId  Int
   permiso String
-  rol     Rol    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([rolId, permiso])
+  @@id([userId, permiso])
 }
 
 model Employee {
@@ -71,14 +63,11 @@ model Employee {
   telefono     String?
   fechaIngreso DateTime
   categoriaId  Int
-  managerId    Int?
   estado       String    @default("ACTIVO")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   categoria       Category             @relation(fields: [categoriaId], references: [id])
-  manager         Employee?            @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subordinados    Employee[]           @relation("EmployeeManager")
   user            User?
   documents       Document[]
   valoresCampos   ValorCampoEmpleado[]
@@ -89,15 +78,14 @@ model Employee {
   respuestasFormulario     RespuestaFormulario[]
   ausencias                SolicitudAusencia[]
   saldosVacaciones         SaldoVacaciones[]
+  lotes                    LoteEmpleado[]
 }
 
 model Category {
-  id             Int        @id @default(autoincrement())
-  nombre         String     @unique
-  nivel          Int?
-  rolPorDefecto  String?
-  employees      Employee[]
-  posts          Post[]
+  id         Int        @id @default(autoincrement())
+  nombre     String     @unique
+  employees  Employee[]
+  posts      Post[]
 }
 
 model Document {
@@ -186,6 +174,17 @@ model Lote {
   tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cargadoPor    User           @relation("LotesCargados", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documentos    Document[]
+  empleados     LoteEmpleado[]
+}
+
+model LoteEmpleado {
+  loteId     Int
+  employeeId Int
+
+  lote     Lote     @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([loteId, employeeId])
 }
 
 model GeneralConfig {

@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmpleadoDialog } from './EmpleadoDialog'
+import { ImportEmpleadosDialog } from './ImportEmpleadosDialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X, Download } from 'lucide-react'
+import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X, Download, Upload } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { BloqueoEliminacionDialog } from '@/components/shared/BloqueoEliminacionDialog'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
@@ -35,7 +37,9 @@ export function EmpleadosTable() {
   const [cats, setCats] = useState<Categoria[]>([])
   const [page, setPage] = useState(() => Number(searchParams.get('page') ?? '1') || 1)
   const [dialog, setDialog] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; legajo: string } | null>(null)
+  const [blockedDelete, setBlockedDelete] = useState<{ id: number; legajo: string; dependencias: { label: string; count: number; href: string }[] } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -74,8 +78,18 @@ export function EmpleadosTable() {
 
   async function doDelete() {
     if (!deleteTarget) return
-    await fetch(`/api/empleados/${deleteTarget.id}`, { method: 'DELETE' })
+    const target = deleteTarget
+    const res = await fetch(`/api/empleados/${target.id}`, { method: 'DELETE' })
     setDeleteTarget(null)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 409 && Array.isArray(data.dependencias)) {
+        setBlockedDelete({ id: target.id, legajo: target.legajo, dependencias: data.dependencias })
+        return
+      }
+      toast.error(data.error ?? 'No se pudo eliminar el empleado')
+      return
+    }
     toast.success('Empleado eliminado')
     load()
   }
@@ -205,6 +219,9 @@ export function EmpleadosTable() {
         >
           <Download size={14} className="mr-1" /> Exportar
         </Button>
+        <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Upload size={14} className="mr-1" /> Importar
+        </Button>
         <Button className="bg-green-700 hover:bg-green-800 shrink-0" onClick={() => setDialog(true)}>
           <Plus size={15} className="mr-1" /> Nuevo Empleado
         </Button>
@@ -323,8 +340,24 @@ export function EmpleadosTable() {
       <ConfirmDialog
         open={!!deleteTarget}
         title={`¿Eliminar empleado ${deleteTarget?.legajo}?`}
+        description="Si tiene un usuario asociado, también se eliminará. Esta acción no se puede deshacer."
         onConfirm={doDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+      <ImportEmpleadosDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={load}
+      />
+      <BloqueoEliminacionDialog
+        open={!!blockedDelete}
+        onClose={() => setBlockedDelete(null)}
+        title={blockedDelete ? `No se puede eliminar el empleado ${blockedDelete.legajo}` : ''}
+        dependencias={blockedDelete?.dependencias ?? []}
+        suggest="También podés marcarlo como INACTIVO en su lugar."
+        forceDeleteUrl={blockedDelete ? `/api/empleados/${blockedDelete.id}` : undefined}
+        confirmToken={blockedDelete?.legajo}
+        onDeleted={load}
       />
     </div>
   )

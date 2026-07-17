@@ -57,7 +57,7 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     ]).then(([empData, cats, tiposData]) => {
       setEmpleados(empData.employees ?? [])
       setCategorias(Array.isArray(cats) ? cats : [])
-      setTipos(Array.isArray(tiposData) ? tiposData : [])
+      setTipos(Array.isArray(tiposData) ? tiposData.filter((t: TipoDoc) => t.nombre !== 'Recibo de Sueldo') : [])
     })
   }, [open])
 

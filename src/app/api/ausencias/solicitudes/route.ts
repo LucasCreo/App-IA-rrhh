@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { getScopedEmployeeIds } from '@/lib/scope'
+import { getScopedEmployeeIds, getDescendantEmployeeIds } from '@/lib/scope'
 
 export async function GET() {
   const user = await getCurrentUser()
   if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const scope = await getScopedEmployeeIds(user.userId)
+  const [scope, descendants] = await Promise.all([
+    getScopedEmployeeIds(user.userId),
+    getDescendantEmployeeIds(user.userId),
+  ])
 
   const solicitudes = await prisma.solicitudAusencia.findMany({
     where: scope ? { employeeId: { in: [...scope] } } : {},
@@ -17,5 +20,8 @@ export async function GET() {
       tipoAusencia: { select: { id: true, nombre: true, color: true, afectaSaldo: true } },
     },
   })
-  return NextResponse.json(solicitudes)
+  return NextResponse.json(solicitudes.map(s => ({
+    ...s,
+    canApprove: descendants.has(s.employeeId),
+  })))
 }

@@ -13,6 +13,7 @@ interface Solicitud {
   comentario: string
   estado: string
   createdAt: string
+  canApprove: boolean
 }
 
 export function SolicitudesModificacionAdmin({ employeeId }: { employeeId: number }) {
@@ -69,9 +70,13 @@ export function SolicitudesModificacionAdmin({ employeeId }: { employeeId: numbe
             </p>
           </div>
           {s.estado === 'PENDIENTE' && (
-            <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs" onClick={() => marcarRevisado(s.id)}>
-              <Check size={12} className="mr-1" /> Revisado
-            </Button>
+            s.canApprove ? (
+              <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs" onClick={() => marcarRevisado(s.id)}>
+                <Check size={12} className="mr-1" /> Revisado
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground italic shrink-0">Fuera de tu jerarquía</span>
+            )
           )}
         </div>
       ))}

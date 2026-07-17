@@ -180,7 +180,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
           {tipos.length > 0 && (
             <div>
-              <Label>Tipo de documento</Label>
+              <Label className="mb-1.5">Tipo de documento</Label>
               <Select value={tipoId} onValueChange={v => setTipoId(v ?? '')}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Sin tipo (opcional)" /></SelectTrigger>
                 <SelectContent>

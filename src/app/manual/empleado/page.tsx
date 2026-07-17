@@ -88,7 +88,12 @@ export default function ManualEmpleadoPage() {
         <p>Haga clic en cualquier indicador para ir directamente al módulo correspondiente.</p>
       </Section>
 
-      <Section title="3. Recibos de sueldo">
+      <Section title="3. Portal interno">
+        <p>Espacio donde la organización publica noticias, comunicados y contenido interno. Puede leer las publicaciones, dejar comentarios y ver las novedades del equipo.</p>
+        <p>Acceda desde <strong>Portal interno</strong> en el menú lateral.</p>
+      </Section>
+
+      <Section title="4. Recibos de sueldo">
         <p>En esta sección puede visualizar y descargar sus recibos de haberes.</p>
         <Steps items={[
           'Acceda a Recibos desde el menú lateral.',
@@ -99,7 +104,7 @@ export default function ManualEmpleadoPage() {
         <Note>Los recibos son publicados por el área de Recursos Humanos. Si no visualiza un recibo esperado, consulte con su área.</Note>
       </Section>
 
-      <Section title="4. Documentos">
+      <Section title="5. Documentos">
         <p>Permite visualizar los documentos que el área de Recursos Humanos ha puesto a su disposición, como constancias, certificaciones y comunicaciones.</p>
         <Sub title="Ver y descargar un documento">
           <Steps items={[
@@ -120,7 +125,7 @@ export default function ManualEmpleadoPage() {
         </Sub>
       </Section>
 
-      <Section title="5. Calendario">
+      <Section title="6. Calendario">
         <p>Visualice los eventos de la organización y gestione sus eventos personales.</p>
         <Sub title="Ver el calendario">
           <p>Acceda a Calendario desde el menú lateral. Puede navegar entre meses con las flechas de navegación y cambiar entre vista mensual y lista.</p>
@@ -144,7 +149,7 @@ export default function ManualEmpleadoPage() {
         <Note>Los eventos creados por el área de Recursos Humanos que le hayan sido asignados aparecerán automáticamente en su calendario.</Note>
       </Section>
 
-      <Section title="6. Ausencias">
+      <Section title="7. Ausencias">
         <p>Permite solicitar ausencias (vacaciones, licencias, etc.) y consultar su saldo de días disponibles.</p>
         <Sub title="Solicitar una ausencia">
           <Steps items={[
@@ -162,7 +167,7 @@ export default function ManualEmpleadoPage() {
             <li><strong>Aprobada:</strong> la solicitud fue aceptada.</li>
             <li><strong>Rechazada:</strong> la solicitud fue denegada. Puede ver el motivo haciendo clic en la solicitud.</li>
           </ul>
-          <p className="mt-2">Cuando Recursos Humanos apruebe o rechace su solicitud, recibirá un mail automático con el resultado y el comentario del administrador (si lo hubo).</p>
+          <p className="mt-2">Cuando su superior apruebe o rechace su solicitud, recibirá un mail automático con el resultado y el comentario correspondiente (si lo hubo). Si usted ocupa la posición más alta del organigrama, sus propias solicitudes se aprueban automáticamente al crearlas.</p>
         </Sub>
         <Sub title="Saldo de vacaciones">
           <p>En la parte superior de la pantalla de Ausencias se muestra su saldo de días de vacaciones disponibles para el año en curso.</p>
@@ -170,7 +175,7 @@ export default function ManualEmpleadoPage() {
         <Note>Las ausencias aprobadas que afectan el saldo de vacaciones descuentan días hábiles (lunes a viernes) automáticamente.</Note>
       </Section>
 
-      <Section title="7. Formularios">
+      <Section title="8. Formularios">
         <p>El área de Recursos Humanos puede asignarle formularios para que los complete. Recibirá una notificación en su panel de inicio cuando haya formularios pendientes.</p>
         <Steps items={[
           'Acceda a Formularios desde el menú lateral (si está habilitado) o desde el panel de inicio.',
@@ -180,7 +185,7 @@ export default function ManualEmpleadoPage() {
         ]} />
       </Section>
 
-      <Section title="8. Mi perfil">
+      <Section title="9. Mi perfil">
         <p>Acceda a su perfil haciendo clic en su nombre o avatar en la parte inferior del menú lateral.</p>
         <Sub title="Actualizar foto de perfil">
           <Steps items={[

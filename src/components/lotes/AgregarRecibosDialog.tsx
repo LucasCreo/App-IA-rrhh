@@ -152,7 +152,7 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
           <div>
-            <Label>Archivos PDF</Label>
+            <Label className="mb-1.5">Archivos PDF</Label>
             <div
               className="mt-1 border-2 border-dashed border-green-300 dark:border-green-800 rounded-lg p-4 text-center cursor-pointer hover:border-green-500 dark:hover:border-green-600 transition-colors"
               onClick={() => fileRef.current?.click()}

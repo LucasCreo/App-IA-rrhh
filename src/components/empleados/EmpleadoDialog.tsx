@@ -13,12 +13,10 @@ import { Paperclip, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 
-interface Categoria { id: number; nombre: string; nivel?: number | null; rolPorDefecto?: string | null }
-interface EmpleadoLite { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nivel: number | null; nombre: string } | null }
+interface Categoria { id: number; nombre: string }
 interface Empleado {
   id?: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
-  managerId?: number | null
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
@@ -26,7 +24,7 @@ interface Props { open: boolean; onClose: () => void; onSaved: () => void; emple
 
 const empty: Empleado = {
   legajo: '', nombre: '', apellido: '', cuil: '', email: '',
-  telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO', managerId: null,
+  telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
 }
 
 const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
@@ -39,7 +37,6 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [form, setForm] = useState<Empleado>(empleado ?? empty)
   const [cats, setCats] = useState<Categoria[]>([])
   const [catsLoaded, setCatsLoaded] = useState(false)
-  const [posiblesJefes, setPosiblesJefes] = useState<EmpleadoLite[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -56,10 +53,6 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     fetch('/api/categorias').then(r => r.json()).then(data => { setCats(data); setCatsLoaded(true) })
     fetch('/api/configuracion/empleados-campos').then(r => r.json()).then(setFieldConfig)
     fetch('/api/configuracion/campos-personalizados').then(r => r.json()).then(setCamposCustom)
-    fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => {
-      const list: EmpleadoLite[] = d.employees ?? []
-      setPosiblesJefes(list.filter(e => e.id !== empleado?.id))
-    })
     setForm(empleado ?? empty)
     setPassword('')
     setUsername('')
@@ -204,7 +197,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
               <p className="text-sm text-muted-foreground">Estas credenciales le permitirán al empleado acceder al portal.</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <Label>Email <span className="text-red-500">*</span></Label>
+                  <Label className="mb-1.5">Email <span className="text-red-500">*</span></Label>
                   <Input
                     type="email"
                     value={form.email}
@@ -215,7 +208,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   />
                 </div>
                 <div>
-                  <Label>Nombre de usuario <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+                  <Label className="mb-1.5">Nombre de usuario <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
                   <Input
                     value={username}
                     onChange={e => setUsername(e.target.value)}
@@ -223,7 +216,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   />
                 </div>
                 <div>
-                  <Label>Contraseña <span className="text-red-500">*</span></Label>
+                  <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
                   <Input
                     type="password"
                     value={password}
@@ -241,7 +234,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Nombre <span className="text-red-500">*</span></Label>
+                  <Label className="mb-1.5">Nombre <span className="text-red-500">*</span></Label>
                   <Input
                     value={form.nombre}
                     onChange={e => set('nombre')(e.target.value)}
@@ -250,7 +243,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   />
                 </div>
                 <div>
-                  <Label>Apellido <span className="text-red-500">*</span></Label>
+                  <Label className="mb-1.5">Apellido <span className="text-red-500">*</span></Label>
                   <Input
                     value={form.apellido}
                     onChange={e => set('apellido')(e.target.value)}
@@ -262,7 +255,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   return isVisible(k as string)
                 }).map(([k, label]) => (
                   <div key={k}>
-                    <Label>{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
+                    <Label className="mb-1.5">{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
                     <Input
                       value={(form[k] ?? '') as string}
                       onChange={e => set(k)(e.target.value)}
@@ -272,7 +265,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 ))}
                 {isVisible('fechaIngreso') && (
                   <div>
-                    <Label>Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
+                    <Label className="mb-1.5">Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
                     <Input
                       type="date"
                       value={form.fechaIngreso?.toString().slice(0, 10)}
@@ -283,71 +276,28 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 )}
                 {isVisible('categoria') && (
                   <div>
-                    <Label>Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
+                    <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
                     {!catsLoaded ? (
                       <Skeleton className="h-9 w-full rounded-md" />
                     ) : (
                       <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { set('categoriaId')(v); clearError('categoria') } }}>
                         <SelectTrigger className={cn(err('categoria') && 'border-red-500 focus:ring-red-500')}>
-                          <SelectValue placeholder="Seleccionar" />
+                          <SelectValue placeholder="Seleccionar">
+                            {cats.find(c => c.id === Number(form.categoriaId))?.nombre ?? 'Seleccionar'}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {cats.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>
-                              {c.nombre}{c.nivel != null ? ` (nivel ${c.nivel})` : ''}
-                            </SelectItem>
+                            <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
-                    {isNew && crearUsuario && form.categoriaId > 0 && (() => {
-                      const cat = cats.find(c => c.id === form.categoriaId)
-                      if (!cat?.rolPorDefecto) return null
-                      return (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          El usuario se creará con rol: <strong>{cat.rolPorDefecto === 'ADMIN' ? 'Admin' : 'Empleado'}</strong>
-                        </p>
-                      )
-                    })()}
                   </div>
                 )}
-                <div>
-                  <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-                  <Select
-                    value={form.managerId ? String(form.managerId) : undefined}
-                    onValueChange={v => setForm(f => ({ ...f, managerId: v === '__none__' ? null : Number(v) }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin jefe directo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sin jefe directo</SelectItem>
-                      {(() => {
-                        const miNivel = cats.find(c => c.id === form.categoriaId)?.nivel ?? null
-                        return posiblesJefes
-                          .filter(e => {
-                            if (miNivel == null) return true
-                            const suNivel = e.categoria?.nivel ?? null
-                            if (suNivel == null) return true
-                            return suNivel <= miNivel
-                          })
-                          .map(e => (
-                            <SelectItem key={e.id} value={String(e.id)}>
-                              {`${e.apellido}, ${e.nombre} — ${e.legajo}${e.categoria?.nivel != null ? ` (nivel ${e.categoria.nivel})` : ''}`}
-                            </SelectItem>
-                          ))
-                      })()}
-                    </SelectContent>
-                  </Select>
-                  {cats.find(c => c.id === form.categoriaId)?.nivel != null && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Solo se muestran empleados de nivel igual o superior al de la categoría seleccionada.
-                    </p>
-                  )}
-                </div>
                 {isVisible('estado') && (
                   <div>
-                    <Label>Estado</Label>
+                    <Label className="mb-1.5">Estado</Label>
                     <Select value={form.estado} onValueChange={v => v && set('estado')(v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -359,7 +309,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 )}
                 {camposCustom.filter(c => c.visible).map(c => (
                   <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
-                    <Label>{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
+                    <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
                     {c.tipo === 'booleano' ? (
                       <div className="flex items-center gap-2 pt-1">
                         <Checkbox
@@ -411,6 +361,14 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 ))}
               </div>
 
+              {isNew && (
+                <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  El usuario se crea como <strong className="text-foreground">Empleado</strong> por defecto.
+                  Para asignarle un rol personalizado (Admin, RRHH, etc.), andá a
+                  {' '}<strong className="text-foreground">Configuración → Usuarios</strong> después de guardar.
+                </div>
+              )}
+
               {/* Sección acceso — solo en edición */}
               {form.id && (
                 <div className="border-t pt-3 space-y-2">
@@ -423,7 +381,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acceso al sistema</p>
                   {existingUser ? (
                     <div>
-                      <Label>Nombre de usuario</Label>
+                      <Label className="mb-1.5">Nombre de usuario</Label>
                       <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Sin nombre de usuario" className="mt-1" />
                       <p className="text-xs text-muted-foreground mt-1">Email: {existingUser.email}</p>
                     </div>
@@ -436,11 +394,11 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       {crearUsuario && (
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <Label>Nombre de usuario</Label>
+                            <Label className="mb-1.5">Nombre de usuario</Label>
                             <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Opcional" className="mt-1" />
                           </div>
                           <div>
-                            <Label>Contraseña <span className="text-red-500">*</span></Label>
+                            <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
                             <Input
                               type="password"
                               value={password}

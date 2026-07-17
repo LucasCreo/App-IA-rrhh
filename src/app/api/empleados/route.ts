@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       where,
       select: {
         id: true, nombre: true, apellido: true, legajo: true,
-        categoria: { select: { id: true, nivel: true, nombre: true } },
+        categoria: { select: { id: true, nombre: true } },
       },
       orderBy: { apellido: 'asc' },
     })
@@ -71,17 +71,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Se requiere una contraseña para crear el usuario' }, { status: 400 })
   }
 
-  // Si el user está scopeado, el nuevo empleado debe reportar a alguien dentro de su scope
-  const scopeCreate = await getScopedEmployeeIds(user.userId)
-  if (scopeCreate) {
-    const targetManager = body.managerId ? Number(body.managerId) : null
-    if (!targetManager || !scopeCreate.has(targetManager)) {
-      return NextResponse.json(
-        { error: 'Solo podés crear empleados que reporten a vos o a alguien de tu equipo' },
-        { status: 403 }
-      )
-    }
-  }
 
   try {
     const emp = await prisma.$transaction(async (tx) => {
@@ -95,20 +84,16 @@ export async function POST(req: NextRequest) {
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
           categoriaId: Number(body.categoriaId),
-          managerId: body.managerId ? Number(body.managerId) : null,
           estado: body.estado ?? 'ACTIVO',
         },
-        include: { categoria: true },
       })
       if (body.crearUsuario) {
-        const rolFinal = body.role
-          ?? (newEmp.categoria?.rolPorDefecto === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE')
         await tx.user.create({
           data: {
             email: body.email,
             username: body.username || null,
             passwordHash: await hashPassword(body.password),
-            role: rolFinal,
+            role: 'EMPLOYEE',
             employeeId: newEmp.id,
           },
         })

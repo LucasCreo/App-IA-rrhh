@@ -48,7 +48,7 @@ export function DocumentoMasivoDialog({ open, onClose, onSaved }: Props) {
       fetch('/api/configuracion/tipos-documento').then(r => r.json()),
     ]).then(([cats, tipos]) => {
       setCategorias(Array.isArray(cats) ? cats : [])
-      setTipos(Array.isArray(tipos) ? tipos : [])
+      setTipos(Array.isArray(tipos) ? tipos.filter((t: TipoDoc) => t.nombre !== 'Recibo de Sueldo') : [])
     })
   }, [open])
 

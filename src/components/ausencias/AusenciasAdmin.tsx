@@ -16,6 +16,7 @@ interface TipoAusencia {
 interface Solicitud {
   id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
   fechaInicio: string; fechaFin: string; createdAt: string
+  canApprove: boolean
   employee: { id: number; nombre: string; apellido: string; legajo: string }
   tipoAusencia: { id: number; nombre: string; color: string; afectaSaldo: boolean }
 }
@@ -193,14 +194,20 @@ function TabSolicitudes() {
             </div>
           )}
           {reviewing?.estado === 'PENDIENTE' && (
-            <DialogFooter className="gap-2">
-              <Button variant="destructive" size="sm" onClick={() => resolver('RECHAZADA')}>
-                <XCircle size={14} className="mr-1" /> Rechazar
-              </Button>
-              <Button className="bg-green-600 hover:bg-green-700" size="sm" onClick={() => resolver('APROBADA')}>
-                <CheckCircle2 size={14} className="mr-1" /> Aprobar
-              </Button>
-            </DialogFooter>
+            reviewing.canApprove ? (
+              <DialogFooter className="gap-2">
+                <Button variant="destructive" size="sm" onClick={() => resolver('RECHAZADA')}>
+                  <XCircle size={14} className="mr-1" /> Rechazar
+                </Button>
+                <Button className="bg-green-600 hover:bg-green-700" size="sm" onClick={() => resolver('APROBADA')}>
+                  <CheckCircle2 size={14} className="mr-1" /> Aprobar
+                </Button>
+              </DialogFooter>
+            ) : (
+              <p className="text-xs text-muted-foreground italic px-1 pt-2">
+                Solo el superior directo (o alguien más arriba) puede resolver esta solicitud.
+              </p>
+            )
           )}
         </DialogContent>
       </Dialog>

@@ -16,16 +16,12 @@ export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { nombre, nivel, rolPorDefecto } = await req.json()
+  const { nombre } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
   try {
     const cat = await prisma.category.create({
-      data: {
-        nombre: nombre.trim(),
-        nivel: typeof nivel === 'number' ? nivel : null,
-        rolPorDefecto: rolPorDefecto ?? null,
-      },
+      data: { nombre: nombre.trim() },
     })
     return NextResponse.json(cat, { status: 201 })
   } catch (e) {

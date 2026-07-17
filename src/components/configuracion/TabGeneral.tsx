@@ -8,13 +8,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Mail } from 'lucide-react'
 
 export function TabGeneral() {
   const router = useRouter()
   const [form, setForm] = useState({ appName: 'RRHH', logoUrl: '' })
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [testEmail, setTestEmail] = useState('')
+  const [testingEmail, setTestingEmail] = useState(false)
+
+  async function handleTestEmail() {
+    setTestingEmail(true)
+    try {
+      const r = await fetch('/api/configuracion/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: testEmail.trim() }),
+      })
+      const data = await r.json()
+      if (!r.ok) { toast.error(data.error ?? 'Error'); return }
+      toast.success(`Email enviado a ${data.sentTo}`)
+    } finally {
+      setTestingEmail(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/configuracion/general').then(r => r.json()).then(data => {
@@ -57,7 +75,7 @@ export function TabGeneral() {
       </CardHeader>
       <CardContent className="space-y-5">
         <div>
-          <Label>Nombre de la aplicación</Label>
+          <Label className="mb-1.5">Nombre de la aplicación</Label>
           <Input
             value={form.appName}
             onChange={e => setForm(f => ({ ...f, appName: e.target.value }))}
@@ -66,7 +84,7 @@ export function TabGeneral() {
           />
         </div>
         <div>
-          <Label>Logo</Label>
+          <Label className="mb-1.5">Logo</Label>
           <div className="mt-1 flex items-center gap-3">
             {form.logoUrl && (
               <img src={form.logoUrl} alt="Logo" className="h-10 object-contain rounded border p-1 bg-white" />
@@ -102,6 +120,31 @@ export function TabGeneral() {
         <Button className="bg-green-700 hover:bg-green-800" onClick={handleSave}>
           Guardar
         </Button>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Envío de emails (SMTP)</CardTitle>
+        <CardDescription>Probá el envío para asegurarte que la configuración SMTP funciona.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 items-end flex-wrap">
+          <div className="flex-1 min-w-64 max-w-md">
+            <Label className="mb-1.5">Destinatario <span className="text-xs text-muted-foreground font-normal">(vacío = tu propio email)</span></Label>
+            <Input
+              type="email"
+              className="mt-1"
+              placeholder="alguien@empresa.com"
+              value={testEmail}
+              onChange={e => setTestEmail(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" onClick={handleTestEmail} disabled={testingEmail}>
+            <Mail size={14} className="mr-1.5" />
+            {testingEmail ? 'Enviando…' : 'Enviar test'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
 

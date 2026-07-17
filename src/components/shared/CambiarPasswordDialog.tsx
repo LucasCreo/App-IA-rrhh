@@ -36,33 +36,35 @@ export function CambiarPasswordDialog({ open, onClose }: Props) {
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose() } }}>
       <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Cambiar contraseña</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label>Contraseña actual</Label>
-            <Input type="password" className="mt-1" value={current} onChange={e => setCurrent(e.target.value)} />
+        <form onSubmit={e => { e.preventDefault(); handleSubmit() }}>
+          <DialogHeader>
+            <DialogTitle>Cambiar contraseña</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="mb-1.5">Contraseña actual</Label>
+              <Input type="password" className="mt-1" value={current} onChange={e => setCurrent(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1.5">Nueva contraseña</Label>
+              <Input type="password" className="mt-1" value={newPw} onChange={e => setNewPw(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1.5">Confirmar nueva contraseña</Label>
+              <Input type="password" className="mt-1" value={confirm} onChange={e => setConfirm(e.target.value)} />
+            </div>
           </div>
-          <div>
-            <Label>Nueva contraseña</Label>
-            <Input type="password" className="mt-1" value={newPw} onChange={e => setNewPw(e.target.value)} />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>Cancelar</Button>
+            <Button
+              type="submit"
+              className="bg-green-700 hover:bg-green-800"
+              disabled={loading || !current || !newPw || !confirm}
+            >
+              {loading ? 'Guardando...' : 'Guardar'}
+            </Button>
           </div>
-          <div>
-            <Label>Confirmar nueva contraseña</Label>
-            <Input type="password" className="mt-1" value={confirm} onChange={e => setConfirm(e.target.value)} />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={() => { reset(); onClose() }}>Cancelar</Button>
-          <Button
-            className="bg-green-700 hover:bg-green-800"
-            onClick={handleSubmit}
-            disabled={loading || !current || !newPw || !confirm}
-          >
-            {loading ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   )

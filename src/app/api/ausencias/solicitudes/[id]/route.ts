@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { sendMail } from '@/lib/email'
-import { getScopedEmployeeIds } from '@/lib/scope'
+import { getScopedEmployeeIds, isAncestorOfUser } from '@/lib/scope'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -17,7 +17,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const solicitud = await prisma.solicitudAusencia.findUnique({
     where: { id: Number(id) },
-    include: { tipoAusencia: true },
+    include: { tipoAusencia: true, employee: { select: { user: { select: { id: true } } } } },
   })
   if (!solicitud) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
   const scope = await getScopedEmployeeIds(user.userId)
@@ -26,6 +26,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (solicitud.estado !== 'PENDIENTE')
     return NextResponse.json({ error: 'La solicitud ya fue procesada' }, { status: 400 })
+
+  // Solo un ancestro en el organigrama puede aprobar/rechazar (nunca uno mismo)
+  const solicitanteUserId = solicitud.employee?.user?.id
+  if (!solicitanteUserId || !(await isAncestorOfUser(user.userId, solicitanteUserId))) {
+    return NextResponse.json({ error: 'Solo un superior en el organigrama puede resolver esta solicitud' }, { status: 403 })
+  }
 
   await prisma.solicitudAusencia.update({
     where: { id: Number(id) },

@@ -18,6 +18,7 @@ interface Solicitud {
   id: number; nombreArchivo?: string; estado: string
   descripcion?: string; comentario?: string; comentarioVisible: boolean
   metadata?: string; createdAt: string
+  canApprove: boolean
   employee: { id: number; nombre: string; apellido: string; legajo: string }
   tipo: { id: number; nombre: string; campos?: CampoSolicitud[] }
 }
@@ -154,24 +155,28 @@ export function SolicitudesTab() {
                   </p>
                 </div>
                 {s.estado === 'PENDIENTE' && (
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm" variant="outline"
-                      className="h-8 w-8 p-0 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
-                      title="Aprobar"
-                      onClick={() => openDialog(s.id, 'APROBADO')}
-                    >
-                      <Check size={14} />
-                    </Button>
-                    <Button
-                      size="sm" variant="outline"
-                      className="h-8 w-8 p-0 text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
-                      title="Rechazar"
-                      onClick={() => openDialog(s.id, 'RECHAZADO')}
-                    >
-                      <X size={14} />
-                    </Button>
-                  </div>
+                  s.canApprove ? (
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-8 w-8 p-0 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
+                        title="Aprobar"
+                        onClick={() => openDialog(s.id, 'APROBADO')}
+                      >
+                        <Check size={14} />
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-8 w-8 p-0 text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        title="Rechazar"
+                        onClick={() => openDialog(s.id, 'RECHAZADO')}
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">Fuera de tu jerarquía</span>
+                  )
                 )}
               </div>
             </div>

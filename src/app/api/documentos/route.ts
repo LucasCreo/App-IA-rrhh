@@ -18,6 +18,9 @@ export async function GET(req: NextRequest) {
   const estado = searchParams.get('estado')
   const periodo = searchParams.get('periodo') ?? undefined
   const reciboParam = searchParams.get('recibo')
+  const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
+  const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const q = searchParams.get('q')?.trim() ?? ''
   const RECIBO_TIPO = 'Recibo de Sueldo'
 
   const VALID_ESTADOS = ['BORRADOR', 'ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO', 'ERROR']
@@ -56,6 +59,9 @@ export async function GET(req: NextRequest) {
     ...(estado ? { estado } : {}),
     ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
     ...(periodo ? { periodo: { contains: periodo } } : {}),
+    ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+    ...(categoriaId ? { employee: { categoriaId } } : {}),
+    ...(q ? { nombreArchivo: { contains: q } } : {}),
     ...reciboFilter,
   }
 

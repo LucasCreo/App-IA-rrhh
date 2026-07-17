@@ -79,31 +79,52 @@ export default function ManualAdminPage() {
         </Sub>
       </Section>
 
-      <Section title="2. Legajos de empleados">
-        <p>El módulo de Legajos centraliza la información de todos los empleados de la organización.</p>
+      <Section title="2. Usuarios, legajos y organigrama">
+        <p>Un <strong>usuario</strong> representa una cuenta de acceso al sistema; un <strong>legajo</strong> son los datos laborales y personales asociados a esa persona. Ambos van siempre acoplados: al crear un usuario se genera automáticamente su legajo, y al eliminarlo se elimina también el legajo (y viceversa).</p>
+        <Note>Excepción: el usuario de soporte <code>admin@empresa.com</code> es el único que puede existir sin legajo. Ese usuario ve toda la información sin restricciones y no forma parte del organigrama.</Note>
+
         <Sub title="Crear un nuevo empleado">
           <Steps items={[
             'Acceda a Legajos desde el menú lateral.',
             'Haga clic en Nuevo empleado.',
-            'Complete el Paso 1: datos personales (nombre, apellido, CUIL, correo, teléfono).',
-            'Complete el Paso 2: datos laborales (legajo, fecha de ingreso, categoría).',
-            'Haga clic en Guardar.',
+            'Complete el Paso 1: acceso (email y contraseña inicial).',
+            'Complete el Paso 2: datos personales (nombre, apellido, CUIL, teléfono).',
+            'Complete el Paso 3: datos laborales (legajo, fecha de ingreso, categoría).',
+            'Al finalizar, el usuario ya puede ingresar al portal. Para personalizar sus permisos, diríjase a Configuración › Usuarios.',
           ]} />
         </Sub>
-        <Sub title="Editar un empleado">
-          <p>Haga clic sobre el nombre del empleado en la lista. En la ficha del empleado podrá modificar sus datos, visualizar sus documentos, evaluaciones y formularios asignados.</p>
+
+        <Sub title="Importar empleados">
+          <p>Desde la lista de Legajos, use <strong>Importar</strong> para cargar múltiples empleados desde un archivo Excel o CSV. Puede descargar una plantilla desde el mismo diálogo. Cada fila crea usuario + legajo en un solo paso.</p>
         </Sub>
+
+        <Sub title="Editar y ver ficha de empleado">
+          <p>Haga clic sobre el nombre del empleado en la lista. En la ficha podrá modificar sus datos, visualizar documentos, evaluaciones, formularios asignados y ausencias.</p>
+        </Sub>
+
         <Sub title="Exportar nómina">
-          <p>En la lista de empleados, utilice el botón <strong>Exportar</strong> para descargar la nómina completa en formato Excel.</p>
+          <p>Utilice el botón <strong>Exportar</strong> en la lista para descargar la nómina completa en Excel.</p>
         </Sub>
+
+        <Sub title="Eliminar un empleado">
+          <p>Al intentar eliminar, si el empleado tiene información asociada (documentos, ausencias, evaluaciones, etc.), el sistema muestra el detalle de qué existe. Puede cancelar o forzar la eliminación en cascada escribiendo el texto de confirmación. La eliminación borra también el usuario y los archivos físicos del empleado.</p>
+        </Sub>
+
+        <Sub title="Organigrama">
+          <p>Disponible como pestaña dentro de <strong>Legajos › Organigrama</strong>. Muestra la jerarquía por usuario. Para configurar quiénes reportan a alguien, use el botón <strong>Subordinados</strong> desde Configuración › Usuarios: seleccione a los usuarios que están un orden jerárquico por debajo. El sistema previene ciclos.</p>
+          <p>El organigrama determina el <strong>alcance de datos</strong>: cada usuario con legajo ve solo su propio legajo y el de sus descendientes, aprueba solicitudes solo de sus descendientes, y sus propias solicitudes se auto-aprueban si está en la cima del organigrama.</p>
+        </Sub>
+
         <Sub title="Campos personalizados">
-          <p>Puede definir campos adicionales para todos los empleados desde <strong>Configuración › Empleados</strong>.</p>
+          <p>Puede definir campos adicionales para todos los legajos desde <strong>Configuración › Empleados</strong>.</p>
         </Sub>
+
         <Note>Solo los empleados con estado ACTIVO pueden iniciar sesión en el portal del empleado.</Note>
       </Section>
 
       <Section title="3. Documentos">
-        <p>Permite cargar, organizar y gestionar los documentos asociados a cada empleado.</p>
+        <p>Permite cargar, organizar y gestionar todos los documentos de los empleados, incluidos los recibos de sueldo publicados desde el módulo de Recibos.</p>
+
         <Sub title="Cargar un documento individual">
           <Steps items={[
             'Acceda a Documentos.',
@@ -111,35 +132,52 @@ export default function ManualAdminPage() {
             'Seleccione el empleado, el tipo de documento, el período y el archivo.',
             'Haga clic en Guardar.',
           ]} />
+          <p className="text-xs text-gray-500 mt-1">El tipo &quot;Recibo de Sueldo&quot; no aparece en este diálogo: los recibos se cargan por lotes desde el módulo Recibos.</p>
         </Sub>
-        <Sub title="Carga masiva por lotes">
-          <Steps items={[
-            'Acceda a Documentos › Lotes.',
-            'Cree un nuevo lote indicando nombre, período y tipo de documento.',
-            'Arrastre o seleccione los archivos PDF. El sistema lee el contenido de cada PDF y detecta automáticamente el legajo del empleado.',
-            'Verifique el resultado de la detección junto a cada archivo (verde si matcheó con un empleado, amarillo si el legajo no existe o no se detectó).',
-            'Ajuste manualmente los archivos sin asignar seleccionando el empleado del desplegable.',
-            'Confirme la creación del lote.',
-          ]} />
-          <Note>La detección funciona con PDFs de texto seleccionable (no imágenes escaneadas) que contengan el campo "Legajo" seguido de un número.</Note>
+
+        <Sub title="Filtros">
+          <p>La lista incluye un panel desplegable con filtros por tipo de documento, empleado, categoría, período y nombre de archivo. Un indicador muestra la cantidad de filtros activos y el botón <strong>Limpiar</strong> los resetea todos.</p>
         </Sub>
+
+        <Sub title="Ver, reemplazar o eliminar">
+          <p>Cada fila permite visualizar el PDF, reemplazarlo por una nueva versión (el documento vuelve a estado Borrador) o eliminarlo. Los recibos vinculados a un lote también pueden gestionarse individualmente desde el detalle del lote.</p>
+        </Sub>
+
         <Sub title="Estados de documento">
-          <p><strong>Borrador:</strong> visible solo para administradores. <strong>Publicado:</strong> visible para el empleado. <strong>Firmado:</strong> el empleado ha confirmado la recepción.</p>
+          <p><strong>Borrador:</strong> visible solo para administradores. <strong>Enviado a firma:</strong> visible para el empleado, pendiente de firma. <strong>Firmado:</strong> el empleado confirmó recepción. <strong>Rechazado:</strong> el empleado rechazó el documento.</p>
         </Sub>
+
         <Sub title="Tipos de documento">
-          <p>Los tipos de documento se configuran en <strong>Configuración › Tipos de documento</strong>. Cada tipo puede requerir firma o solo descarga. Los tipos marcados como <em>protegidos</em> (ej. Recibo de Sueldo) no pueden ser eliminados.</p>
+          <p>Se configuran en <strong>Configuración › Tipos de documento</strong>. Cada tipo puede requerir firma o solo descarga. Los tipos marcados como <em>protegidos</em> (ej. Recibo de Sueldo) no pueden ser eliminados.</p>
         </Sub>
       </Section>
 
       <Section title="4. Recibos de sueldo">
-        <p>El módulo de Recibos permite cargar y distribuir recibos de haberes en forma masiva.</p>
-        <Steps items={[
-          'Acceda a Recibos desde el menú lateral.',
-          'Cree un nuevo lote indicando el período (mes/año).',
-          'Cargue los archivos PDF. Cada archivo debe corresponder a un empleado.',
-          'El sistema publicará los recibos y los empleados podrán visualizarlos desde su portal.',
-        ]} />
-        <Note>Los recibos de sueldo son de tipo protegido: no pueden modificarse ni eliminarse una vez publicados.</Note>
+        <p>Módulo para cargar y distribuir recibos en forma masiva mediante lotes.</p>
+
+        <Sub title="Crear un lote">
+          <Steps items={[
+            'Acceda a Recibos desde el menú lateral.',
+            'Haga clic en Nuevo lote e indique nombre y período (mes/año).',
+            'Marque los empleados que deben incluirse. Use la casilla superior para seleccionar/deseleccionar todos, o marque casillas individuales.',
+            'Suba los PDFs. El sistema lee el contenido de cada archivo y detecta automáticamente el legajo del empleado.',
+            'Revise las coincidencias (verde: matcheado, amarillo: sin detección). Ajuste manualmente los archivos sin asignar.',
+            'Confirme la creación del lote.',
+          ]} />
+          <Note>La detección funciona con PDFs de texto seleccionable (no imágenes escaneadas) que contengan el campo &quot;Legajo&quot; seguido de un número.</Note>
+        </Sub>
+
+        <Sub title="Editar el roster de un lote">
+          <p>Desde el detalle del lote, use <strong>Editar empleados</strong> para agregar o quitar personas del lote sin necesidad de recrearlo.</p>
+        </Sub>
+
+        <Sub title="Gestionar recibos individuales">
+          <p>En el detalle del lote, cada recibo tiene acciones para <strong>ver</strong>, <strong>reemplazar</strong> el PDF (icono de lápiz) o <strong>eliminarlo</strong>. Reemplazar deja el recibo nuevamente en estado Borrador.</p>
+        </Sub>
+
+        <Sub title="Publicación">
+          <p>Al publicar el lote, los recibos pasan a estado Enviado a firma y quedan disponibles para los empleados desde su portal. También aparecen listados en el módulo Documentos.</p>
+        </Sub>
       </Section>
 
       <Section title="5. Calendario">
@@ -212,37 +250,77 @@ export default function ManualAdminPage() {
         </Sub>
       </Section>
 
-      <Section title="8. Ausencias">
-        <p>Gestión de solicitudes de ausencia y saldos de vacaciones de los empleados.</p>
+      <Section title="8. Ausencias y solicitudes">
+        <p>Gestión de solicitudes de ausencia, solicitudes de modificación de datos y solicitudes generales de los empleados.</p>
+
+        <Sub title="Aprobación jerárquica">
+          <p>Solo el usuario que está por encima en el organigrama puede aprobar o rechazar las solicitudes de un empleado. Si abre una solicitud de un empleado que no está bajo su jerarquía, verá el mensaje <em>&quot;Fuera de tu jerarquía&quot;</em> y no podrá aprobar ni rechazar.</p>
+          <p>Los usuarios que están en la cima del organigrama (sin superiores) auto-aprueban sus propias solicitudes en el momento de crearlas.</p>
+        </Sub>
+
         <Sub title="Aprobar o rechazar una solicitud">
           <Steps items={[
-            'Acceda a Ausencias.',
+            'Acceda a Ausencias (o al módulo de solicitudes correspondiente).',
             'Seleccione la solicitud pendiente.',
             'Revise la información (tipo, fechas, motivo, adjunto si corresponde).',
             'Haga clic en Aprobar o Rechazar e ingrese un comentario opcional.',
           ]} />
         </Sub>
+
         <Sub title="Gestionar saldos de vacaciones">
-          <p>Acceda a la pestaña <strong>Saldos</strong> dentro de Ausencias. Puede editar los días totales de cada empleado para el año en curso.</p>
+          <p>En la pestaña <strong>Saldos</strong> dentro de Ausencias, puede editar los días totales de cada empleado para el año en curso.</p>
         </Sub>
+
         <Sub title="Tipos de ausencia">
           <p>Se configuran en <strong>Configuración › Ausencias</strong>. Cada tipo define si requiere aprobación y si descuenta del saldo de vacaciones.</p>
         </Sub>
       </Section>
 
-      <Section title="9. Auditoría">
+      <Section title="9. Portal interno (publicaciones)">
+        <p>Sección donde los empleados pueden leer y comentar publicaciones internas de la organización. Desde el panel de admin puede crear posts, moderar comentarios y personalizar qué secciones del portal quedan visibles para los empleados.</p>
+      </Section>
+
+      <Section title="10. Auditoría">
         <p>Registra todas las acciones relevantes realizadas por los usuarios del sistema: creación, modificación y eliminación de registros. Acceda desde el menú lateral en <strong>Auditoría</strong>. Los registros no pueden ser eliminados.</p>
       </Section>
 
-      <Section title="10. Configuración">
+      <Section title="11. Gestión de usuarios y permisos">
+        <p>Acceda a <strong>Configuración › Usuarios</strong> para gestionar las cuentas de acceso al sistema.</p>
+
+        <Sub title="Permisos por usuario">
+          <p>Los permisos se asignan directamente a cada usuario (no existen roles ni plantillas). Use el botón <strong>Permisos</strong> en la fila del usuario para marcar/desmarcar los permisos individuales (gestionar empleados, documentos, ausencias, calendario, etc.).</p>
+          <p className="text-xs text-gray-500 mt-1">Un usuario sin ningún permiso marcado tiene acceso total (útil solo para el usuario de soporte). Para restringir, marque explícitamente qué puede hacer.</p>
+        </Sub>
+
+        <Sub title="Subordinados (organigrama)">
+          <p>El botón <strong>Subordinados</strong> permite marcar qué usuarios reportan a esta persona. Esto arma el organigrama y define el alcance de datos y aprobación de solicitudes.</p>
+        </Sub>
+
+        <Sub title="Ir al legajo">
+          <p>Cada fila incluye un enlace directo al legajo del usuario, ya que usuario y legajo están siempre asociados.</p>
+        </Sub>
+
+        <Sub title="Cambiar contraseña de un usuario">
+          <p>Desde la fila del usuario, use <strong>Cambiar contraseña</strong> para asignar una nueva clave manualmente.</p>
+        </Sub>
+
+        <Sub title="Eliminar un usuario">
+          <p>Al eliminar un usuario se elimina también su legajo. Si tiene información asociada (documentos cargados, posts, comentarios, ausencias, etc.), el sistema lista qué existe y pide confirmación explícita antes de forzar el borrado en cascada.</p>
+        </Sub>
+      </Section>
+
+      <Section title="12. Configuración">
         <Sub title="General">
-          <p>Nombre y logo de la aplicación. Los cambios se reflejan en el sidebar de todos los usuarios.</p>
+          <p>Nombre y logo de la aplicación, configuración SMTP para envío de emails. El botón <strong>Probar SMTP</strong> envía un email de prueba a su dirección para validar las credenciales.</p>
         </Sub>
         <Sub title="Empleados">
           <p>Define qué campos del legajo son visibles y cuáles son obligatorios. También permite crear campos personalizados adicionales.</p>
         </Sub>
+        <Sub title="Categorías">
+          <p>Administra las categorías laborales (nombre y descripción). Las categorías se asignan a cada empleado desde su legajo.</p>
+        </Sub>
         <Sub title="Tipos de documento">
-          <p>Administra los tipos de documento disponibles al cargar archivos. Los tipos protegidos no pueden eliminarse.</p>
+          <p>Administra los tipos de documento disponibles al cargar archivos. Los tipos protegidos (ej. Recibo de Sueldo) no pueden eliminarse.</p>
         </Sub>
         <Sub title="Solicitudes">
           <p>Define los tipos de solicitud que los empleados pueden enviar desde su portal.</p>
@@ -262,26 +340,21 @@ export default function ManualAdminPage() {
         <Sub title="Firma electrónica">
           <p>Configura el proveedor externo de firma electrónica (URL, API key y parámetros adicionales).</p>
         </Sub>
-        <Sub title="Roles y permisos">
-          <p>Define roles personalizados y asigna permisos granulares a cada rol.</p>
+        <Sub title="Usuarios">
+          <p>Gestión de cuentas, permisos por usuario y organigrama (subordinados). Ver sección 11.</p>
         </Sub>
       </Section>
 
-      <Section title="11. Gestión de usuarios">
-        <p>Acceda a <strong>Configuración › Usuarios</strong> para crear cuentas de acceso al sistema, asignar roles y vincular cada usuario con un empleado de la nómina.</p>
-        <Note>Solo los usuarios con rol de administrador completo pueden gestionar otros usuarios y sus permisos.</Note>
-      </Section>
-
-      <Section title="12. Notificaciones por email">
+      <Section title="13. Notificaciones por email">
         <p>El sistema envía notificaciones automáticas por correo electrónico en las siguientes acciones:</p>
         <ul className="list-disc list-inside space-y-0.5 mt-1">
-          <li><strong>Nueva solicitud de ausencia:</strong> reciben mail todos los administradores.</li>
+          <li><strong>Nueva solicitud de ausencia:</strong> recibe mail el superior jerárquico del solicitante.</li>
           <li><strong>Aprobación/rechazo de ausencia:</strong> recibe mail el empleado con el comentario del administrador.</li>
-          <li><strong>Solicitud de modificación de datos:</strong> reciben mail los administradores.</li>
-          <li><strong>Solicitud de documento:</strong> reciben mail los administradores.</li>
+          <li><strong>Solicitud de modificación de datos:</strong> recibe mail el superior jerárquico.</li>
+          <li><strong>Solicitud de documento:</strong> recibe mail el superior jerárquico.</li>
           <li><strong>Recuperación de contraseña:</strong> el usuario recibe un link válido por 1 hora para restablecer su clave.</li>
         </ul>
-        <Note>Los envíos son automáticos y no bloquean el uso de la aplicación. Si un mail no llega, verifique la carpeta de correo no deseado.</Note>
+        <Note>Los envíos son automáticos y no bloquean el uso de la aplicación. Si un mail no llega, verifique la carpeta de correo no deseado o pruebe la conexión SMTP desde Configuración › General.</Note>
       </Section>
 
       <div className="mt-10 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 print:mt-6">

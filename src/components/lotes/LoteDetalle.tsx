@@ -1,16 +1,17 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, UsersRound, Eye, Upload } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgregarRecibosDialog } from './AgregarRecibosDialog'
+import { EditarRosterDialog } from './EditarRosterDialog'
 
 interface Documento {
   id: number
@@ -81,6 +82,10 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [agregando, setAgregando] = useState(false)
+  const [editandoRoster, setEditandoRoster] = useState(false)
+  const [replaceTargetDocId, setReplaceTargetDocId] = useState<number | null>(null)
+  const [deleteDoc, setDeleteDoc] = useState<{ id: number; empleado: string } | null>(null)
+  const replaceFileRef = useRef<HTMLInputElement>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -159,6 +164,46 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     }
   }
 
+  function abrirReemplazo(docId: number) {
+    setReplaceTargetDocId(docId)
+    replaceFileRef.current?.click()
+  }
+
+  async function onFileReplace(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || replaceTargetDocId == null) return
+    const docId = replaceTargetDocId
+    setReplaceTargetDocId(null)
+    setActionLoading(docId)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await fetch(`/api/documentos/${docId}/reemplazar`, { method: 'POST', body: fd })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(data.error ?? 'Error al reemplazar'); return }
+      toast.success('Recibo reemplazado')
+      await fetchData()
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function doDeleteDoc() {
+    if (!deleteDoc) return
+    const docId = deleteDoc.id
+    setDeleteDoc(null)
+    setActionLoading(docId)
+    try {
+      const r = await fetch(`/api/documentos/${docId}`, { method: 'DELETE' })
+      if (!r.ok) { toast.error('Error al eliminar'); return }
+      toast.success('Recibo eliminado')
+      await fetchData()
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   async function verificarDoc(docId: number) {
     setActionLoading(docId)
     try {
@@ -219,33 +264,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
       </header>
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
-        {/* Action bar */}
-        <div className="flex items-center justify-end gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900 dark:hover:bg-red-950/30"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 size={15} className="mr-1.5" />
-            Eliminar lote
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setAgregando(true)}
-          >
-            <Plus size={15} className="mr-1.5" />
-            Agregar recibos
-          </Button>
-          <Button
-            className="bg-green-700 hover:bg-green-800 text-white"
-            onClick={enviarTodos}
-            disabled={!canEnviarTodos || sending}
-          >
-            <Send size={15} className="mr-1.5" />
-            {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
-          </Button>
-        </div>
-
         {/* Stats card */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-4">
           {/* Name / description (editable) */}
@@ -311,7 +329,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
               {stats.enFirma > 0 && (
                 <span className="text-blue-600 dark:text-blue-400">{stats.enFirma} en firma</span>
               )}
-              {stats.borradores > 0 && <span>{stats.borradores} borrador</span>}
               {stats.sinRecibo > 0 && (
                 <span className="text-yellow-600 dark:text-yellow-500">{stats.sinRecibo} sin recibo</span>
               )}
@@ -319,6 +336,44 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                 <span className="text-red-600 dark:text-red-400">{stats.errores + stats.rechazados} con error</span>
               )}
             </div>
+          </div>
+
+          {/* Action bar */}
+          <div className="flex items-center gap-2 flex-wrap pt-4 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditandoRoster(true)}
+            >
+              <UsersRound size={14} className="mr-1.5" />
+              Editar empleados
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAgregando(true)}
+            >
+              <Plus size={14} className="mr-1.5" />
+              Agregar recibos
+            </Button>
+            <Button
+              size="sm"
+              className="bg-green-700 hover:bg-green-800 text-white"
+              onClick={enviarTodos}
+              disabled={!canEnviarTodos || sending}
+            >
+              <Send size={14} className="mr-1.5" />
+              {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900 dark:hover:bg-red-950/30"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={14} className="mr-1.5" />
+              Eliminar lote
+            </Button>
           </div>
         </div>
 
@@ -381,23 +436,53 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {docId && (estadoKey === 'BORRADOR' || estadoKey === 'ERROR') && accion !== 'NINGUNA' && (
-                        <button
-                          onClick={() => enviarDoc(docId)}
-                          disabled={isLoading}
-                          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 disabled:opacity-50 inline-flex items-center gap-1 ml-auto"
-                        >
-                          <Send size={11} />{isLoading ? '...' : accion === 'LECTURA' ? 'Notificar' : 'Enviar'}
-                        </button>
-                      )}
-                      {docId && estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && (
-                        <button
-                          onClick={() => verificarDoc(docId)}
-                          disabled={isLoading}
-                          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 inline-flex items-center gap-1 ml-auto"
-                        >
-                          <RefreshCw size={11} />{isLoading ? '...' : 'Verificar'}
-                        </button>
+                      {docId && (
+                        <div className="inline-flex items-center gap-0.5">
+                          <a
+                            href={`/api/documentos/${docId}/archivo`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            title="Ver recibo"
+                          >
+                            <Eye size={14} />
+                          </a>
+                          <button
+                            onClick={() => abrirReemplazo(docId)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            title="Reemplazar PDF"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          {(estadoKey === 'BORRADOR' || estadoKey === 'ERROR') && accion !== 'NINGUNA' && (
+                            <button
+                              onClick={() => enviarDoc(docId)}
+                              disabled={isLoading}
+                              className="p-1.5 rounded text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 disabled:opacity-50 transition-colors"
+                              title={accion === 'LECTURA' ? 'Notificar' : 'Enviar a firma'}
+                            >
+                              <Send size={14} />
+                            </button>
+                          )}
+                          {estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && (
+                            <button
+                              onClick={() => verificarDoc(docId)}
+                              disabled={isLoading}
+                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+                              title="Verificar estado"
+                            >
+                              <RefreshCw size={14} />
+                            </button>
+                          )}
+                          <span className="w-px h-4 bg-border mx-0.5" />
+                          <button
+                            onClick={() => setDeleteDoc({ id: docId, empleado: `${emp.apellido}, ${emp.nombre}` })}
+                            className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                            title="Eliminar recibo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -419,6 +504,26 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         loteId={loteId}
         onClose={() => setAgregando(false)}
         onSaved={() => { setAgregando(false); fetchData() }}
+      />
+      <EditarRosterDialog
+        open={editandoRoster}
+        loteId={loteId}
+        onClose={() => setEditandoRoster(false)}
+        onSaved={() => { setEditandoRoster(false); fetchData() }}
+      />
+      <input
+        ref={replaceFileRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={onFileReplace}
+      />
+      <ConfirmDialog
+        open={!!deleteDoc}
+        title={`¿Eliminar el recibo de ${deleteDoc?.empleado}?`}
+        description="El archivo se borra del sistema. Esta acción no se puede deshacer."
+        onConfirm={doDeleteDoc}
+        onCancel={() => setDeleteDoc(null)}
       />
     </div>
   )

@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -13,7 +14,9 @@ export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const scope = await getScopedEmployeeIds(user.userId)
   const lotes = await prisma.lote.findMany({
+    where: scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {},
     include: {
       tipoDocumento: { select: { id: true, nombre: true } },
       documentos: { select: { estado: true } },
@@ -55,11 +58,23 @@ export async function POST(req: NextRequest) {
   const descripcion = (formData.get('descripcion') as string)?.trim() || null
   const periodo = formData.get('periodo') as string
   const tipoDocumentoIdRaw = formData.get('tipoDocumentoId')
-  const tipoDocumentoId = tipoDocumentoIdRaw ? Number(tipoDocumentoIdRaw) : undefined
+  let tipoDocumentoId = tipoDocumentoIdRaw ? Number(tipoDocumentoIdRaw) : undefined
+  if (!tipoDocumentoId) {
+    const reciboTipo = await prisma.tipoDocumento.findFirst({
+      where: { nombre: 'Recibo de Sueldo' },
+      select: { id: true },
+    })
+    if (reciboTipo) tipoDocumentoId = reciboTipo.id
+  }
 
   if (!nombre || !periodo) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
+
+  const employeeIdsRaw = formData.get('employeeIds') as string | null
+  const employeeIds: number[] = employeeIdsRaw
+    ? (JSON.parse(employeeIdsRaw) as unknown[]).map(Number).filter(n => Number.isInteger(n))
+    : []
 
   const lote = await prisma.lote.create({
     data: {
@@ -68,6 +83,9 @@ export async function POST(req: NextRequest) {
       periodo,
       creadoPorId: user.userId,
       ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+      ...(employeeIds.length > 0 ? {
+        empleados: { create: employeeIds.map(employeeId => ({ employeeId })) },
+      } : {}),
     },
   })
 
@@ -117,6 +135,12 @@ export async function POST(req: NextRequest) {
       },
     })
     uploaded.push(doc.id)
+
+    await (prisma as any).loteEmpleado.upsert({
+      where: { loteId_employeeId: { loteId: lote.id, employeeId } },
+      create: { loteId: lote.id, employeeId },
+      update: {},
+    })
   }
 
   await logAction(user.userId, 'CREAR_LOTE', 'Lote', `${nombre} — ${uploaded.length} docs`)

@@ -17,12 +17,10 @@ import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulari
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft } from 'lucide-react'
 
-interface Categoria { id: number; nombre: string; nivel?: number | null; rolPorDefecto?: string | null }
-interface EmpleadoLite { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nivel: number | null; nombre: string } | null }
+interface Categoria { id: number; nombre: string }
 interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
-  managerId?: number | null
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
@@ -36,7 +34,6 @@ export default function EmpleadoDetailPage() {
   const router = useRouter()
   const [form, setForm] = useState<Empleado | null>(null)
   const [cats, setCats] = useState<Categoria[]>([])
-  const [posiblesJefes, setPosiblesJefes] = useState<EmpleadoLite[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -55,12 +52,10 @@ export default function EmpleadoDetailPage() {
       fetch('/api/configuracion/empleados-campos').then(r => r.json()),
       fetch('/api/configuracion/campos-personalizados').then(r => r.json()),
       fetch(`/api/empleados/${id}`).then(r => r.json()),
-      fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()),
-    ]).then(([catsData, fieldCfg, camposCfg, empData, jefesData]) => {
+    ]).then(([catsData, fieldCfg, camposCfg, empData]) => {
       setCats(catsData)
       setFieldConfig(fieldCfg)
       setCamposCustom(camposCfg)
-      setPosiblesJefes((jefesData.employees ?? []).filter((e: EmpleadoLite) => e.id !== empData.id))
       setForm({
         id: empData.id,
         legajo: empData.legajo,
@@ -72,7 +67,6 @@ export default function EmpleadoDetailPage() {
         fechaIngreso: empData.fechaIngreso,
         categoriaId: empData.categoriaId,
         estado: empData.estado,
-        managerId: empData.managerId ?? null,
       })
       const map: Record<number, string> = {}
       for (const v of empData.valoresCampos ?? []) map[v.campoId] = v.valor
@@ -206,16 +200,16 @@ export default function EmpleadoDetailPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Datos personales</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Nombre <span className="text-red-500">*</span></Label>
+              <Label className="mb-1.5">Nombre <span className="text-red-500">*</span></Label>
               <Input value={form.nombre} onChange={e => setField('nombre')(e.target.value)} className={cn('mt-1', err('nombre') && 'border-red-500 focus-visible:ring-red-500')} />
             </div>
             <div>
-              <Label>Apellido <span className="text-red-500">*</span></Label>
+              <Label className="mb-1.5">Apellido <span className="text-red-500">*</span></Label>
               <Input value={form.apellido} onChange={e => setField('apellido')(e.target.value)} className={cn('mt-1', err('apellido') && 'border-red-500 focus-visible:ring-red-500')} />
             </div>
             {TEXT_FIELDS.filter(([k]) => isVisible(k as string)).map(([k, label]) => (
               <div key={k}>
-                <Label>{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
+                <Label className="mb-1.5">{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
                 <Input
                   value={(form[k] ?? '') as string}
                   onChange={e => setField(k)(e.target.value)}
@@ -225,7 +219,7 @@ export default function EmpleadoDetailPage() {
             ))}
             {isVisible('fechaIngreso') && (
               <div>
-                <Label>Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
+                <Label className="mb-1.5">Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
                 <Input
                   type="date"
                   value={form.fechaIngreso?.toString().slice(0, 10)}
@@ -236,10 +230,12 @@ export default function EmpleadoDetailPage() {
             )}
             {isVisible('categoria') && (
               <div>
-                <Label>Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
+                <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
                 <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { setField('categoriaId')(v); clearError('categoria') } }}>
                   <SelectTrigger className={cn('mt-1', err('categoria') && 'border-red-500 focus:ring-red-500')}>
-                    <SelectValue placeholder="Seleccionar" />
+                    <SelectValue placeholder="Seleccionar">
+                      {cats.find(c => c.id === Number(form.categoriaId))?.nombre ?? 'Seleccionar'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {cats.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
@@ -247,41 +243,9 @@ export default function EmpleadoDetailPage() {
                 </Select>
               </div>
             )}
-            <div>
-              <Label>A cargo de <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-              <Select
-                value={form.managerId ? String(form.managerId) : undefined}
-                onValueChange={v => setForm(f => f ? { ...f, managerId: v === '__none__' ? null : Number(v) } : f)}
-              >
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Sin jefe directo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin jefe directo</SelectItem>
-                  {(() => {
-                    const miNivel = cats.find(c => c.id === form.categoriaId)?.nivel ?? null
-                    return posiblesJefes
-                      .filter(e => {
-                        if (miNivel == null) return true
-                        const suNivel = e.categoria?.nivel ?? null
-                        if (suNivel == null) return true
-                        return suNivel <= miNivel
-                      })
-                      .map(e => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {`${e.apellido}, ${e.nombre} — ${e.legajo}${e.categoria?.nivel != null ? ` (nivel ${e.categoria.nivel})` : ''}`}
-                        </SelectItem>
-                      ))
-                  })()}
-                </SelectContent>
-              </Select>
-              {cats.find(c => c.id === form.categoriaId)?.nivel != null && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Solo se muestran empleados de nivel igual o superior al de la categoría seleccionada.
-                </p>
-              )}
-            </div>
             {isVisible('estado') && (
               <div>
-                <Label>Estado</Label>
+                <Label className="mb-1.5">Estado</Label>
                 <Select value={form.estado} onValueChange={v => v && setField('estado')(v)}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -293,7 +257,7 @@ export default function EmpleadoDetailPage() {
             )}
             {camposCustom.filter(c => c.visible).map(c => (
               <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
-                <Label>{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
+                <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
                 {c.tipo === 'booleano' ? (
                   <div className="flex items-center gap-2 pt-2">
                     <Checkbox
@@ -366,7 +330,7 @@ export default function EmpleadoDetailPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acceso al sistema</p>
           {existingUser ? (
             <div>
-              <Label>Nombre de usuario</Label>
+              <Label className="mb-1.5">Nombre de usuario</Label>
               <Input
                 value={username}
                 onChange={e => setUsername(e.target.value)}
@@ -384,11 +348,11 @@ export default function EmpleadoDetailPage() {
               {crearUsuario && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Nombre de usuario</Label>
+                    <Label className="mb-1.5">Nombre de usuario</Label>
                     <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Opcional" className="mt-1" />
                   </div>
                   <div>
-                    <Label>Contraseña <span className="text-red-500">*</span></Label>
+                    <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
                     <Input
                       type="password"
                       value={password}

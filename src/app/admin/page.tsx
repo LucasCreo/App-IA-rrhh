@@ -20,6 +20,7 @@ const TOP_WIDGETS = [
   { id: 'kpis', label: 'Tarjetas KPI' },
   { id: 'graficos', label: 'Gráficos' },
   { id: 'eventos', label: 'Próximos eventos' },
+  { id: 'portal', label: 'Últimas publicaciones' },
 ]
 const BOTTOM_WIDGETS = [
   { id: 'solicitudes', label: 'Solicitudes pendientes' },
@@ -109,10 +110,11 @@ export default function AdminDashboard() {
               if (id === 'eventos') return (
                 <ProximosEventos key={id} href="/admin/calendario" />
               )
+              if (id === 'portal') return (
+                <UltimosPostsWidget key={id} baseHref="/admin/portal" />
+              )
               return null
             })}
-
-            <UltimosPostsWidget baseHref="/admin/portal" />
 
             {(showSolicitudes || showIncorporados) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

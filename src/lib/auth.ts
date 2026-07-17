@@ -40,22 +40,18 @@ export async function getCurrentUser() {
   }
 }
 
-// Returns user if ADMIN and has the given permission (or no custom rol = full access).
+// Returns user if ADMIN and has the given permission (o sin permisos custom = acceso total).
 // Pass no permiso to just check that the user is an admin.
 export async function requirePermiso(permiso?: Permiso) {
   const user = await getCurrentUser()
   if (!user || user.role !== 'ADMIN') return null
   if (!permiso) return user
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.userId },
-    select: { rolId: true },
-  })
+  const count = await (prisma as any).userPermiso.count({ where: { userId: user.userId } })
+  if (count === 0) return user // sin permisos custom = acceso total
 
-  if (!dbUser?.rolId) return user // no custom rol = full access
-
-  const rp = await prisma.rolPermiso.findUnique({
-    where: { rolId_permiso: { rolId: dbUser.rolId, permiso } },
+  const has = await (prisma as any).userPermiso.findUnique({
+    where: { userId_permiso: { userId: user.userId, permiso } },
   })
-  return rp ? user : null
+  return has ? user : null
 }

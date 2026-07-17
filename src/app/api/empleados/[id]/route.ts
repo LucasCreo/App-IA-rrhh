@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
+import { getEmployeeDependencies, getUserDependencies, deletePersona, deletePersonaCascade } from '@/lib/personDependencies'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -47,7 +48,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
           categoriaId: Number(body.categoriaId),
-          managerId: body.managerId ? Number(body.managerId) : null,
           estado: body.estado,
         },
         include: { categoria: true },
@@ -95,7 +95,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
@@ -104,10 +104,38 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   const scope = await getScopedEmployeeIds(user.userId)
   if (scope && !scope.has(empId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const force = new URL(req.url).searchParams.get('force') === 'true'
+
+  const emp = await prisma.employee.findUnique({
+    where: { id: empId },
+    select: { id: true, legajo: true, user: { select: { id: true, email: true } } },
+  })
+  if (!emp) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
+
+  if (force) {
+    await deletePersonaCascade(empId, emp.user?.id ?? null)
+    await logAction(user.userId, 'ELIMINAR_CASCADA', 'Empleado', `Legajo: ${emp.legajo}${emp.user ? ` (+ user ${emp.user.email})` : ''}`)
+    return NextResponse.json({ ok: true, userDeleted: !!emp.user, cascade: true })
+  }
+
+  const [depsEmp, depsUser] = await Promise.all([
+    getEmployeeDependencies(empId),
+    emp.user ? getUserDependencies(emp.user.id) : Promise.resolve([]),
+  ])
+  const dependencias = [...depsEmp, ...depsUser]
+
+  if (dependencias.length > 0) {
+    return NextResponse.json({
+      error: 'El empleado tiene datos asociados',
+      dependencias,
+      userAsociado: emp.user?.email ?? null,
+    }, { status: 409 })
+  }
+
   try {
-    const emp = await prisma.employee.delete({ where: { id: empId } })
-    await logAction(user.userId, 'ELIMINAR', 'Empleado', `Legajo: ${emp.legajo}`)
-    return NextResponse.json({ ok: true })
+    await deletePersona(empId, emp.user?.id ?? null)
+    await logAction(user.userId, 'ELIMINAR', 'Empleado', `Legajo: ${emp.legajo}${emp.user ? ` (+ user ${emp.user.email})` : ''}`)
+    return NextResponse.json({ ok: true, userDeleted: !!emp.user })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
       return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })

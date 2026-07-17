@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,22 +11,30 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-    const [lote, empleados] = await Promise.all([
-      prisma.lote.findUnique({
-        where: { id: Number(id) },
-        include: {
-          tipoDocumento: { select: { id: true, nombre: true, accion: true } },
-          documentos: { orderBy: { fechaCarga: 'desc' } },
+    const lote = await prisma.lote.findUnique({
+      where: { id: Number(id) },
+      include: {
+        tipoDocumento: { select: { id: true, nombre: true, accion: true } },
+        documentos: { orderBy: { fechaCarga: 'desc' } },
+        empleados: {
+          include: {
+            employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
+          },
         },
-      }),
-      prisma.employee.findMany({
-        where: { estado: 'ACTIVO' },
-        select: { id: true, nombre: true, apellido: true, legajo: true },
-        orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
-      }),
-    ])
+      },
+    })
 
     if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
+
+    const scope = await getScopedEmployeeIds(user.userId)
+    if (scope && !lote.empleados.some(le => scope.has(le.employeeId))) {
+      return NextResponse.json({ error: 'No autorizado sobre este lote' }, { status: 403 })
+    }
+
+    const empleados = lote.empleados
+      .filter(le => !scope || scope.has(le.employeeId))
+      .map(le => le.employee)
+      .sort((a, b) => a.apellido.localeCompare(b.apellido) || a.nombre.localeCompare(b.nombre))
 
     const docByEmployee = new Map<number, any>()
     for (const doc of lote.documentos) {
@@ -50,7 +59,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       sinRecibo: empleados.filter(e => !docByEmployee.has(e.id)).length,
     }
 
-    const { documentos: _omit, ...loteInfo } = lote
+    const { documentos: _omit, empleados: _omit2, ...loteInfo } = lote
     return NextResponse.json({ lote: loteInfo, empleados: empleadosConEstado, stats })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
@@ -84,19 +93,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-    const { nombre, descripcion } = await req.json()
-    if (!nombre?.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
+    const body = await req.json()
+    const { nombre, descripcion, employeeIds } = body
 
-    const n = nombre.trim()
-    const desc: string | null = descripcion?.trim() || null
+    const loteId = Number(id)
+    const data: any = {}
 
-    await prisma.lote.update({
-      where: { id: Number(id) },
-      data: { nombre: n, descripcion: desc },
-    })
+    if (typeof nombre === 'string') {
+      if (!nombre.trim()) return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
+      data.nombre = nombre.trim()
+    }
+    if ('descripcion' in body) {
+      data.descripcion = descripcion?.trim() || null
+    }
 
-    await logAction(user.userId, 'EDITAR_LOTE', 'Lote', n)
-    return NextResponse.json({ id: Number(id), nombre: n, descripcion: desc })
+    if (Object.keys(data).length > 0) {
+      await prisma.lote.update({ where: { id: loteId }, data })
+    }
+
+    if (Array.isArray(employeeIds)) {
+      const nuevos = employeeIds.map(Number).filter(n => Number.isInteger(n))
+      const nuevoSet = new Set(nuevos)
+
+      const conDoc = await prisma.document.findMany({
+        where: { loteId },
+        select: { employeeId: true },
+      })
+      const empleadosConDoc = new Set(conDoc.map(d => d.employeeId))
+
+      const actuales = await (prisma as any).loteEmpleado.findMany({
+        where: { loteId },
+        select: { employeeId: true },
+      })
+      const actualSet = new Set<number>(actuales.map((a: any) => a.employeeId as number))
+
+      const aAgregar = nuevos.filter(id => !actualSet.has(id))
+      const aQuitar = [...actualSet].filter(id => !nuevoSet.has(id) && !empleadosConDoc.has(id))
+
+      if (aAgregar.length > 0) {
+        await (prisma as any).loteEmpleado.createMany({
+          data: aAgregar.map(employeeId => ({ loteId, employeeId })),
+        })
+      }
+      if (aQuitar.length > 0) {
+        await (prisma as any).loteEmpleado.deleteMany({
+          where: { loteId, employeeId: { in: aQuitar } },
+        })
+      }
+    }
+
+    await logAction(user.userId, 'EDITAR_LOTE', 'Lote', data.nombre ?? `ID ${loteId}`)
+    return NextResponse.json({ ok: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
   }

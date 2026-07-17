@@ -5,6 +5,8 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { sendMail } from '@/lib/email'
 import { parseClientDate } from '@/lib/dates'
+import { esTopDelOrganigrama } from '@/lib/scope'
+import { pushEventoToGoogleCalendars } from '@/lib/google'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -61,6 +63,8 @@ export async function POST(req: Request) {
     archivoUrl = `/uploads/ausencias/${filename}`
   }
 
+  const autoAprobar = await esTopDelOrganigrama(user.employeeId)
+
   const solicitud = await prisma.solicitudAusencia.create({
     data: {
       employeeId: user.employeeId,
@@ -70,12 +74,40 @@ export async function POST(req: Request) {
       dias,
       motivo: motivo?.trim() || null,
       archivoUrl,
+      estado: autoAprobar ? 'APROBADA' : 'PENDIENTE',
+      comentarioAdmin: autoAprobar ? 'Auto-aprobada (top del organigrama)' : null,
     },
     include: {
       employee: { select: { nombre: true, apellido: true, legajo: true } },
-      tipoAusencia: { select: { nombre: true } },
+      tipoAusencia: { select: { nombre: true, afectaSaldo: true } },
     },
   })
+
+  if (autoAprobar) {
+    const evento = await prisma.evento.create({
+      data: {
+        titulo: `Ausencia — ${solicitud.tipoAusencia.nombre}`,
+        descripcion: solicitud.motivo ?? null,
+        fechaInicio: solicitud.fechaInicio,
+        fechaFin: solicitud.fechaFin,
+        todoElDia: true,
+        tipo: 'AUSENCIA',
+        subtipo: solicitud.tipoAusencia.nombre,
+        creadoPorId: user.userId,
+        asignados: { create: { employeeId: user.employeeId } },
+      },
+    })
+    await pushEventoToGoogleCalendars(evento.id, [user.userId])
+    if (solicitud.tipoAusencia.afectaSaldo) {
+      const anio = solicitud.fechaInicio.getFullYear()
+      await prisma.saldoVacaciones.upsert({
+        where: { employeeId_anio: { employeeId: user.employeeId, anio } },
+        update: { diasUsados: { increment: solicitud.dias } },
+        create: { employeeId: user.employeeId, anio, diasTotales: 14, diasUsados: solicitud.dias },
+      })
+    }
+    return NextResponse.json(solicitud, { status: 201 })
+  }
 
   // Notificar a admins con email
   const admins = await prisma.user.findMany({

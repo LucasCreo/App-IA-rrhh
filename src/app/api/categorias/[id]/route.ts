@@ -9,17 +9,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { nombre, nivel, rolPorDefecto } = await req.json()
+  const { nombre } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
   try {
     const cat = await prisma.category.update({
       where: { id: Number(id) },
-      data: {
-        nombre: nombre.trim(),
-        nivel: typeof nivel === 'number' ? nivel : null,
-        rolPorDefecto: rolPorDefecto ?? null,
-      },
+      data: { nombre: nombre.trim() },
     })
     return NextResponse.json(cat)
   } catch (e) {

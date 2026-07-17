@@ -1,122 +1,40 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
-import { Plus, Trash2, Pencil, ShieldCheck, User, Check, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Trash2, ShieldCheck, User, ExternalLink, Network, KeyRound } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { TODOS_LOS_PERMISOS, LABELS_PERMISOS, type Permiso } from '@/lib/permissions'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Rol {
-  id: number
-  nombre: string
-  descripcion: string | null
-  scopeJerarquico: boolean
-  permisos: string[]
-  usuariosCount: number
-}
+import { BloqueoEliminacionDialog } from '@/components/shared/BloqueoEliminacionDialog'
+import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
+import { PermisosDialog } from '@/components/usuarios/PermisosDialog'
 
 interface Usuario {
   id: number
   email: string
   role: string
-  rolId: number | null
-  rolNombre: string | null
   createdAt: string
   employee: { id: number; nombre: string; apellido: string; legajo: string } | null
+  permisos: string[]
 }
-
-// ─── Tab bar ─────────────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'usuarios', label: 'Usuarios' },
-  { id: 'roles', label: 'Roles' },
-]
-
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export function UsuariosPage() {
-  const [tab, setTab] = useState<'usuarios' | 'roles'>('usuarios')
-
-  return (
-    <div className="max-w-5xl">
-      <div className="flex border-b mb-6">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id as any)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              tab === t.id
-                ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === 'usuarios' ? <TabUsuarios /> : <TabRoles />}
-    </div>
-  )
-}
-
-// ─── Tab: Usuarios ────────────────────────────────────────────────────────────
-
-function TabUsuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
-  const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [newRolId, setNewRolId] = useState<string>('')
-  const [adding, setAdding] = useState(false)
-  const [deleteUser, setDeleteUser] = useState<{ id: number; email: string } | null>(null)
+  const [deleteUser, setDeleteUser] = useState<{ id: number; email: string; hasEmployee: boolean } | null>(null)
+  const [blockedDelete, setBlockedDelete] = useState<{ id: number; email: string; dependencias: { label: string; count: number; href: string }[] } | null>(null)
+  const [subordinadosOf, setSubordinadosOf] = useState<{ id: number; label: string } | null>(null)
+  const [permisosOf, setPermisosOf] = useState<Usuario | null>(null)
 
   async function fetchAll() {
     setLoading(true)
-    const [u, r] = await Promise.all([
-      fetch('/api/usuarios').then(r => r.json()),
-      fetch('/api/roles').then(r => r.json()),
-    ])
-    setUsuarios(Array.isArray(u) ? u : [])
-    setRoles(Array.isArray(r) ? r : [])
+    const r = await fetch('/api/usuarios').then(r => r.json())
+    setUsuarios(Array.isArray(r) ? r : [])
     setLoading(false)
   }
 
   useEffect(() => { fetchAll() }, [])
-
-  async function handleAdd() {
-    if (!newEmail.trim() || !newPassword) return
-    setAdding(true)
-    const res = await fetch('/api/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, rolId: newRolId || null }),
-    })
-    setAdding(false)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
-    toast.success('Usuario creado')
-    setNewEmail(''); setNewPassword(''); setNewRolId(''); setShowForm(false)
-    fetchAll()
-  }
-
-  async function handleRolChange(userId: number, rolId: string) {
-    const res = await fetch(`/api/usuarios/${userId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rolId: rolId || null }),
-    })
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
-    toast.success('Rol actualizado')
-    fetchAll()
-  }
 
   async function handleRoleChange(userId: number, role: string) {
     const res = await fetch(`/api/usuarios/${userId}`, {
@@ -131,76 +49,40 @@ function TabUsuarios() {
 
   async function doDeleteUser() {
     if (!deleteUser) return
-    const res = await fetch(`/api/usuarios/${deleteUser.id}`, { method: 'DELETE' })
+    const target = deleteUser
+    const res = await fetch(`/api/usuarios/${target.id}`, { method: 'DELETE' })
     setDeleteUser(null)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
-    toast.success('Usuario eliminado')
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 409 && Array.isArray(data.dependencias)) {
+        setBlockedDelete({ id: target.id, email: target.email, dependencias: data.dependencias })
+        return
+      }
+      toast.error(data.error ?? 'Error')
+      return
+    }
+    toast.success(target.hasEmployee ? 'Usuario y legajo eliminados' : 'Usuario eliminado')
     fetchAll()
   }
 
   return (
-    <div className="space-y-6">
-      {/* Create user */}
-      <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Usuarios administradores</p>
-          {!showForm && (
-            <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setShowForm(true)}>
-              <Plus size={14} className="mr-1.5" />Nuevo usuario
-            </Button>
-          )}
-        </div>
-        {showForm && (
-          <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
-            <div className="flex gap-2 flex-wrap">
-              <Input
-                placeholder="Email"
-                className="flex-1 min-w-48"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                autoFocus
-              />
-              <Input
-                type="password"
-                placeholder="Contraseña"
-                className="w-44"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              />
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                value={newRolId}
-                onChange={e => setNewRolId(e.target.value)}
-              >
-                <option value="">Sin rol (acceso total)</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setShowForm(false); setNewEmail(''); setNewPassword(''); setNewRolId('') }}>Cancelar</Button>
-              <Button
-                size="sm"
-                className="bg-green-700 hover:bg-green-800"
-                onClick={handleAdd}
-                disabled={adding || !newEmail.trim() || !newPassword}
-              >
-                Crear
-              </Button>
-            </div>
-          </div>
-        )}
+    <div className="max-w-5xl space-y-6">
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-muted-foreground">
+          Los usuarios se crean desde <strong>Legajos → Nuevo Legajo</strong>. Acá gestionás el acceso, permisos y organigrama de los ya existentes.
+        </p>
+        <Link href="/admin/empleados" className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 shrink-0">
+          Ir a Legajos <ExternalLink size={11} />
+        </Link>
       </div>
 
-      {/* Users table */}
       <div className="rounded-xl border bg-card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium">Usuario</th>
               <th className="text-left px-4 py-2.5 font-medium">Acceso</th>
-              <th className="text-left px-4 py-2.5 font-medium">Rol de permisos</th>
+              <th className="text-left px-4 py-2.5 font-medium">Permisos</th>
               <th className="px-4 py-2.5" />
             </tr>
           </thead>
@@ -224,8 +106,13 @@ function TabUsuarios() {
                     </div>
                     <div>
                       <p className="font-medium leading-tight">{u.email}</p>
-                      {u.employee && (
-                        <p className="text-xs text-muted-foreground">{u.employee.apellido}, {u.employee.nombre} · {u.employee.legajo}</p>
+                      {u.employee ? (
+                        <Link href={`/admin/empleados/${u.employee.id}`} className="text-xs text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1">
+                          {u.employee.apellido}, {u.employee.nombre} · {u.employee.legajo}
+                          <ExternalLink size={10} />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Sin legajo</span>
                       )}
                     </div>
                   </div>
@@ -242,21 +129,38 @@ function TabUsuarios() {
                 </td>
                 <td className="px-4 py-3">
                   {u.role === 'ADMIN' ? (
-                    <select
-                      className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                      value={u.rolId ?? ''}
-                      onChange={e => handleRolChange(u.id, e.target.value)}
-                    >
-                      <option value="">Acceso total</option>
-                      {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-                    </select>
+                    <span className="text-xs text-muted-foreground">
+                      {u.permisos.length === 0 ? 'Acceso total' : `${u.permisos.length} permiso${u.permisos.length !== 1 ? 's' : ''}`}
+                      {!u.employee && <span className="ml-1 text-green-700 dark:text-green-400">· soporte</span>}
+                    </span>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
+                  {u.role === 'ADMIN' && (
+                    <button
+                      onClick={() => setPermisosOf(u)}
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mr-1"
+                      title="Editar permisos"
+                    >
+                      <KeyRound size={13} />
+                    </button>
+                  )}
+                  {u.employee && (
+                    <button
+                      onClick={() => setSubordinadosOf({
+                        id: u.id,
+                        label: `${u.employee!.apellido}, ${u.employee!.nombre}`,
+                      })}
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mr-1"
+                      title="Configurar subordinados"
+                    >
+                      <Network size={13} />
+                    </button>
+                  )}
                   <button
-                    onClick={() => setDeleteUser({ id: u.id, email: u.email })}
+                    onClick={() => setDeleteUser({ id: u.id, email: u.email, hasEmployee: !!u.employee })}
                     className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
                     title="Eliminar usuario"
                   >
@@ -271,271 +175,40 @@ function TabUsuarios() {
       <ConfirmDialog
         open={!!deleteUser}
         title={`¿Eliminar usuario ${deleteUser?.email}?`}
+        description={deleteUser?.hasEmployee
+          ? 'Esta acción también elimina el legajo asociado. No se puede deshacer.'
+          : 'Esta acción no se puede deshacer.'}
         onConfirm={doDeleteUser}
         onCancel={() => setDeleteUser(null)}
       />
-    </div>
-  )
-}
-
-// ─── Tab: Roles ───────────────────────────────────────────────────────────────
-
-function TabRoles() {
-  const [roles, setRoles] = useState<Rol[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<number | 'new' | null>(null)
-  const [form, setForm] = useState({ nombre: '', descripcion: '', scopeJerarquico: false, permisos: [] as string[] })
-  const [saving, setSaving] = useState(false)
-  const [deleteRole, setDeleteRole] = useState<Rol | null>(null)
-
-  async function fetchRoles() {
-    setLoading(true)
-    const r = await fetch('/api/roles')
-    if (r.ok) setRoles(await r.json())
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchRoles() }, [])
-
-  function startNew() {
-    setForm({ nombre: '', descripcion: '', scopeJerarquico: false, permisos: [] })
-    setEditingId('new')
-  }
-
-  function startEdit(rol: Rol) {
-    setForm({ nombre: rol.nombre, descripcion: rol.descripcion ?? '', scopeJerarquico: rol.scopeJerarquico, permisos: [...rol.permisos] })
-    setEditingId(rol.id)
-  }
-
-  function togglePermiso(p: string) {
-    setForm(f => ({
-      ...f,
-      permisos: f.permisos.includes(p)
-        ? f.permisos.filter(x => x !== p)
-        : [...f.permisos, p],
-    }))
-  }
-
-  async function handleSave() {
-    if (!form.nombre.trim()) { toast.error('El nombre es requerido'); return }
-    setSaving(true)
-    const isNew = editingId === 'new'
-    const url = isNew ? '/api/roles' : `/api/roles/${editingId}`
-    const method = isNew ? 'POST' : 'PUT'
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    setSaving(false)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
-    toast.success(isNew ? 'Rol creado' : 'Rol actualizado')
-    setEditingId(null)
-    fetchRoles()
-  }
-
-  function handleDelete(rol: Rol) {
-    if (rol.usuariosCount > 0) {
-      toast.error(`${rol.usuariosCount} usuario${rol.usuariosCount !== 1 ? 's usan' : ' usa'} este rol`)
-      return
-    }
-    setDeleteRole(rol)
-  }
-
-  async function doDeleteRole() {
-    if (!deleteRole) return
-    const res = await fetch(`/api/roles/${deleteRole.id}`, { method: 'DELETE' })
-    setDeleteRole(null)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error'); return }
-    toast.success('Rol eliminado')
-    fetchRoles()
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button className="bg-green-700 hover:bg-green-800" size="sm" onClick={startNew} disabled={editingId === 'new'}>
-          <Plus size={14} className="mr-1.5" />Nuevo rol
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {/* New rol form */}
-          {editingId === 'new' && (
-            <RolForm
-              form={form}
-              setForm={setForm}
-              onTogglePermiso={togglePermiso}
-              onSave={handleSave}
-              onCancel={() => setEditingId(null)}
-              saving={saving}
-              isNew
-            />
-          )}
-
-          {roles.map(rol => (
-            <div key={rol.id} className="rounded-xl border bg-card overflow-hidden">
-              {editingId === rol.id ? (
-                <RolForm
-                  form={form}
-                  setForm={setForm}
-                  onTogglePermiso={togglePermiso}
-                  onSave={handleSave}
-                  onCancel={() => setEditingId(null)}
-                  saving={saving}
-                />
-              ) : (
-                <div className="px-5 py-4 flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold">{rol.nombre}</p>
-                      <span className="text-xs text-muted-foreground">
-                        {rol.usuariosCount} usuario{rol.usuariosCount !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    {rol.descripcion && <p className="text-xs text-muted-foreground mb-2">{rol.descripcion}</p>}
-                    <div className="flex flex-wrap gap-1">
-                      {rol.permisos.length === 0
-                        ? <span className="text-xs text-muted-foreground italic">Sin permisos</span>
-                        : rol.permisos.map(p => (
-                          <span key={p} className="text-xs bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded">
-                            {LABELS_PERMISOS[p as Permiso] ?? p}
-                          </span>
-                        ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => startEdit(rol)}
-                      className="p-1.5 rounded text-muted-foreground hover:bg-muted transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rol)}
-                      className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {roles.length === 0 && editingId !== 'new' && (
-            <p className="text-center text-sm text-muted-foreground py-8">No hay roles creados</p>
-          )}
-        </div>
-      )}
-      <ConfirmDialog
-        open={!!deleteRole}
-        title={`¿Eliminar rol "${deleteRole?.nombre}"?`}
-        onConfirm={doDeleteRole}
-        onCancel={() => setDeleteRole(null)}
+      <BloqueoEliminacionDialog
+        open={!!blockedDelete}
+        onClose={() => setBlockedDelete(null)}
+        title={blockedDelete ? `No se puede eliminar el usuario ${blockedDelete.email}` : ''}
+        dependencias={blockedDelete?.dependencias ?? []}
+        forceDeleteUrl={blockedDelete ? `/api/usuarios/${blockedDelete.id}` : undefined}
+        confirmToken={blockedDelete?.email}
+        onDeleted={fetchAll}
       />
-    </div>
-  )
-}
-
-// ─── Rol form (shared for new and edit) ───────────────────────────────────────
-
-function RolForm({
-  form, setForm, onTogglePermiso, onSave, onCancel, saving, isNew,
-}: {
-  form: { nombre: string; descripcion: string; scopeJerarquico: boolean; permisos: string[] }
-  setForm: (f: any) => void
-  onTogglePermiso: (p: string) => void
-  onSave: () => void
-  onCancel: () => void
-  saving: boolean
-  isNew?: boolean
-}) {
-  return (
-    <div className="px-5 py-4 space-y-4">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        {isNew ? 'Nuevo rol' : 'Editar rol'}
-      </p>
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <p className="text-xs text-muted-foreground mb-1">Nombre</p>
-          <Input
-            value={form.nombre}
-            onChange={e => setForm((f: any) => ({ ...f, nombre: e.target.value }))}
-            placeholder="Ej: RRHH"
-          />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs text-muted-foreground mb-1">Descripción (opcional)</p>
-          <Input
-            value={form.descripcion}
-            onChange={e => setForm((f: any) => ({ ...f, descripcion: e.target.value }))}
-            placeholder="Ej: Gestión de empleados y documentos"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.scopeJerarquico}
-            onChange={e => setForm((f: any) => ({ ...f, scopeJerarquico: e.target.checked }))}
-            className="mt-0.5 h-4 w-4 accent-green-700"
-          />
-          <div>
-            <p className="text-sm font-medium">Alcance limitado a subordinados</p>
-            <p className="text-xs text-muted-foreground">
-              Cuando está activo, el usuario con este rol solo puede ver/editar empleados que están debajo suyo en el organigrama. Sin marcar = acceso global.
-            </p>
-          </div>
-        </label>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">Permisos</p>
-        <div className="grid grid-cols-2 gap-2">
-          {TODOS_LOS_PERMISOS.map(p => {
-            const checked = form.permisos.includes(p)
-            return (
-              <button
-                key={p}
-                onClick={() => onTogglePermiso(p)}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-left transition-colors',
-                  checked
-                    ? 'border-green-500 bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-400'
-                    : 'border-border hover:border-muted-foreground text-muted-foreground'
-                )}
-              >
-                <div className={cn(
-                  'h-4 w-4 rounded flex items-center justify-center shrink-0',
-                  checked ? 'bg-green-600' : 'border border-muted-foreground'
-                )}>
-                  {checked && <Check size={10} className="text-white" />}
-                </div>
-                {LABELS_PERMISOS[p]}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="flex gap-2 justify-end pt-1">
-        <Button variant="outline" size="sm" onClick={onCancel}>
-          <X size={13} className="mr-1" />Cancelar
-        </Button>
-        <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={onSave} disabled={saving}>
-          <Check size={13} className="mr-1" />{saving ? 'Guardando...' : 'Guardar'}
-        </Button>
-      </div>
+      {subordinadosOf && (
+        <SubordinadosDialog
+          open={true}
+          managerId={subordinadosOf.id}
+          managerLabel={subordinadosOf.label}
+          onClose={() => setSubordinadosOf(null)}
+          onSaved={fetchAll}
+        />
+      )}
+      {permisosOf && (
+        <PermisosDialog
+          open={true}
+          userId={permisosOf.id}
+          userLabel={permisosOf.employee ? `${permisosOf.employee.apellido}, ${permisosOf.employee.nombre}` : permisosOf.email}
+          initialPermisos={permisosOf.permisos}
+          onClose={() => setPermisosOf(null)}
+          onSaved={fetchAll}
+        />
+      )}
     </div>
   )
 }

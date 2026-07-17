@@ -6,16 +6,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getCurrentUser()
   const [config, dbUser, pendingModificaciones, pendingSolicitudes] = await Promise.all([
     prisma.generalConfig.findFirst(),
-    user ? prisma.user.findUnique({ where: { id: user.userId }, select: { avatarUrl: true, rolId: true } }) : null,
+    user ? prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { avatarUrl: true, permisos: { select: { permiso: true } } },
+    }) : null,
     prisma.solicitudModificacion.count({ where: { estado: 'PENDIENTE' } }),
     prisma.solicitudDocumento.count({ where: { estado: 'PENDIENTE' } }),
   ])
 
-  let permisos: string[] | null = null // null = full access
-  if (dbUser?.rolId) {
-    const rps = await prisma.rolPermiso.findMany({ where: { rolId: dbUser.rolId }, select: { permiso: true } })
-    permisos = rps.map(r => r.permiso)
-  }
+  // null = acceso total; array vacío o con items = restrictivo
+  const permisos: string[] | null = (dbUser?.permisos?.length ?? 0) > 0
+    ? dbUser!.permisos.map(p => p.permiso)
+    : null
 
   return (
     <div className="flex min-h-screen bg-background">

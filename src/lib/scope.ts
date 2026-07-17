@@ -9,45 +9,27 @@ import { prisma } from './prisma'
  *
  * null = sin restricción. Set vacío = no ve a nadie.
  */
-export async function getScopedEmployeeIds(userId: number): Promise<Set<number> | null> {
-  let user: { id: number; employeeId: number | null } | null
-  try {
-    user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, employeeId: true },
-    })
-  } catch (e) {
-    console.error('[scope] fallback a acceso global — falta migración/generate?', e)
-    return null
-  }
+
+export interface UserNode {
+  id: number
+  employeeId: number | null
+  managerUserId: number | null
+}
+
+/**
+ * Pura: dado el árbol completo y un userId, devuelve los employeeIds visibles.
+ * Regla: user sin legajo → null (acceso total). User con legajo → sí mismo + descendientes.
+ * User inexistente → set vacío.
+ */
+export function computeScope(users: UserNode[], userId: number): Set<number> | null {
+  const user = users.find(u => u.id === userId)
   if (!user) return new Set()
-  if (!user.employeeId) return null // admin puro = acceso total
+  if (!user.employeeId) return null
 
-  const todos = await prisma.user.findMany({
-    select: { id: true, employeeId: true, managerUserId: true },
-  })
+  const hijosDe = buildChildrenMap(users)
+  const usersEnScope = collectDescendants(hijosDe, userId, true)
 
-  const hijosDe = new Map<number, number[]>()
-  for (const u of todos) {
-    if (u.managerUserId != null) {
-      const arr = hijosDe.get(u.managerUserId) ?? []
-      arr.push(u.id)
-      hijosDe.set(u.managerUserId, arr)
-    }
-  }
-
-  const empByUser = new Map<number, number | null>()
-  for (const u of todos) empByUser.set(u.id, u.employeeId)
-
-  const usersEnScope = new Set<number>()
-  const stack = [user.id]
-  while (stack.length) {
-    const id = stack.pop()!
-    if (usersEnScope.has(id)) continue
-    usersEnScope.add(id)
-    for (const hijo of hijosDe.get(id) ?? []) stack.push(hijo)
-  }
-
+  const empByUser = new Map(users.map(u => [u.id, u.employeeId]))
   const scope = new Set<number>()
   for (const uid of usersEnScope) {
     const eid = empByUser.get(uid)
@@ -57,41 +39,18 @@ export async function getScopedEmployeeIds(userId: number): Promise<Set<number> 
 }
 
 /**
- * Devuelve el Set de `employeeId` de los subordinados (directos e indirectos)
- * del user dado, SIN incluirse a sí mismo. Se usa para el chequeo de aprobación
- * (solo un ancestro puede aprobar/rechazar solicitudes).
+ * Pura: dado el árbol y un userId, devuelve los employeeIds de sus descendientes estrictos
+ * (sin incluirse a sí mismo). Si el user no tiene legajo, devuelve el set de todos los employeeIds
+ * (admin puro puede aprobar cualquier cosa).
  */
-export async function getDescendantEmployeeIds(userId: number): Promise<Set<number>> {
-  const self = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { employeeId: true },
-  })
-  if (!self?.employeeId) {
-    // Admin puro: puede aprobar cualquier solicitud
-    const all = await prisma.employee.findMany({ select: { id: true } })
-    return new Set(all.map(e => e.id))
-  }
-  const todos = await prisma.user.findMany({
-    select: { id: true, employeeId: true, managerUserId: true },
-  })
-  const hijosDe = new Map<number, number[]>()
-  const empByUser = new Map<number, number | null>()
-  for (const u of todos) {
-    empByUser.set(u.id, u.employeeId)
-    if (u.managerUserId != null) {
-      const arr = hijosDe.get(u.managerUserId) ?? []
-      arr.push(u.id)
-      hijosDe.set(u.managerUserId, arr)
-    }
-  }
-  const descUsers = new Set<number>()
-  const stack = [...(hijosDe.get(userId) ?? [])]
-  while (stack.length) {
-    const id = stack.pop()!
-    if (descUsers.has(id)) continue
-    descUsers.add(id)
-    for (const h of hijosDe.get(id) ?? []) stack.push(h)
-  }
+export function computeDescendantEmployees(users: UserNode[], userId: number, allEmployeeIds: number[]): Set<number> {
+  const self = users.find(u => u.id === userId)
+  if (!self?.employeeId) return new Set(allEmployeeIds)
+
+  const hijosDe = buildChildrenMap(users)
+  const descUsers = collectDescendants(hijosDe, userId, false)
+
+  const empByUser = new Map(users.map(u => [u.id, u.employeeId]))
   const scope = new Set<number>()
   for (const uid of descUsers) {
     const eid = empByUser.get(uid)
@@ -101,23 +60,16 @@ export async function getDescendantEmployeeIds(userId: number): Promise<Set<numb
 }
 
 /**
- * Devuelve true si `ancestorUserId` es ancestro (directo o indirecto) de `descendantUserId`
- * en el organigrama de users. Un user NO es ancestro de sí mismo.
- * Los admins puros (sin legajo, no en el árbol) se consideran ancestros de TODOS
- * para poder aprobar cualquier solicitud (rol de soporte).
+ * Pura: true si ancestorUserId es ancestro (directo o indirecto) de descendantUserId.
+ * Un user NO es ancestro de sí mismo. Admins puros (sin legajo) se consideran ancestros de todos.
  */
-export async function isAncestorOfUser(ancestorUserId: number, descendantUserId: number): Promise<boolean> {
+export function computeIsAncestor(users: UserNode[], ancestorUserId: number, descendantUserId: number): boolean {
   if (ancestorUserId === descendantUserId) return false
-  const ancestor = await prisma.user.findUnique({
-    where: { id: ancestorUserId },
-    select: { employeeId: true },
-  })
-  if (!ancestor?.employeeId) return true // admin puro puede aprobar cualquier cosa
+  const ancestor = users.find(u => u.id === ancestorUserId)
+  if (!ancestor) return false
+  if (!ancestor.employeeId) return true
 
-  const todos = await prisma.user.findMany({ select: { id: true, managerUserId: true } })
-  const managerDe = new Map<number, number | null>()
-  for (const u of todos) managerDe.set(u.id, u.managerUserId)
-
+  const managerDe = new Map(users.map(u => [u.id, u.managerUserId]))
   let cur: number | null | undefined = managerDe.get(descendantUserId) ?? null
   const visto = new Set<number>()
   while (cur != null && !visto.has(cur)) {
@@ -126,6 +78,74 @@ export async function isAncestorOfUser(ancestorUserId: number, descendantUserId:
     cur = managerDe.get(cur) ?? null
   }
   return false
+}
+
+function buildChildrenMap(users: UserNode[]): Map<number, number[]> {
+  const hijosDe = new Map<number, number[]>()
+  for (const u of users) {
+    if (u.managerUserId != null) {
+      const arr = hijosDe.get(u.managerUserId) ?? []
+      arr.push(u.id)
+      hijosDe.set(u.managerUserId, arr)
+    }
+  }
+  return hijosDe
+}
+
+function collectDescendants(hijosDe: Map<number, number[]>, rootId: number, includeRoot: boolean): Set<number> {
+  const result = new Set<number>()
+  const stack: number[] = includeRoot ? [rootId] : [...(hijosDe.get(rootId) ?? [])]
+  while (stack.length) {
+    const id = stack.pop()!
+    if (result.has(id)) continue
+    result.add(id)
+    for (const h of hijosDe.get(id) ?? []) stack.push(h)
+  }
+  return result
+}
+
+export async function getScopedEmployeeIds(userId: number): Promise<Set<number> | null> {
+  const self = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, employeeId: true },
+  })
+  if (!self) return new Set()
+  if (!self.employeeId) return null
+
+  const users = await prisma.user.findMany({
+    select: { id: true, employeeId: true, managerUserId: true },
+  })
+  return computeScope(users, userId)
+}
+
+export async function getDescendantEmployeeIds(userId: number): Promise<Set<number>> {
+  const self = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { employeeId: true },
+  })
+  if (!self?.employeeId) {
+    const all = await prisma.employee.findMany({ select: { id: true } })
+    return new Set(all.map(e => e.id))
+  }
+  const users = await prisma.user.findMany({
+    select: { id: true, employeeId: true, managerUserId: true },
+  })
+  return computeDescendantEmployees(users, userId, [])
+}
+
+export async function isAncestorOfUser(ancestorUserId: number, descendantUserId: number): Promise<boolean> {
+  if (ancestorUserId === descendantUserId) return false
+  const ancestor = await prisma.user.findUnique({
+    where: { id: ancestorUserId },
+    select: { employeeId: true },
+  })
+  if (!ancestor) return false
+  if (!ancestor.employeeId) return true
+
+  const users = await prisma.user.findMany({
+    select: { id: true, employeeId: true, managerUserId: true },
+  })
+  return computeIsAncestor(users, ancestorUserId, descendantUserId)
 }
 
 /**

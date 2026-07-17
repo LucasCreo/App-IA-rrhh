@@ -2,7 +2,13 @@ import { prisma } from '@/lib/prisma'
 import { unlink } from 'fs/promises'
 
 async function tryUnlink(paths: string[]) {
-  await Promise.allSettled(paths.filter(Boolean).map(p => unlink(p)))
+  const results = await Promise.allSettled(paths.filter(Boolean).map(p => unlink(p)))
+  const fallidos = results
+    .map((r, i) => (r.status === 'rejected' ? paths[i] : null))
+    .filter((p): p is string => !!p)
+  if (fallidos.length > 0) {
+    console.warn('[cleanup] archivos huérfanos que no pudieron eliminarse:', fallidos)
+  }
 }
 
 export interface Dependencia {
@@ -26,7 +32,7 @@ export async function getEmployeeDependencies(employeeId: number): Promise<Depen
     prisma.eventoEmpleado.count({ where: { employeeId } }),
     prisma.saldoVacaciones.count({ where: { employeeId } }),
     prisma.valorCampoEmpleado.count({ where: { employeeId } }),
-    (prisma as any).loteEmpleado.count({ where: { employeeId } }),
+    prisma.loteEmpleado.count({ where: { employeeId } }),
   ])
   void valoresCampos
   return [
@@ -75,7 +81,7 @@ export async function deletePersona(
     if (employeeId) {
       await tx.valorCampoEmpleado.deleteMany({ where: { employeeId } })
       await tx.saldoVacaciones.deleteMany({ where: { employeeId } })
-      await (tx as any).loteEmpleado.deleteMany({ where: { employeeId } })
+      await tx.loteEmpleado.deleteMany({ where: { employeeId } })
     }
     if (userId) {
       await tx.passwordResetToken.deleteMany({ where: { userId } })
@@ -116,7 +122,7 @@ export async function deletePersonaCascade(
     if (employeeId) {
       await tx.valorCampoEmpleado.deleteMany({ where: { employeeId } })
       await tx.saldoVacaciones.deleteMany({ where: { employeeId } })
-      await (tx as any).loteEmpleado.deleteMany({ where: { employeeId } })
+      await tx.loteEmpleado.deleteMany({ where: { employeeId } })
       await tx.eventoEmpleado.deleteMany({ where: { employeeId } })
       await tx.respuestaFormulario.deleteMany({ where: { employeeId } })
       await tx.evaluacion.deleteMany({ where: { employeeId } })
@@ -137,7 +143,7 @@ export async function deletePersonaCascade(
       const loteIds = lotesUser.map(l => l.id)
       if (loteIds.length > 0) {
         await tx.document.updateMany({ where: { loteId: { in: loteIds } }, data: { loteId: null } })
-        await (tx as any).loteEmpleado.deleteMany({ where: { loteId: { in: loteIds } } })
+        await tx.loteEmpleado.deleteMany({ where: { loteId: { in: loteIds } } })
         await tx.lote.deleteMany({ where: { id: { in: loteIds } } })
       }
       // Eventos creados por él (EventoEmpleado cascadea)

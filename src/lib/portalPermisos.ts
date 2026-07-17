@@ -8,9 +8,9 @@ import type { TokenPayload } from './auth'
  */
 export async function puedePublicarEnPortal(user: TokenPayload): Promise<boolean> {
   if (user.role !== 'ADMIN') return false
-  const count = await (prisma as any).userPermiso.count({ where: { userId: user.userId } })
+  const count = await prisma.userPermiso.count({ where: { userId: user.userId } })
   if (count === 0) return true
-  const has = await (prisma as any).userPermiso.findUnique({
+  const has = await prisma.userPermiso.findUnique({
     where: { userId_permiso: { userId: user.userId, permiso: 'PUBLICAR_FEED' } },
   })
   return !!has

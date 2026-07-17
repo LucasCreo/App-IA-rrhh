@@ -27,9 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const cleanPermisos: string[] = permisos.filter((p: unknown) => typeof p === 'string')
     await prisma.$transaction([
       ...(Object.keys(data).length > 0 ? [prisma.user.update({ where: { id: target.id }, data })] : []),
-      (prisma as any).userPermiso.deleteMany({ where: { userId: target.id } }),
+      prisma.userPermiso.deleteMany({ where: { userId: target.id } }),
       ...(cleanPermisos.length > 0
-        ? [(prisma as any).userPermiso.createMany({ data: cleanPermisos.map(p => ({ userId: target.id, permiso: p })) })]
+        ? [prisma.userPermiso.createMany({ data: cleanPermisos.map(p => ({ userId: target.id, permiso: p })) })]
         : []),
     ])
   } else if (Object.keys(data).length > 0) {

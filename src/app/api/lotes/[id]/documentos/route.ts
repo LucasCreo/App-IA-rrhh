@@ -68,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       uploaded.push(doc.id)
 
-      await (prisma as any).loteEmpleado.upsert({
+      await prisma.loteEmpleado.upsert({
         where: { loteId_employeeId: { loteId: lote.id, employeeId } },
         create: { loteId: lote.id, employeeId },
         update: {},

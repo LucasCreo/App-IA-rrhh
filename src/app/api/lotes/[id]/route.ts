@@ -121,7 +121,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       })
       const empleadosConDoc = new Set(conDoc.map(d => d.employeeId))
 
-      const actuales = await (prisma as any).loteEmpleado.findMany({
+      const actuales = await prisma.loteEmpleado.findMany({
         where: { loteId },
         select: { employeeId: true },
       })
@@ -131,12 +131,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const aQuitar = [...actualSet].filter(id => !nuevoSet.has(id) && !empleadosConDoc.has(id))
 
       if (aAgregar.length > 0) {
-        await (prisma as any).loteEmpleado.createMany({
+        await prisma.loteEmpleado.createMany({
           data: aAgregar.map(employeeId => ({ loteId, employeeId })),
         })
       }
       if (aQuitar.length > 0) {
-        await (prisma as any).loteEmpleado.deleteMany({
+        await prisma.loteEmpleado.deleteMany({
           where: { loteId, employeeId: { in: aQuitar } },
         })
       }

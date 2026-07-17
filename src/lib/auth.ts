@@ -47,10 +47,10 @@ export async function requirePermiso(permiso?: Permiso) {
   if (!user || user.role !== 'ADMIN') return null
   if (!permiso) return user
 
-  const count = await (prisma as any).userPermiso.count({ where: { userId: user.userId } })
+  const count = await prisma.userPermiso.count({ where: { userId: user.userId } })
   if (count === 0) return user // sin permisos custom = acceso total
 
-  const has = await (prisma as any).userPermiso.findUnique({
+  const has = await prisma.userPermiso.findUnique({
     where: { userId_permiso: { userId: user.userId, permiso } },
   })
   return has ? user : null

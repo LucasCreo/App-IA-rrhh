@@ -11,7 +11,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const lote = await (prisma as any).lote.findUnique({
+  const lote = await prisma.lote.findUnique({
     where: { id: Number(id) },
     include: { tipoDocumento: { select: { accion: true } } },
   })

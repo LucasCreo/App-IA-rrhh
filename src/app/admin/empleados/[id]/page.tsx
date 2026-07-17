@@ -14,6 +14,7 @@ import { SolicitudesModificacionAdmin } from '@/components/empleados/Solicitudes
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
 import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulariosTab'
+import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft } from 'lucide-react'
 
@@ -44,7 +45,7 @@ export default function EmpleadoDetailPage() {
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<'datos' | 'documentos' | 'evaluaciones' | 'formularios'>('datos')
+  const [tab, setTab] = useState<'datos' | 'documentos' | 'evaluaciones' | 'formularios' | 'calendario'>('datos')
 
   useEffect(() => {
     Promise.all([
@@ -174,6 +175,7 @@ export default function EmpleadoDetailPage() {
             { id: 'documentos', label: 'Documentos' },
             { id: 'evaluaciones', label: 'Evaluaciones' },
             { id: 'formularios', label: 'Formularios' },
+            { id: 'calendario', label: 'Calendario' },
           ] as const).map(t => (
             <button
               key={t.id}
@@ -193,6 +195,7 @@ export default function EmpleadoDetailPage() {
         {tab === 'documentos' && <DocumentosTable employeeId={form.id} />}
         {tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'formularios' && <EmpleadoFormulariosTab employeeId={form.id} />}
+        {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}
         {tab === 'datos' && <div className="max-w-3xl space-y-6">
 
         {/* Datos personales */}

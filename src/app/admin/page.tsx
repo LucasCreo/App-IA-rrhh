@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
 import { WelcomeAdmin } from '@/components/admin/WelcomeAdmin'
+import { WelcomeCard } from '@/components/admin/WelcomeCard'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ import { cn } from '@/lib/utils'
 const Charts = dynamic(() => import('@/components/dashboard/Charts').then(m => m.Charts), { ssr: false })
 
 const TOP_WIDGETS = [
+  { id: 'bienvenida', label: 'Bienvenida' },
   { id: 'kpis', label: 'Tarjetas KPI' },
   { id: 'graficos', label: 'Gráficos' },
   { id: 'eventos', label: 'Próximos eventos' },
@@ -36,7 +38,8 @@ export default function AdminDashboard() {
       if (!saved) return TOP_WIDGETS.map(w => w.id)
       const parsed = JSON.parse(saved) as string[]
       const current = TOP_WIDGETS.map(w => w.id)
-      return [...parsed.filter(id => current.includes(id)), ...current.filter(id => !parsed.includes(id))]
+      const nuevos = current.filter(id => !parsed.includes(id))
+      return [...nuevos, ...parsed.filter(id => current.includes(id))]
     } catch { return TOP_WIDGETS.map(w => w.id) }
   })
   const [hidden, setHidden] = useState<Set<string>>(() => {
@@ -99,6 +102,15 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             {widgetOrder.map(id => {
               if (hidden.has(id)) return null
+              if (id === 'bienvenida' && data.me) return (
+                <WelcomeCard
+                  key={id}
+                  me={data.me}
+                  pendingSolicitudesDoc={data.pendingSolicitudesDoc}
+                  pendingSolicitudesMod={data.pendingSolicitudesMod}
+                  pendingAusencias={data.pendingAusencias ?? 0}
+                />
+              )
               if (id === 'kpis') return <KPICards key={id} data={data} />
               if (id === 'graficos') return (
                 <Charts

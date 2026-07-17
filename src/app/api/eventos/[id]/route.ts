@@ -32,6 +32,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (!await canModify(user, Number(id))) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+    // Reagendar: solo actualiza fechas, preserva el resto
+    if (body.moveOnly) {
+      const nuevoInicio = parseClientDate(body.fechaInicio)
+      const nuevoFin = body.fechaFin ? parseClientDate(body.fechaFin) : null
+      const evento = await prisma.evento.update({
+        where: { id: Number(id) },
+        data: { fechaInicio: nuevoInicio, fechaFin: nuevoFin },
+      })
+      if (evento.googleEventId) {
+        const token = await getGoogleToken(user!.userId)
+        if (token) {
+          try {
+            const gcal = getCalendarWithToken(token)
+            await gcal.events.update({
+              calendarId: 'primary',
+              eventId: evento.googleEventId,
+              requestBody: toGoogleEventBody({ titulo: evento.titulo, descripcion: evento.descripcion, fechaInicio: evento.fechaInicio, fechaFin: evento.fechaFin, todoElDia: evento.todoElDia }),
+            })
+          } catch { /* Google no disponible */ }
+        }
+      }
+      return NextResponse.json(evento)
+    }
+
     const { titulo, descripcion, fechaInicio, fechaFin, todoElDia, tipo, subtipo, employeeIds } = body
     if (!titulo?.trim()) return NextResponse.json({ error: 'Título requerido' }, { status: 400 })
 

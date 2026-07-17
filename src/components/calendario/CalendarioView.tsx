@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Plus, X, Trash2, Search, SlidersHorizontal } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Trash2, Search, SlidersHorizontal, CalendarDays, List, LayoutGrid } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -63,10 +63,29 @@ function extractTime(isoStr: string): string {
   return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
 }
 
+type Vista = 'mes' | 'semana' | 'lista'
+
+function inicioSemana(d: Date): Date {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  r.setDate(r.getDate() - r.getDay())
+  return r
+}
+
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
+}
+
 export function CalendarioView({ isAdmin = false, empleados = [], currentUserId, currentEmployeeId, googleConnected }: Props) {
   const now = new Date()
+  const [vista, setVista] = useState<Vista>('mes')
   const [mes, setMes] = useState(now.getMonth() + 1)
   const [anio, setAnio] = useState(now.getFullYear())
+  const [semanaRef, setSemanaRef] = useState<Date>(() => inicioSemana(now))
+  const [tiposOcultos, setTiposOcultos] = useState<Set<string>>(new Set())
+  const [dragEvento, setDragEvento] = useState<Evento | null>(null)
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const [eventos, setEventos] = useState<Evento[]>([])
   const [tipos, setTipos] = useState<TipoEvento[]>([])
   const [tiposAusencia, setTiposAusencia] = useState<{ id: number; nombre: string }[]>([])
@@ -90,10 +109,30 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   const [deleteEventId, setDeleteEventId] = useState<number | null>(null)
 
   const load = useCallback(() => {
-    fetch(`/api/eventos?mes=${mes}&anio=${anio}`)
-      .then(r => r.json())
-      .then(setEventos)
-  }, [mes, anio])
+    const targets: Array<{ m: number; a: number }> = []
+    if (vista === 'semana') {
+      const fin = addDays(semanaRef, 6)
+      targets.push({ m: semanaRef.getMonth() + 1, a: semanaRef.getFullYear() })
+      if (fin.getMonth() !== semanaRef.getMonth() || fin.getFullYear() !== semanaRef.getFullYear()) {
+        targets.push({ m: fin.getMonth() + 1, a: fin.getFullYear() })
+      }
+    } else {
+      targets.push({ m: mes, a: anio })
+    }
+    Promise.all(targets.map(t => fetch(`/api/eventos?mes=${t.m}&anio=${t.a}`).then(r => r.json())))
+      .then(res => {
+        const seen = new Set<number>()
+        const merged: Evento[] = []
+        for (const list of res as Evento[][]) {
+          for (const ev of list) {
+            if (seen.has(ev.id)) continue
+            seen.add(ev.id)
+            merged.push(ev)
+          }
+        }
+        setEventos(merged)
+      })
+  }, [mes, anio, vista, semanaRef])
 
   useEffect(() => { load() }, [load])
 
@@ -113,6 +152,61 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
 
   function prevMes() { if (mes === 1) { setMes(12); setAnio(a => a - 1) } else setMes(m => m - 1) }
   function nextMes() { if (mes === 12) { setMes(1); setAnio(a => a + 1) } else setMes(m => m + 1) }
+  function prevSemana() { setSemanaRef(d => addDays(d, -7)) }
+  function nextSemana() { setSemanaRef(d => addDays(d, 7)) }
+  function irHoy() {
+    const t = new Date()
+    setMes(t.getMonth() + 1)
+    setAnio(t.getFullYear())
+    setSemanaRef(inicioSemana(t))
+  }
+  function canDrag(e: Evento) {
+    return isAdmin || e.creadoPorId === currentUserId
+  }
+
+  function shiftIsoDate(iso: string, deltaDays: number): string {
+    // Preserva hora si la tiene; para 'YYYY-MM-DD' mantiene el mismo formato.
+    if (iso.length <= 10) {
+      const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+      const dt = new Date(y, m - 1, d + deltaDays)
+      return toLocalDateStr(dt)
+    }
+    const dt = new Date(iso)
+    dt.setDate(dt.getDate() + deltaDays)
+    return dt.toISOString()
+  }
+
+  async function handleDropOn(targetDate: string) {
+    const ev = dragEvento
+    setDragEvento(null)
+    setDragOverDate(null)
+    if (!ev) return
+    const origInicio = ev.fechaInicio.slice(0, 10)
+    if (origInicio === targetDate) return
+    const [yA, mA, dA] = origInicio.split('-').map(Number)
+    const [yB, mB, dB] = targetDate.split('-').map(Number)
+    const delta = Math.round((new Date(yB, mB - 1, dB).getTime() - new Date(yA, mA - 1, dA).getTime()) / 86400000)
+    if (!delta) return
+    const nuevaInicio = shiftIsoDate(ev.fechaInicio, delta)
+    const nuevaFin = ev.fechaFin ? shiftIsoDate(ev.fechaFin, delta) : null
+    const res = await fetch(`/api/eventos/${ev.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moveOnly: true, fechaInicio: nuevaInicio, fechaFin: nuevaFin }),
+    })
+    if (!res.ok) { toast.error('No se pudo mover el evento'); return }
+    toast.success('Evento movido')
+    load()
+  }
+
+  function toggleTipoOculto(nombre: string) {
+    setTiposOcultos(prev => {
+      const s = new Set(prev)
+      if (s.has(nombre)) s.delete(nombre)
+      else s.add(nombre)
+      return s
+    })
+  }
 
   function getTipoColor(tipoNombre: string) {
     return tipos.find(t => t.nombre === tipoNombre)?.color ?? '#6b7280'
@@ -219,6 +313,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
 
   // Filter eventos
   const eventosFiltrados = eventos.filter(e => {
+    if (tiposOcultos.has(e.tipo)) return false
     if (filterText) {
       const q = filterText.toLowerCase()
       if (!e.titulo.toLowerCase().includes(q) && !(e.descripcion?.toLowerCase().includes(q))) return false
@@ -227,6 +322,8 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     if (filterEmpleadoId !== '' && !e.asignados.some(a => a.employeeId === filterEmpleadoId)) return false
     return true
   })
+
+  const filtrosActivos = (filterText ? 1 : 0) + (filterTipo ? 1 : 0) + (filterEmpleadoId !== '' ? 1 : 0)
 
   // Build calendar grid
   const firstDay = new Date(anio, mes - 1, 1).getDay()
@@ -252,16 +349,68 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={prevMes}><ChevronLeft size={16} /></Button>
-          <h2 className="text-lg font-semibold w-44 text-center">{MESES[mes - 1]} {anio}</h2>
-          <Button variant="ghost" size="sm" onClick={nextMes}><ChevronRight size={16} /></Button>
-        </div>
+      <div className="flex items-center justify-between px-6 py-4 border-b flex-wrap gap-3">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={vista === 'semana' ? prevSemana : prevMes}
+            title={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}
+          >
+            <ChevronLeft size={16} />
+          </Button>
+          <h2 className="text-lg font-semibold min-w-56 text-center">
+            {vista === 'semana' ? (() => {
+              const fin = addDays(semanaRef, 6)
+              const mesmo = semanaRef.getMonth() === fin.getMonth()
+              return mesmo
+                ? `${semanaRef.getDate()} – ${fin.getDate()} ${MESES[semanaRef.getMonth()]} ${semanaRef.getFullYear()}`
+                : `${semanaRef.getDate()} ${MESES[semanaRef.getMonth()]} – ${fin.getDate()} ${MESES[fin.getMonth()]} ${fin.getFullYear()}`
+            })() : `${MESES[mes - 1]} ${anio}`}
+          </h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={vista === 'semana' ? nextSemana : nextMes}
+            title={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}
+          >
+            <ChevronRight size={16} />
+          </Button>
+          <Button variant="outline" size="sm" onClick={irHoy} className="ml-1">Hoy</Button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-md border border-input overflow-hidden">
+            {([
+              { id: 'mes', label: 'Mes', icon: LayoutGrid },
+              { id: 'semana', label: 'Semana', icon: CalendarDays },
+              { id: 'lista', label: 'Lista', icon: List },
+            ] as const).map(v => {
+              const Icon = v.icon
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => setVista(v.id)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors',
+                    vista === v.id
+                      ? 'bg-green-700 text-white'
+                      : 'text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  <Icon size={13} /> {v.label}
+                </button>
+              )
+            })}
+          </div>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setShowFilters(f => !f)}>
+            <Button variant="outline" size="sm" onClick={() => setShowFilters(f => !f)} className="relative">
               <SlidersHorizontal size={14} className="mr-1" /> Filtrar
+              {filtrosActivos > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold">
+                  {filtrosActivos}
+                </span>
+              )}
             </Button>
           )}
           <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openCreate(toLocalDateStr(now))}>
@@ -269,6 +418,39 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
           </Button>
         </div>
       </div>
+
+      {/* Leyenda de tipos */}
+      {tipos.length > 0 && (
+        <div className="px-6 py-2 border-b bg-muted/20 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">Tipos:</span>
+          {tipos.map(t => {
+            const oculto = tiposOcultos.has(t.nombre)
+            return (
+              <button
+                key={t.nombre}
+                onClick={() => toggleTipoOculto(t.nombre)}
+                className={cn(
+                  'text-xs px-2 py-0.5 rounded-full border transition-all inline-flex items-center gap-1.5',
+                  oculto ? 'opacity-40 border-dashed' : 'border-transparent'
+                )}
+                style={oculto ? {} : { backgroundColor: `${t.color}20`, color: t.color, borderColor: `${t.color}40` }}
+                title={oculto ? 'Mostrar' : 'Ocultar'}
+              >
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
+                {formatTipoLabel(t.nombre)}
+              </button>
+            )
+          })}
+          {tiposOcultos.size > 0 && (
+            <button
+              onClick={() => setTiposOcultos(new Set())}
+              className="text-xs text-muted-foreground hover:text-foreground ml-1 underline"
+            >
+              Mostrar todos
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Filter bar (admin only) */}
       {isAdmin && showFilters && (
@@ -306,7 +488,8 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
         </div>
       )}
 
-      {/* Grid */}
+      {/* Grid mes */}
+      {vista === 'mes' && (
       <div className="flex-1 overflow-auto p-4">
         <div className="grid grid-cols-7 border-l border-t rounded-lg overflow-hidden">
           {DIAS.map((d, dIdx) => (
@@ -329,8 +512,12 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                   'border-r border-b min-h-24 p-1.5 cursor-pointer hover:bg-muted/40 transition-colors',
                   !day && 'bg-muted/20 cursor-default',
                   isWeekend && day && 'bg-muted/25',
+                  day && dragOverDate === dateStr && 'bg-green-100 dark:bg-green-950/40 ring-2 ring-green-500 ring-inset',
                 )}
                 onClick={() => day && openDay(dateStr)}
+                onDragOver={ev => { if (day && dragEvento) { ev.preventDefault(); if (dragOverDate !== dateStr) setDragOverDate(dateStr) } }}
+                onDragLeave={() => { if (dragOverDate === dateStr) setDragOverDate(null) }}
+                onDrop={ev => { if (day) { ev.preventDefault(); handleDropOn(dateStr) } }}
               >
                 {day && (
                   <>
@@ -344,13 +531,19 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                       {evs.slice(0, 3).map(e => {
                         const isStart = e.fechaInicio.slice(0, 10) === dateStr
                         const isEnd = (e.fechaFin ?? e.fechaInicio).slice(0, 10) === dateStr
+                        const draggable = canDrag(e) && isStart
                         return (
                           <div
                             key={e.id}
                             onClick={ev => { ev.stopPropagation(); openEvent(e) }}
+                            draggable={draggable}
+                            onDragStart={ev => { if (draggable) { ev.stopPropagation(); ev.dataTransfer.effectAllowed = 'move'; setDragEvento(e) } }}
+                            onDragEnd={() => { setDragEvento(null); setDragOverDate(null) }}
                             className={cn(
-                              'text-xs text-white px-1 py-0.5 truncate cursor-pointer hover:opacity-80',
-                              isStart && isEnd ? 'rounded' : isStart ? 'rounded-l' : isEnd ? 'rounded-r' : 'rounded-none'
+                              'text-xs text-white px-1 py-0.5 truncate hover:opacity-80',
+                              draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                              isStart && isEnd ? 'rounded' : isStart ? 'rounded-l' : isEnd ? 'rounded-r' : 'rounded-none',
+                              dragEvento?.id === e.id && 'opacity-50'
                             )}
                             style={{ backgroundColor: getTipoColor(e.tipo) }}
                           >
@@ -374,6 +567,141 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
           })}
         </div>
       </div>
+      )}
+
+      {/* Vista semana */}
+      {vista === 'semana' && (
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-7 gap-2">
+            {Array.from({ length: 7 }, (_, i) => {
+              const dia = addDays(semanaRef, i)
+              const dateStr = toLocalDateStr(dia)
+              const evs = eventosFiltrados.filter(e => {
+                const inicio = e.fechaInicio.slice(0, 10)
+                const fin = (e.fechaFin ?? e.fechaInicio).slice(0, 10)
+                return dateStr >= inicio && dateStr <= fin
+              })
+              const esHoy = dateStr === todayStr
+              const esFinDeSemana = i === 0 || i === 6
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'flex flex-col rounded-lg border overflow-hidden transition-colors',
+                    dragOverDate === dateStr && 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/40'
+                  )}
+                  onDragOver={ev => { if (dragEvento) { ev.preventDefault(); if (dragOverDate !== dateStr) setDragOverDate(dateStr) } }}
+                  onDragLeave={() => { if (dragOverDate === dateStr) setDragOverDate(null) }}
+                  onDrop={ev => { ev.preventDefault(); handleDropOn(dateStr) }}
+                >
+                  <div
+                    className={cn(
+                      'px-3 py-2 border-b text-center cursor-pointer hover:bg-muted transition-colors',
+                      esHoy ? 'bg-green-600 text-white' : esFinDeSemana ? 'bg-muted/40' : 'bg-muted/20'
+                    )}
+                    onClick={() => openDay(dateStr)}
+                  >
+                    <p className={cn('text-[11px] uppercase font-medium', esHoy ? 'text-white/80' : 'text-muted-foreground')}>{DIAS[i]}</p>
+                    <p className={cn('text-lg font-semibold', esHoy ? 'text-white' : 'text-foreground')}>{dia.getDate()}</p>
+                  </div>
+                  <div className="flex-1 p-1.5 space-y-1 min-h-96">
+                    {evs.length === 0 && (
+                      <p className="text-xs text-muted-foreground/60 text-center py-4">—</p>
+                    )}
+                    {evs.map(e => {
+                      const isStart = e.fechaInicio.slice(0, 10) === dateStr
+                      const draggable = canDrag(e) && isStart
+                      return (
+                        <div
+                          key={e.id}
+                          onClick={() => openEvent(e)}
+                          draggable={draggable}
+                          onDragStart={ev => { if (draggable) { ev.stopPropagation(); ev.dataTransfer.effectAllowed = 'move'; setDragEvento(e) } }}
+                          onDragEnd={() => { setDragEvento(null); setDragOverDate(null) }}
+                          className={cn(
+                            'text-xs text-white px-1.5 py-1 rounded hover:opacity-80 truncate',
+                            draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                            dragEvento?.id === e.id && 'opacity-50'
+                          )}
+                          style={{ backgroundColor: getTipoColor(e.tipo) }}
+                          title={e.titulo}
+                        >
+                          {!e.todoElDia && (
+                            <span className="opacity-75 mr-1">{extractTime(e.fechaInicio)}</span>
+                          )}
+                          {e.titulo}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Vista lista */}
+      {vista === 'lista' && (
+        <div className="flex-1 overflow-auto p-6">
+          {(() => {
+            const ordenados = [...eventosFiltrados].sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio))
+            if (ordenados.length === 0) {
+              return <p className="text-sm text-muted-foreground text-center py-12">No hay eventos este mes.</p>
+            }
+            const grupos = new Map<string, Evento[]>()
+            for (const e of ordenados) {
+              const k = e.fechaInicio.slice(0, 10)
+              const arr = grupos.get(k) ?? []
+              arr.push(e)
+              grupos.set(k, arr)
+            }
+            return (
+              <div className="space-y-4 max-w-3xl mx-auto">
+                {[...grupos.entries()].map(([fecha, evs]) => {
+                  const d = new Date(fecha + 'T00:00:00')
+                  const esHoy = fecha === todayStr
+                  return (
+                    <div key={fecha} className="flex gap-4">
+                      <div className="w-16 text-center shrink-0">
+                        <p className={cn('text-[10px] uppercase font-medium', esHoy ? 'text-green-600' : 'text-muted-foreground')}>
+                          {DIAS[d.getDay()]}
+                        </p>
+                        <p className={cn('text-2xl font-bold leading-tight', esHoy ? 'text-green-600' : 'text-foreground')}>
+                          {d.getDate()}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{MESES[d.getMonth()].slice(0, 3)}</p>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        {evs.map(e => (
+                          <div
+                            key={e.id}
+                            onClick={() => openEvent(e)}
+                            className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: getTipoColor(e.tipo) }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{e.titulo}</p>
+                              {e.descripcion && <p className="text-xs text-muted-foreground truncate">{e.descripcion}</p>}
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                <span className="capitalize">{formatTipoLabel(e.tipo)}</span>
+                                {e.subtipo && ` · ${e.subtipo}`}
+                                {!e.todoElDia && ` · ${extractTime(e.fechaInicio)}${e.fechaFin ? ` – ${extractTime(e.fechaFin)}` : ''}`}
+                                {e.todoElDia && ' · Todo el día'}
+                                {e.asignados.length > 0 && ` · ${e.asignados.length} asignado${e.asignados.length === 1 ? '' : 's'}`}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Dialog */}
       <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null) }}>

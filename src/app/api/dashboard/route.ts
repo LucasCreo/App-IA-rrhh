@@ -6,12 +6,23 @@ import { PERMISOS } from '@/lib/permissions'
 export async function GET() {
   const user = await requirePermiso(PERMISOS.VER_DASHBOARD)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const me = await prisma.user.findUnique({
+    where: { id: user.userId },
+    select: {
+      email: true,
+      avatarUrl: true,
+      employee: { select: { nombre: true, apellido: true } },
+    },
+  })
+
   const [
     totalEmpleados, activos, inactivos,
     totalDocs, docsByEstado, empByCategoria,
     pendingSolicitudesDoc, pendingSolicitudesMod,
     recentSolicitudes, recentEmpleados,
     pendingSolList, pendingModList,
+    pendingAusencias,
   ] = await Promise.all([
     prisma.employee.count(),
     prisma.employee.count({ where: { estado: 'ACTIVO' } }),
@@ -40,6 +51,7 @@ export async function GET() {
       where: { estado: 'PENDIENTE' },
       select: { employee: { select: { nombre: true, apellido: true } } },
     }),
+    prisma.solicitudAusencia.count({ where: { estado: 'PENDIENTE' } }),
   ])
 
   const categories = await prisma.category.findMany()
@@ -63,6 +75,13 @@ export async function GET() {
   ).map(([nombre, cantidad]) => ({ nombre, cantidad }))
 
   return NextResponse.json({
+    me: {
+      nombre: me?.employee?.nombre ?? me?.email?.split('@')[0] ?? 'Admin',
+      apellido: me?.employee?.apellido ?? '',
+      email: me?.email ?? '',
+      avatarUrl: me?.avatarUrl ?? null,
+    },
+    pendingAusencias,
     totalEmpleados,
     activos,
     inactivos,

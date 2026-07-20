@@ -6,10 +6,11 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, UserCircle, Newspaper } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
-  { href: '/admin/empleados', label: 'Legajos', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
+  { href: '/admin/empleados', label: 'Personal', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
   { href: '/admin/portal', label: 'Portal interno', icon: Newspaper, permiso: 'VER_DASHBOARD' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
@@ -30,13 +31,15 @@ interface Props {
   logoUrl?: string | null
   userEmail?: string
   avatarUrl?: string | null
+  avatarBgColor?: string | null
+  avatarTextColor?: string | null
   pendingModificaciones?: number
   pendingSolicitudes?: number
   permisos?: string[] | null // null = full access
   hasEmployeeId?: boolean
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null, hasEmployeeId = false }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, avatarBgColor, avatarTextColor, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null, hasEmployeeId = false }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -236,11 +239,13 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
             title={collapsed ? 'Mi perfil' : undefined}
             className={cn('flex items-center gap-2 min-w-0 flex-1 rounded-md hover:bg-muted transition-colors', collapsed ? 'justify-center p-1.5' : 'px-1.5 py-1')}
           >
-            <div className="h-8 w-8 rounded-full overflow-hidden bg-green-100 dark:bg-green-950/40 flex items-center justify-center font-bold text-xs text-green-700 dark:text-green-400 uppercase select-none shrink-0">
-              {avatarUrl
-                ? <img src={`/api/auth/avatar?file=${avatarUrl}`} alt="" className="w-full h-full object-cover" />
-                : (userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U')}
-            </div>
+            <AvatarDisplay
+              iniciales={userEmail ? userEmail.slice(0, 2).toUpperCase() : 'U'}
+              avatarUrl={avatarUrl}
+              bgColor={avatarBgColor}
+              textColor={avatarTextColor}
+              size={32}
+            />
             {!collapsed && (
               <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{userEmail}</p>
             )}

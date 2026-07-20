@@ -18,7 +18,7 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
       where: { id: decoded.employeeId },
       select: { nombre: true, apellido: true },
     }),
-    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } }),
   ])
   if (!employee) redirect('/login')
 
@@ -33,6 +33,8 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
         initials={initials}
         fullName={fullName}
         avatarUrl={dbUser?.avatarUrl ?? null}
+        avatarBgColor={dbUser?.avatarBgColor ?? null}
+        avatarTextColor={dbUser?.avatarTextColor ?? null}
         isAdmin={decoded.role === 'ADMIN'}
       />
       <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0">

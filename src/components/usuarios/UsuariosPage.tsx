@@ -69,10 +69,10 @@ export function UsuariosPage() {
     <div className="max-w-5xl space-y-6">
       <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-muted-foreground">
-          Los usuarios se crean desde <strong>Legajos → Nuevo Legajo</strong>. Acá gestionás el acceso, permisos y organigrama de los ya existentes.
+          Los usuarios se crean desde <strong>Personal → Nuevo empleado</strong>. Acá gestionás el acceso, permisos y organigrama de los ya existentes.
         </p>
         <Link href="/admin/empleados" className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 shrink-0">
-          Ir a Legajos <ExternalLink size={11} />
+          Ir a Personal <ExternalLink size={11} />
         </Link>
       </div>
 

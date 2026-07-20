@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { sanitizePostHtml } from '@/lib/richContent'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -13,7 +14,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     include: {
       autor: {
         select: {
-          id: true, email: true, avatarUrl: true,
+          id: true, email: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true,
           employee: { select: { nombre: true, apellido: true } },
         },
       },
@@ -29,6 +30,8 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       autor: {
         id: c.autor.id,
         avatarUrl: c.autor.avatarUrl,
+        avatarBgColor: c.autor.avatarBgColor,
+        avatarTextColor: c.autor.avatarTextColor,
         nombreCompleto: c.autor.employee
           ? `${c.autor.employee.nombre} ${c.autor.employee.apellido}`
           : c.autor.email,
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!contenido?.trim()) return NextResponse.json({ error: 'Comentario vacío' }, { status: 400 })
 
   const c = await prisma.postComment.create({
-    data: { postId: Number(id), autorId: user.userId, contenido: contenido.trim() },
+    data: { postId: Number(id), autorId: user.userId, contenido: sanitizePostHtml(contenido.trim()) },
   })
   return NextResponse.json({ id: c.id }, { status: 201 })
 }

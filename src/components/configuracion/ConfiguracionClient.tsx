@@ -24,7 +24,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
 
   const tabs = [
     { id: 'general', label: 'General' },
-    { id: 'empleados', label: 'Legajos' },
+    { id: 'empleados', label: 'Personal' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'firma', label: 'Firma' },
     { id: 'solicitudes', label: 'Solicitudes' },

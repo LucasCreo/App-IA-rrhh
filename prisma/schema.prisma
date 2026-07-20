@@ -16,6 +16,8 @@ model User {
   employeeId   Int?      @unique
   managerUserId Int?
   avatarUrl           String?
+  avatarBgColor       String?
+  avatarTextColor     String?
   googleRefreshToken  String?
   googleLastSync      DateTime?
   createdAt    DateTime  @default(now())

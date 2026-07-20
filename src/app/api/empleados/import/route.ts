@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso, hashPassword } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
+import { validarCuil } from '@/lib/cuil'
 
 type RowError = { row: number; error: string }
 
@@ -73,6 +74,10 @@ export async function POST(req: NextRequest) {
 
     if (!legajo || !nombre || !apellido || !cuil || !email || !categoria || !fechaIngreso) {
       errors.push({ row: rowNum, error: 'Faltan campos obligatorios (legajo, nombre, apellido, cuil, email, categoria, fechaIngreso)' })
+      continue
+    }
+    if (!validarCuil(cuil)) {
+      errors.push({ row: rowNum, error: `CUIL "${cuil}" inválido` })
       continue
     }
     const catId = catByName.get(categoria.toLowerCase())

@@ -15,6 +15,8 @@ import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
 import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulariosTab'
 import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { validarCuil } from '@/lib/cuil'
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft } from 'lucide-react'
 
@@ -38,7 +40,7 @@ export default function EmpleadoDetailPage() {
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
-  const [existingUser, setExistingUser] = useState<{ id: number; email: string; username: string | null } | null>(null)
+  const [existingUser, setExistingUser] = useState<{ id: number; email: string; username: string | null; avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null } | null>(null)
   const [username, setUsername] = useState('')
   const [crearUsuario, setCrearUsuario] = useState(false)
   const [password, setPassword] = useState('')
@@ -107,6 +109,7 @@ export default function EmpleadoDetailPage() {
       if (isVisible(k as string) && isRequired(k as string) && !(form[k] as string)?.trim())
         errs.add(k as string)
     }
+    if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
@@ -200,7 +203,22 @@ export default function EmpleadoDetailPage() {
 
         {/* Datos personales */}
         <div className="rounded-xl border bg-card shadow-sm p-5">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Datos personales</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Datos personales</p>
+            <div className="flex items-center gap-2">
+              <AvatarDisplay
+                nombre={`${form.nombre} ${form.apellido}`}
+                iniciales={`${form.nombre[0] ?? ''}${form.apellido[0] ?? ''}`}
+                avatarUrl={existingUser?.avatarUrl ?? null}
+                bgColor={existingUser?.avatarBgColor ?? null}
+                textColor={existingUser?.avatarTextColor ?? null}
+                size={48}
+              />
+              <span className="text-xs text-muted-foreground">
+                {existingUser?.avatarUrl ? 'Foto elegida por el usuario' : 'Iniciales'}
+              </span>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="mb-1.5">Nombre <span className="text-red-500">*</span></Label>
@@ -218,6 +236,9 @@ export default function EmpleadoDetailPage() {
                   onChange={e => setField(k)(e.target.value)}
                   className={cn('mt-1', err(k as string) && 'border-red-500 focus-visible:ring-red-500')}
                 />
+                {k === 'cuil' && err('cuil') && (
+                  <p className="text-xs text-red-500 mt-1">CUIL inválido</p>
+                )}
               </div>
             ))}
             {isVisible('fechaIngreso') && (

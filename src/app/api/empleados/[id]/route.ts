@@ -6,6 +6,7 @@ import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getEmployeeDependencies, getUserDependencies, deletePersona, deletePersonaCascade } from '@/lib/personDependencies'
+import { validarCuil } from '@/lib/cuil'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -18,7 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
   const emp = await prisma.employee.findUnique({
     where: { id: empId },
-    include: { categoria: true, valoresCampos: true, user: { select: { id: true, email: true, username: true } } },
+    include: { categoria: true, valoresCampos: true, user: { select: { id: true, email: true, username: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true } } },
   })
   if (!emp) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   return NextResponse.json(emp)
@@ -34,6 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (scope && !scope.has(empId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json()
+
+  if (body.cuil && !validarCuil(body.cuil)) {
+    return NextResponse.json({ error: 'CUIL inválido' }, { status: 400 })
+  }
 
   try {
     const emp = await prisma.$transaction(async tx => {

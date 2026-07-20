@@ -12,6 +12,8 @@ export async function GET() {
     select: {
       email: true,
       avatarUrl: true,
+      avatarBgColor: true,
+      avatarTextColor: true,
       employee: { select: { nombre: true, apellido: true } },
     },
   })
@@ -80,6 +82,8 @@ export async function GET() {
       apellido: me?.employee?.apellido ?? '',
       email: me?.email ?? '',
       avatarUrl: me?.avatarUrl ?? null,
+      avatarBgColor: me?.avatarBgColor ?? null,
+      avatarTextColor: me?.avatarTextColor ?? null,
     },
     pendingAusencias,
     totalEmpleados,

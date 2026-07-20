@@ -21,7 +21,7 @@ export default async function PerfilPage() {
       where: { id: decoded.employeeId },
       include: { categoria: true, valoresCampos: { include: { campo: true } } },
     }),
-    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, googleRefreshToken: true, googleLastSync: true } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true, googleRefreshToken: true, googleLastSync: true } }),
   ])
   if (!employee) redirect('/login')
 
@@ -38,7 +38,13 @@ export default async function PerfilPage() {
         {/* Datos básicos */}
         <div className="rounded-xl border bg-card shadow-sm p-5">
           <div className="flex items-center gap-4 mb-5">
-            <AvatarUpload initials={initials} initialAvatar={dbUser?.avatarUrl} size="lg" />
+            <AvatarUpload
+              initials={initials}
+              initialAvatar={dbUser?.avatarUrl}
+              initialBgColor={dbUser?.avatarBgColor}
+              initialTextColor={dbUser?.avatarTextColor}
+              size="lg"
+            />
             <div>
               <p className="font-semibold text-lg">{employee.nombre} {employee.apellido}</p>
               <p className="text-sm text-muted-foreground">{employee.categoria.nombre}</p>

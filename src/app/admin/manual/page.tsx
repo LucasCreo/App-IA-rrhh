@@ -85,7 +85,7 @@ export default function ManualAdminPage() {
 
         <Sub title="Crear un nuevo empleado">
           <Steps items={[
-            'Acceda a Legajos desde el menú lateral.',
+            'Acceda a Personal desde el menú lateral.',
             'Haga clic en Nuevo empleado.',
             'Complete el Paso 1: acceso (email y contraseña inicial).',
             'Complete el Paso 2: datos personales (nombre, apellido, CUIL, teléfono).',
@@ -95,7 +95,7 @@ export default function ManualAdminPage() {
         </Sub>
 
         <Sub title="Importar empleados">
-          <p>Desde la lista de Legajos, use <strong>Importar</strong> para cargar múltiples empleados desde un archivo Excel o CSV. Puede descargar una plantilla desde el mismo diálogo. Cada fila crea usuario + legajo en un solo paso.</p>
+          <p>Desde la lista de Personal, use <strong>Importar</strong> para cargar múltiples empleados desde un archivo Excel o CSV. Puede descargar una plantilla desde el mismo diálogo. Cada fila crea usuario + legajo en un solo paso.</p>
         </Sub>
 
         <Sub title="Editar y ver ficha de empleado">
@@ -111,7 +111,7 @@ export default function ManualAdminPage() {
         </Sub>
 
         <Sub title="Organigrama">
-          <p>Disponible como pestaña dentro de <strong>Legajos › Organigrama</strong>. Muestra la jerarquía por usuario. Para configurar quiénes reportan a alguien, use el botón <strong>Subordinados</strong> desde Configuración › Usuarios: seleccione a los usuarios que están un orden jerárquico por debajo. El sistema previene ciclos.</p>
+          <p>Disponible como pestaña dentro de <strong>Personal › Organigrama</strong>. Muestra la jerarquía por usuario. Para configurar quiénes reportan a alguien, use el botón <strong>Subordinados</strong> desde Configuración › Usuarios: seleccione a los usuarios que están un orden jerárquico por debajo. El sistema previene ciclos.</p>
           <p>El organigrama determina el <strong>alcance de datos</strong>: cada usuario con legajo ve solo su propio legajo y el de sus descendientes, aprueba solicitudes solo de sus descendientes, y sus propias solicitudes se auto-aprueban si está en la cima del organigrama.</p>
         </Sub>
 

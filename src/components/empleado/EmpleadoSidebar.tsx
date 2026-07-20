@@ -23,10 +23,12 @@ interface Props {
   initials: string
   fullName: string
   avatarUrl?: string | null
+  avatarBgColor?: string | null
+  avatarTextColor?: string | null
   isAdmin?: boolean
 }
 
-export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName, avatarUrl, isAdmin = false }: Props) {
+export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName, avatarUrl, avatarBgColor, avatarTextColor, isAdmin = false }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -155,6 +157,8 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           <AvatarUpload
             initials={initials}
             initialAvatar={avatarUrl}
+            initialBgColor={avatarBgColor}
+            initialTextColor={avatarTextColor}
             size="sm"
             className={cn(perfilActive && 'ring-2 ring-green-400/60 rounded-full')}
           />

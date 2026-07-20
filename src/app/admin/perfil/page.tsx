@@ -16,7 +16,7 @@ export default async function AdminPerfilPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: decoded.userId },
-    select: { email: true, avatarUrl: true, role: true },
+    select: { email: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true, role: true },
   })
   if (!dbUser) redirect('/login')
 
@@ -32,7 +32,13 @@ export default async function AdminPerfilPage() {
         {/* Cuenta */}
         <div className="rounded-xl border bg-card shadow-sm p-5">
           <div className="flex items-center gap-4 mb-5">
-            <AvatarUpload initials={initials} initialAvatar={dbUser.avatarUrl} size="lg" />
+            <AvatarUpload
+              initials={initials}
+              initialAvatar={dbUser.avatarUrl}
+              initialBgColor={dbUser.avatarBgColor}
+              initialTextColor={dbUser.avatarTextColor}
+              size="lg"
+            />
             <div>
               <p className="font-semibold text-lg">{dbUser.email}</p>
               <div className="flex items-center gap-1.5 mt-0.5">

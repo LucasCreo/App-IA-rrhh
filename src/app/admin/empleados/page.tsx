@@ -11,7 +11,7 @@ export default function EmpleadosPage() {
 
   return (
     <>
-      <AdminHeader title="Legajos" />
+      <AdminHeader title="Personal" />
       <div className="p-6">
         <div className="flex border-b mb-6">
           {[

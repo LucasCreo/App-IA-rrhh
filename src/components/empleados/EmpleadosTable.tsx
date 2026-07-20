@@ -265,6 +265,7 @@ export function EmpleadosTable() {
                 <TableHead>Legajo</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>CUIL</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -273,7 +274,7 @@ export function EmpleadosTable() {
             <TableBody>
               {data.employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
                     No se encontraron empleados
                   </TableCell>
                 </TableRow>
@@ -293,6 +294,7 @@ export function EmpleadosTable() {
                     </span>
                   </TableCell>
                   <TableCell className="font-mono text-sm">{emp.cuil}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground truncate max-w-xs">{emp.email}</TableCell>
                   <TableCell>{emp.categoria.nombre}</TableCell>
                   <TableCell>
                     <Badge variant={emp.estado === 'ACTIVO' ? 'default' : 'secondary'} className={emp.estado === 'ACTIVO' ? 'bg-green-600' : ''}>

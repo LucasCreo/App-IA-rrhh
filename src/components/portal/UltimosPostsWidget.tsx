@@ -15,6 +15,16 @@ interface Post {
   totalComentarios: number
 }
 
+function preview(html: string): string {
+  if (!html) return ''
+  const soloTexto = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (soloTexto) return soloTexto
+  if (/<img/i.test(html)) return '[Imagen]'
+  if (/<video/i.test(html)) return '[Video]'
+  if (/<audio/i.test(html)) return '[Audio]'
+  return ''
+}
+
 function timeAgo(iso: string) {
   const d = new Date(iso).getTime()
   const diff = (Date.now() - d) / 1000
@@ -29,9 +39,9 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: '/admin/portal' | '
   const [posts, setPosts] = useState<Post[] | null>(null)
 
   useEffect(() => {
-    fetch('/api/portal/posts')
+    fetch('/api/portal/posts?limit=3')
       .then(r => r.json())
-      .then(d => setPosts((d.posts ?? []).slice(0, 3)))
+      .then(d => setPosts(d.posts ?? []))
       .catch(() => setPosts([]))
   }, [])
 
@@ -63,7 +73,7 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: '/admin/portal' | '
                       {p.autor.nombreCompleto} · {timeAgo(p.createdAt)}
                     </p>
                     <p className="text-sm mt-0.5 line-clamp-2">
-                      {p.contenido || (p.imagenUrl ? '[Imagen]' : '')}
+                      {preview(p.contenido) || (p.imagenUrl ? '[Imagen]' : '')}
                     </p>
                     {(p.totalReacciones > 0 || p.totalComentarios > 0) && (
                       <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">

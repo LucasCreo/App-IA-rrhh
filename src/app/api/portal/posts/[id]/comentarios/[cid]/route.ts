@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { extraerRutasMedia, borrarMedia } from '@/lib/richContent'
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string; cid: string }> }) {
   const user = await getCurrentUser()
@@ -14,5 +15,7 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   }
 
   await prisma.postComment.delete({ where: { id: Number(cid) } })
+  const rutas = extraerRutasMedia(comment.contenido)
+  if (rutas.length > 0) await borrarMedia(rutas)
   return NextResponse.json({ ok: true })
 }

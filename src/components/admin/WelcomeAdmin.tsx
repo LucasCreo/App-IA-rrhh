@@ -13,7 +13,7 @@ const slides = [
   },
   {
     icon: Users,
-    title: 'Legajos de empleados',
+    title: 'Personal',
     description: 'Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos, evaluaciones y formularios desde un mismo lugar.',
   },
   {

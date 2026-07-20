@@ -5,12 +5,16 @@ import { puedePublicarEnPortal } from '@/lib/portalPermisos'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { logAction } from '@/lib/audit'
+import { sanitizePostHtml } from '@/lib/richContent'
 
 const MAX_IMG = 5 * 1024 * 1024
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const limitParam = new URL(req.url).searchParams.get('limit')
+  const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : undefined
 
   // Categoría del usuario (si es empleado) para filtrar posts con alcance CATEGORIA
   let miCategoriaId: number | null = null
@@ -30,10 +34,11 @@ export async function GET() {
       ],
     },
     orderBy: { createdAt: 'desc' },
+    ...(limit ? { take: limit } : {}),
     include: {
       autor: {
         select: {
-          id: true, email: true, avatarUrl: true,
+          id: true, email: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true,
           employee: { select: { nombre: true, apellido: true, categoria: { select: { nombre: true } } } },
         },
       },
@@ -47,6 +52,7 @@ export async function GET() {
 
   return NextResponse.json({
     puedePublicar,
+    isAdmin: user.role === 'ADMIN',
     userId: user.userId,
     posts: posts.map(p => ({
       id: p.id,
@@ -58,6 +64,8 @@ export async function GET() {
       autor: {
         id: p.autor.id,
         avatarUrl: p.autor.avatarUrl,
+        avatarBgColor: p.autor.avatarBgColor,
+        avatarTextColor: p.autor.avatarTextColor,
         nombreCompleto: p.autor.employee ? `${p.autor.employee.nombre} ${p.autor.employee.apellido}` : p.autor.email,
         rolNombre: p.autor.employee?.categoria?.nombre ?? null,
       },
@@ -78,8 +86,9 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const contenido = (formData.get('contenido') as string)?.trim()
-  const alcance = (formData.get('alcance') as string) || 'GLOBAL'
-  const categoriaIdRaw = formData.get('categoriaId')
+  const esAdmin = user.role === 'ADMIN'
+  const alcance = esAdmin ? ((formData.get('alcance') as string) || 'GLOBAL') : 'GLOBAL'
+  const categoriaIdRaw = esAdmin ? formData.get('categoriaId') : null
   const imagen = formData.get('imagen') as File | null
 
   if (!contenido && !imagen) {
@@ -109,7 +118,7 @@ export async function POST(req: NextRequest) {
   const post = await prisma.post.create({
     data: {
       autorId: user.userId,
-      contenido: contenido ?? '',
+      contenido: contenido ? sanitizePostHtml(contenido) : '',
       imagenUrl,
       alcance,
       categoriaId,

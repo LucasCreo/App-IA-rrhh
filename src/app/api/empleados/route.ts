@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
+import { validarCuil } from '@/lib/cuil'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -69,6 +70,10 @@ export async function POST(req: NextRequest) {
 
   if (body.crearUsuario && !body.password) {
     return NextResponse.json({ error: 'Se requiere una contraseña para crear el usuario' }, { status: 400 })
+  }
+
+  if (body.cuil && !validarCuil(body.cuil)) {
+    return NextResponse.json({ error: 'CUIL inválido' }, { status: 400 })
   }
 
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { FileText, CalendarOff, UserPen, Clock } from 'lucide-react'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 interface Props {
   me: {
@@ -9,6 +10,8 @@ interface Props {
     apellido: string
     email: string
     avatarUrl: string | null
+    avatarBgColor?: string | null
+    avatarTextColor?: string | null
   }
   pendingSolicitudesDoc: number
   pendingSolicitudesMod: number
@@ -39,13 +42,13 @@ export function WelcomeCard({ me, pendingSolicitudesDoc, pendingSolicitudesMod, 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-4">
-        {me.avatarUrl ? (
-          <img src={`/api/auth/avatar?file=${me.avatarUrl}`} alt="Avatar" className="h-14 w-14 rounded-full object-cover shrink-0" />
-        ) : (
-          <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-xl font-bold shrink-0 select-none text-green-700 dark:text-green-400">
-            {iniciales}
-          </div>
-        )}
+        <AvatarDisplay
+          iniciales={iniciales}
+          avatarUrl={me.avatarUrl}
+          bgColor={me.avatarBgColor}
+          textColor={me.avatarTextColor}
+          size={56}
+        />
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-bold text-green-700 dark:text-green-400">
             {saludo()}, {me.nombre}

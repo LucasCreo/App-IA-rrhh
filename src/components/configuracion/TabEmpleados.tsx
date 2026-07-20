@@ -127,7 +127,7 @@ export function TabEmpleados() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Campos del módulo Legajos</CardTitle>
+          <CardTitle>Campos del módulo Personal</CardTitle>
           <CardDescription>Configurá qué campos se muestran y cuáles son obligatorios.</CardDescription>
         </CardHeader>
         <CardContent>

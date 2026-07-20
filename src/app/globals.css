@@ -193,3 +193,37 @@
   .fade-in-up,
   .blob { animation: none !important; }
 }
+
+/* Tiptap: placeholder cuando el editor está vacío */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* Media dentro del contenido renderizado del portal */
+.portal-content img { max-width: 100%; border-radius: 8px; }
+.portal-content audio { width: 100%; margin: 8px 0; }
+.portal-content video { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+.portal-content a { color: var(--color-green-700); text-decoration: underline; }
+.portal-content ul { list-style: disc; padding-left: 1.25rem; }
+.portal-content ol { list-style: decimal; padding-left: 1.25rem; }
+.portal-content p { margin: 0.25rem 0; }
+
+/* Menciones (@usuario) */
+.mention, .portal-content span[data-mention] {
+  background-color: color-mix(in srgb, var(--color-green-700, #166534) 12%, transparent);
+  color: var(--color-green-700, #166534);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Tippy popover (menciones) */
+.tippy-box { background: transparent; box-shadow: none; }
+.tippy-content { padding: 0; }
+.tippy-box[data-placement^='bottom'] > .tippy-arrow { display: none; }
+

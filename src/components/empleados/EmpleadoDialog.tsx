@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { Paperclip, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
+import { validarCuil } from '@/lib/cuil'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
@@ -113,6 +114,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     }
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
+    if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
       if (c.tipo === 'booleano') continue
@@ -132,6 +134,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     }
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
+    if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
       if (c.tipo === 'booleano') continue
@@ -261,6 +264,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       onChange={e => set(k)(e.target.value)}
                       className={cn(err(k as string) && 'border-red-500 focus-visible:ring-red-500')}
                     />
+                    {k === 'cuil' && err('cuil') && (
+                      <p className="text-xs text-red-500 mt-1">CUIL inválido</p>
+                    )}
                   </div>
                 ))}
                 {isVisible('fechaIngreso') && (

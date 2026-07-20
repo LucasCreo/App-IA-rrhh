@@ -8,7 +8,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     prisma.generalConfig.findFirst(),
     user ? prisma.user.findUnique({
       where: { id: user.userId },
-      select: { avatarUrl: true, permisos: { select: { permiso: true } } },
+      select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true, permisos: { select: { permiso: true } } },
     }) : null,
     prisma.solicitudModificacion.count({ where: { estado: 'PENDIENTE' } }),
     prisma.solicitudDocumento.count({ where: { estado: 'PENDIENTE' } }),
@@ -26,6 +26,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         logoUrl={config?.logoUrl ?? null}
         userEmail={user?.email ?? ''}
         avatarUrl={dbUser?.avatarUrl ?? null}
+        avatarBgColor={dbUser?.avatarBgColor ?? null}
+        avatarTextColor={dbUser?.avatarTextColor ?? null}
         pendingModificaciones={pendingModificaciones}
         pendingSolicitudes={pendingSolicitudes}
         permisos={permisos}

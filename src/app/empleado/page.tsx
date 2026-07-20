@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
 import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 export default async function EmpleadoPage() {
   const cookieStore = await cookies()
@@ -22,7 +23,7 @@ export default async function EmpleadoPage() {
       where: { id: decoded.employeeId },
       include: { categoria: true },
     }),
-    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } }),
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] } }),
@@ -52,13 +53,13 @@ export default async function EmpleadoPage() {
         {/* Bienvenida */}
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <div className="flex items-center gap-4">
-            {dbUser?.avatarUrl ? (
-              <img src={`/api/auth/avatar?file=${dbUser.avatarUrl}`} alt="Avatar" className="h-14 w-14 rounded-full object-cover shrink-0" />
-            ) : (
-              <div className="h-14 w-14 rounded-full bg-green-100 dark:bg-green-950/40 flex items-center justify-center text-xl font-bold shrink-0 select-none text-green-700 dark:text-green-400">
-                {`${employee.nombre[0]}${employee.apellido[0]}`.toUpperCase()}
-              </div>
-            )}
+            <AvatarDisplay
+              iniciales={`${employee.nombre[0]}${employee.apellido[0]}`}
+              avatarUrl={dbUser?.avatarUrl ?? null}
+              bgColor={dbUser?.avatarBgColor ?? null}
+              textColor={dbUser?.avatarTextColor ?? null}
+              size={56}
+            />
             <div>
               <h2 className="text-lg font-bold text-green-700 dark:text-green-400">Bienvenido, {employee.nombre}</h2>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">

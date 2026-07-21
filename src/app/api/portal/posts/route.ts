@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       alcance: p.alcance,
       categoria: p.categoria,
       createdAt: p.createdAt,
+      editedAt: p.editedAt,
       autor: {
         id: p.autor.id,
         avatarUrl: p.autor.avatarUrl,

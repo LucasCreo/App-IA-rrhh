@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pencil, Trash2, Plus, Check, X, Settings2, Lock } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
-import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
+import { useRouter } from 'next/navigation'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface CampoDefinicion {
@@ -49,6 +50,7 @@ function slugify(s: string) {
 }
 
 export function TabDocumentos() {
+  const router = useRouter()
   const [tipos, setTipos] = useState<Tipo[]>([])
   const [editing, setEditing] = useState<Tipo | null>(null)
   const [adding, setAdding] = useState(false)
@@ -70,7 +72,7 @@ export function TabDocumentos() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTipo),
     })
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error al crear'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     setNewTipo({ nombre: '', descripcion: '', accion: 'FIRMA' })
     setAdding(false)
     load()
@@ -83,7 +85,7 @@ export function TabDocumentos() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editing),
     })
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error al guardar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     setEditing(null)
     load()
   }
@@ -92,7 +94,7 @@ export function TabDocumentos() {
     if (deleteId === null) return
     const res = await fetch(`/api/configuracion/tipos-documento/${deleteId}`, { method: 'DELETE' })
     setDeleteId(null)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error al eliminar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     load()
   }
 

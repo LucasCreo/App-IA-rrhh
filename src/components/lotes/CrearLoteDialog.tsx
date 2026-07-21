@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +59,7 @@ async function detectarLegajoPdf(file: File): Promise<DetectedData> {
 }
 
 export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
+  const router = useRouter()
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [empFilter, setEmpFilter] = useState('')
@@ -152,17 +155,20 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
       })
 
       const r = await fetch('/api/lotes', { method: 'POST', body: fd })
+      if (!r.ok) {
+        await handleApiError(r, href => router.push(href))
+        return
+      }
       const data = await r.json()
-      if (!r.ok) { toast.error(data.error ?? 'Error al crear el lote'); return }
 
       if (data.errors?.length > 0) {
-        toast.warning(`Lote creado con ${data.uploaded} recibo(s). ${data.errors.length} no pudieron subirse.`)
+        toast.warning(`Lote creado con ${data.uploaded} recibo(s). ${data.errors.length} no pudieron subirse: ${data.errors[0]}`, { duration: 8000 })
       } else {
         toast.success(`Lote creado — ${data.uploaded} recibo(s) cargados`)
       }
       onSaved()
-    } catch {
-      toast.error('Error al crear el lote')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de red al crear el lote')
     } finally {
       setLoading(false)
     }

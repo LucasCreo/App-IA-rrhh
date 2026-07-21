@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Upload, FileText, X, Search, Users, User } from 'lucide-react'
+import { Upload, FileText, X, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const MESES = [
@@ -20,7 +20,7 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
+interface Empleado { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nombre: string } | null }
 interface Categoria { id: number; nombre: string }
 interface TipoDoc { id: number; nombre: string; tienePeriodo?: boolean }
 
@@ -33,7 +33,6 @@ interface Props {
 export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [scope, setScope] = useState<'especificos' | 'todos'>('todos')
   const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
   const [ano, setAno] = useState(String(CURRENT_YEAR))
   const [tipoDocumentoId, setTipoDocumentoId] = useState('')
@@ -43,7 +42,6 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [tipos, setTipos] = useState<TipoDoc[]>([])
-  const [empleadosCount, setEmpleadosCount] = useState<number | null>(null)
   const [estado, setEstado] = useState<'ENVIADO_A_FIRMA' | 'BORRADOR'>('ENVIADO_A_FIRMA')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,15 +58,6 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
       setTipos(Array.isArray(tiposData) ? tiposData.filter((t: TipoDoc) => t.nombre !== 'Recibo de Sueldo') : [])
     })
   }, [open])
-
-  useEffect(() => {
-    if (!open || scope !== 'todos') { setEmpleadosCount(null); return }
-    const params = new URLSearchParams({ all: 'true', estado: 'ACTIVO' })
-    if (categoriaId) params.set('categoriaId', categoriaId)
-    fetch(`/api/empleados?${params}`)
-      .then(r => r.json())
-      .then(d => setEmpleadosCount(d.total ?? 0))
-  }, [open, scope, categoriaId])
 
   function handleFile(f: File) {
     if (f.size > 10 * 1024 * 1024) { toast.error('El archivo supera los 10 MB'); return }
@@ -91,7 +80,9 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
   }
 
   const filteredEmpleados = empleados.filter(e => {
+    if (categoriaId && String(e.categoria?.id ?? '') !== categoriaId) return false
     const q = search.toLowerCase()
+    if (!q) return true
     return (
       e.legajo.toLowerCase().includes(q) ||
       e.apellido.toLowerCase().includes(q) ||
@@ -99,36 +90,47 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     )
   })
 
+  const filteredIds = filteredEmpleados.map(e => e.id)
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id))
+  const someFilteredSelected = filteredIds.some(id => selectedIds.has(id)) && !allFilteredSelected
+
+  function toggleAllFiltered() {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (allFilteredSelected) {
+        for (const id of filteredIds) next.delete(id)
+      } else {
+        for (const id of filteredIds) next.add(id)
+      }
+      return next
+    })
+  }
+
   const selectedTipo = tipos.find(t => String(t.id) === tipoDocumentoId)
-  const mostrarPeriodo = !selectedTipo || selectedTipo.tienePeriodo !== false
+  const mostrarPeriodo = !!selectedTipo && selectedTipo.tienePeriodo !== false
 
   async function handleSubmit() {
     if (!file) { toast.error('Seleccioná un archivo'); return }
-    if (scope === 'especificos' && selectedIds.size === 0) {
-      toast.error('Seleccioná al menos un empleado')
-      return
-    }
+    if (selectedIds.size === 0) { toast.error('Seleccioná al menos un empleado'); return }
     setSaving(true)
     const formData = new FormData()
     formData.append('file', file)
     if (mostrarPeriodo) formData.append('periodo', `${ano}-${mes}`)
     if (tipoDocumentoId) formData.append('tipoDocumentoId', tipoDocumentoId)
     formData.append('estado', estado)
-    if (scope === 'todos' && categoriaId) formData.append('categoriaId', categoriaId)
-    if (scope === 'especificos') formData.append('empleadoIds', JSON.stringify(Array.from(selectedIds)))
+    formData.append('empleadoIds', JSON.stringify(Array.from(selectedIds)))
 
     const res = await fetch('/api/documentos/masivo', { method: 'POST', body: formData })
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { toast.error(data.error ?? 'Error'); return }
-    toast.success(`Documento distribuido a ${data.uploaded} empleado${data.uploaded !== 1 ? 's' : ''}`)
+    toast.success(`Documento subido a ${data.uploaded} empleado${data.uploaded !== 1 ? 's' : ''}`)
     onSaved()
     onClose()
   }
 
   function reset() {
     setFile(null)
-    setScope('todos')
     setMes(String(new Date().getMonth() + 1).padStart(2, '0'))
     setAno(String(CURRENT_YEAR))
     setTipoDocumentoId('')
@@ -138,9 +140,7 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     setSearch('')
   }
 
-  const canSubmit = !!file && !saving && (
-    scope === 'todos' ? (empleadosCount ?? 0) > 0 : selectedIds.size > 0
-  )
+  const canSubmit = !!file && !saving && selectedIds.size > 0
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose() } }}>
@@ -250,78 +250,16 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
             </div>
           )}
 
-          {/* Scope selector */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-1.5">Destinatarios</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setScope('todos')}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',
-                  scope === 'todos'
-                    ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
-                    : 'border-border hover:border-muted-foreground text-muted-foreground'
-                )}
-              >
-                <Users size={15} />
-                Todos / categoría
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope('especificos')}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors',
-                  scope === 'especificos'
-                    ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
-                    : 'border-border hover:border-muted-foreground text-muted-foreground'
-                )}
-              >
-                <User size={15} />
-                Empleados específicos
-              </button>
+          {/* Destinatarios */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">Destinatarios</p>
+              <p className="text-xs text-green-700 dark:text-green-400">
+                {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+              </p>
             </div>
-          </div>
-
-          {/* Todos: filtro por categoría */}
-          {scope === 'todos' && (
-            <>
-              {categorias.length > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Categoría (opcional)</p>
-                  <Select value={categoriaId} onValueChange={v => setCategoriaId(!v || v === 'todos' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="Todos los empleados" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos los empleados</SelectItem>
-                      {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {empleadosCount !== null && (
-                <p className={cn(
-                  'text-sm rounded-lg px-3 py-2',
-                  empleadosCount === 0
-                    ? 'bg-red-50 dark:bg-red-950/20 text-red-600'
-                    : 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-400'
-                )}>
-                  {empleadosCount === 0
-                    ? 'No hay empleados activos en esa categoría'
-                    : `Se distribuirá a ${empleadosCount} empleado${empleadosCount !== 1 ? 's' : ''} activo${empleadosCount !== 1 ? 's' : ''}`}
-                </p>
-              )}
-            </>
-          )}
-
-          {/* Específicos: lista con búsqueda */}
-          {scope === 'especificos' && (
-            <div className="space-y-2">
-              {selectedIds.size > 0 && (
-                <p className="text-xs text-green-700 dark:text-green-400">
-                  {selectedIds.size} empleado{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                </p>
-              )}
-              <div className="relative">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por legajo o nombre…"
@@ -330,11 +268,34 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
                   className="pl-8 h-8 text-sm"
                 />
               </div>
-              <div className="border rounded-lg overflow-y-auto max-h-44">
-                {filteredEmpleados.length === 0 && (
+              {categorias.length > 0 && (
+                <Select value={categoriaId || 'todos'} onValueChange={v => setCategoriaId(!v || v === 'todos' ? '' : v)}>
+                  <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas categorías</SelectItem>
+                    {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="border rounded-lg overflow-hidden">
+              <label className="flex items-center gap-2.5 px-3 py-2 border-b bg-muted/40 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  ref={el => { if (el) el.indeterminate = someFilteredSelected }}
+                  onChange={toggleAllFiltered}
+                  className="accent-green-700"
+                />
+                <span className="text-xs font-medium">
+                  {allFilteredSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                  {filteredEmpleados.length !== empleados.length && ` (${filteredEmpleados.length})`}
+                </span>
+              </label>
+              <div className="overflow-y-auto max-h-52">
+                {filteredEmpleados.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">Sin resultados</p>
-                )}
-                {filteredEmpleados.map(e => (
+                ) : filteredEmpleados.map(e => (
                   <label
                     key={e.id}
                     className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 cursor-pointer border-b last:border-b-0"
@@ -351,13 +312,13 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
                 ))}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => { reset(); onClose() }}>Cancelar</Button>
           <Button className="bg-green-700 hover:bg-green-800" onClick={handleSubmit} disabled={!canSubmit}>
-            {saving ? 'Distribuyendo...' : 'Distribuir'}
+            {saving ? 'Subiendo...' : 'Subir'}
           </Button>
         </DialogFooter>
       </DialogContent>

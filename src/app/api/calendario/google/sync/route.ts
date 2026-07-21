@@ -19,7 +19,10 @@ export async function POST() {
   })
 
   if (!user?.googleRefreshToken) {
-    return NextResponse.json({ error: 'Google Calendar no conectado' }, { status: 400 })
+    return NextResponse.json({
+      error: 'Google Calendar no está conectado. Conectá tu cuenta desde la configuración para sincronizar.',
+      code: 'GOOGLE_NOT_CONNECTED',
+    }, { status: 400 })
   }
 
   const auth = getOAuthClient()

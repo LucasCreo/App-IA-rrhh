@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgregarRecibosDialog } from './AgregarRecibosDialog'
 import { EditarRosterDialog } from './EditarRosterDialog'
+import { handleApiError } from '@/lib/apiErrors'
 
 interface Documento {
   id: number
@@ -107,12 +108,12 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     setSending(true)
     try {
       const r = await fetch(`/api/lotes/${loteId}/enviar-firma`, { method: 'POST' })
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
-      if (!r.ok) { toast.error(data.error ?? 'Error al enviar'); return }
       if (data.errors?.length > 0) {
         toast.warning(`${data.sent} enviados, ${data.errors.length} con error`)
       } else {
-        toast.success(`${data.sent} recibo(s) enviados a firma`)
+        toast.success(`${data.sent} recibo(s) enviados`)
       }
       await fetchData()
     } finally {
@@ -124,8 +125,8 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     setActionLoading(docId)
     try {
       const r = await fetch(`/api/documentos/${docId}/enviar-firma`, { method: 'POST' })
-      if (!r.ok) { toast.error('Error al enviar'); return }
-      toast.success('Enviado a firma')
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
+      toast.success('Enviado')
       await fetchData()
     } finally {
       setActionLoading(null)
@@ -141,7 +142,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   async function doDeleteLote() {
     const r = await fetch(`/api/lotes/${loteId}`, { method: 'DELETE' })
     setConfirmDelete(false)
-    if (!r.ok) { toast.error('Error al eliminar el lote'); return }
+    if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
     toast.success('Lote eliminado')
     router.push('/admin/lotes')
   }
@@ -155,7 +156,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editNombre.trim(), descripcion: editDescripcion.trim() || null }),
       })
-      if (!r.ok) { toast.error('Error al guardar'); return }
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       toast.success('Lote actualizado')
       setEditing(false)
       await fetchData()
@@ -180,8 +181,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
       const fd = new FormData()
       fd.append('file', file)
       const r = await fetch(`/api/documentos/${docId}/reemplazar`, { method: 'POST', body: fd })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) { toast.error(data.error ?? 'Error al reemplazar'); return }
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       toast.success('Recibo reemplazado')
       await fetchData()
     } finally {
@@ -196,7 +196,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     setActionLoading(docId)
     try {
       const r = await fetch(`/api/documentos/${docId}`, { method: 'DELETE' })
-      if (!r.ok) { toast.error('Error al eliminar'); return }
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       toast.success('Recibo eliminado')
       await fetchData()
     } finally {
@@ -208,8 +208,8 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     setActionLoading(docId)
     try {
       const r = await fetch(`/api/documentos/${docId}/enviar-firma`, { method: 'PATCH' })
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
-      if (!r.ok) { toast.error(data.error ?? 'Error'); return }
       toast.info(`Estado actualizado: ${data.estado}`)
       await fetchData()
     } finally {

@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +39,7 @@ function fmt(iso: string) {
 
 // ── Tab Solicitudes ──────────────────────────────────────────────────────────
 function TabSolicitudes() {
+  const router = useRouter()
   const [data, setData] = useState<Solicitud[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('TODAS')
@@ -67,7 +70,7 @@ function TabSolicitudes() {
     })
     if (!res.ok) {
       setData(prevSnapshot)
-      toast.error('Error al procesar la solicitud')
+      await handleApiError(res, href => router.push(href))
       return
     }
     load()
@@ -217,6 +220,7 @@ function TabSolicitudes() {
 
 // ── Tab Saldos ───────────────────────────────────────────────────────────────
 function TabSaldos() {
+  const router = useRouter()
   const [data, setData] = useState<SaldoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<{ id: number; diasTotales: number } | null>(null)
@@ -231,11 +235,12 @@ function TabSaldos() {
 
   async function guardar() {
     if (!editing) return
-    await fetch('/api/ausencias/saldos', {
+    const res = await fetch('/api/ausencias/saldos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ employeeId: editing.id, anio: new Date().getFullYear(), diasTotales: Number(dias) }),
     })
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Saldo actualizado')
     setEditing(null)
     load()
@@ -299,6 +304,7 @@ function TabSaldos() {
 
 // ── Tab Tipos ────────────────────────────────────────────────────────────────
 function TabTipos() {
+  const router = useRouter()
   const [tipos, setTipos] = useState<TipoAusencia[]>([])
   const [loading, setLoading] = useState(true)
   const [dialog, setDialog] = useState(false)
@@ -322,7 +328,7 @@ function TabTipos() {
       body: JSON.stringify(form),
     })
     setSaving(false)
-    if (!res.ok) { toast.error('Error al guardar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Tipo creado')
     setDialog(false)
     setForm({ nombre: '', color: '#6b7280', requiereAprobacion: true, afectaSaldo: false })
@@ -338,7 +344,7 @@ function TabTipos() {
       body: JSON.stringify(editForm),
     })
     setSaving(false)
-    if (!res.ok) { const e = await res.json(); toast.error(e.error ?? 'Error al guardar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Tipo actualizado')
     setEditTarget(null)
     load()
@@ -356,7 +362,10 @@ function TabTipos() {
   async function doDelete() {
     if (!deleteTarget) return
     const res = await fetch(`/api/ausencias/tipos/${deleteTarget.id}`, { method: 'DELETE' })
-    if (!res.ok) { toast.error('No se puede eliminar — tiene solicitudes asociadas'); setDeleteTarget(null); return }
+    if (!res.ok) {
+      await handleApiError(res, href => router.push(href))
+      setDeleteTarget(null); return
+    }
     toast.success('Tipo eliminado')
     setDeleteTarget(null)
     load()

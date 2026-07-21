@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { parseApiError, showApiError } from '@/lib/apiErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +35,7 @@ const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
 ]
 
 export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
+  const router = useRouter()
   const isNew = !empleado?.id
   const [step, setStep] = useState<1 | 2>(1)
   const [form, setForm] = useState<Empleado>(empleado ?? empty)
@@ -165,7 +168,15 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
       : { ...form, crearUsuario: true, username: username || undefined, password, camposPersonalizados }
 
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    if (!res.ok) { toast.error(`Error al guardar: ${await res.text()}`); return }
+    if (!res.ok) {
+      const payloadErr = await parseApiError(res)
+      if (payloadErr.field) {
+        setErrors(prev => new Set(prev).add(payloadErr.field!))
+        if (isNew && payloadErr.field === 'email') setStep(1)
+      }
+      showApiError(payloadErr, href => router.push(href))
+      return
+    }
     onSaved()
     onClose()
   }
@@ -177,9 +188,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="px-1 shrink-0">
           <DialogTitle>
-            {form.id ? 'Editar Legajo' : (
+            {form.id ? 'Editar registro' : (
               <span className="flex items-center gap-3">
-                Nuevo Legajo
+                Nuevo registro
                 <span className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
                   <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold', step === 1 ? 'bg-green-700 text-white' : 'bg-muted text-muted-foreground')}>1</span>
                   <span className={step === 1 ? 'text-foreground' : ''}>Acceso</span>
@@ -350,6 +361,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                                 const { fileName } = await res.json()
                                 setValoresCustom(prev => ({ ...prev, [c.id]: fileName }))
                                 clearError(`custom_${c.id}`)
+                              } else {
+                                const err = await parseApiError(res)
+                                showApiError(err, href => router.push(href))
                               }
                             }}
                           />

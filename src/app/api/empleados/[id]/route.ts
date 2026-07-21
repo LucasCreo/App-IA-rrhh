@@ -40,6 +40,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'CUIL inválido' }, { status: 400 })
   }
 
+  // Chequeo de unicidad (excluyendo al propio empleado)
+  if (body.email) {
+    const [empDup, userDup] = await Promise.all([
+      prisma.employee.findFirst({ where: { email: body.email, NOT: { id: empId } }, select: { id: true } }),
+      prisma.user.findFirst({ where: { email: body.email, employeeId: { not: empId } }, select: { id: true } }),
+    ])
+    if (empDup || userDup) return NextResponse.json({ error: 'Ya existe una cuenta con ese email', field: 'email' }, { status: 409 })
+  }
+  if (body.legajo) {
+    const dup = await prisma.employee.findFirst({ where: { legajo: body.legajo, NOT: { id: empId } }, select: { id: true } })
+    if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese legajo', field: 'legajo' }, { status: 409 })
+  }
+  if (body.cuil) {
+    const dup = await prisma.employee.findFirst({ where: { cuil: body.cuil, NOT: { id: empId } }, select: { id: true } })
+    if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese CUIL', field: 'cuil' }, { status: 409 })
+  }
+
   try {
     const emp = await prisma.$transaction(async tx => {
       const updated = await tx.employee.update({

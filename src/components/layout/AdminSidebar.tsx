@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, UserCircle, Newspaper } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { EVALUACIONES_ENABLED } from '@/lib/features'
 
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
@@ -15,7 +16,7 @@ const nav = [
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
-  { href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' },
+  ...(EVALUACIONES_ENABLED ? [{ href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' }] : []),
   { href: '/admin/formularios', label: 'Formularios', icon: ClipboardCheck, permiso: 'GESTIONAR_FORMULARIOS' },
   { href: '/admin/ausencias', label: 'Ausencias', icon: CalendarOff, permiso: 'GESTIONAR_AUSENCIAS' },
 ]

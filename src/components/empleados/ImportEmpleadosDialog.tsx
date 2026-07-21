@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Upload, Download, AlertCircle, CheckCircle2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -22,6 +24,7 @@ interface Result {
 }
 
 export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
+  const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [defaultPassword, setDefaultPassword] = useState('cambiar123')
   const [uploading, setUploading] = useState(false)
@@ -49,8 +52,8 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
       fd.append('file', file)
       fd.append('defaultPassword', defaultPassword)
       const r = await fetch('/api/empleados/import', { method: 'POST', body: fd })
+      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
-      if (!r.ok) { toast.error(data.error ?? 'Error al importar'); return }
       setResult(data)
       if (data.created > 0) {
         toast.success(`${data.created} empleado${data.created !== 1 ? 's' : ''} creado${data.created !== 1 ? 's' : ''}`)

@@ -28,7 +28,14 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
-      include: { user: { select: { email: true } } },
+      include: {
+        user: {
+          select: {
+            email: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true,
+            employee: { select: { nombre: true, apellido: true } },
+          },
+        },
+      },
     }),
   ])
 

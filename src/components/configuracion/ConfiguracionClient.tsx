@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
@@ -13,6 +14,7 @@ import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
 import { TabFormularios } from '@/components/configuracion/TabFormularios'
 import { UsuariosPage } from '@/components/usuarios/UsuariosPage'
 import { cn } from '@/lib/utils'
+import { EVALUACIONES_ENABLED } from '@/lib/features'
 
 interface Props {
   puedeGestionarUsuarios?: boolean
@@ -20,7 +22,13 @@ interface Props {
 }
 
 export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria }: Props) {
-  const [tab, setTab] = useState('general')
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('tab') ?? 'general')
+
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t) setTab(t)
+  }, [searchParams])
 
   const tabs = [
     { id: 'general', label: 'General' },
@@ -29,7 +37,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
     { id: 'firma', label: 'Firma' },
     { id: 'solicitudes', label: 'Solicitudes' },
     { id: 'calendario', label: 'Calendario' },
-    { id: 'evaluaciones', label: 'Evaluaciones' },
+    ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones', label: 'Evaluaciones' }] : []),
     { id: 'formularios', label: 'Formularios' },
     ...(puedeGestionarUsuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
     ...(puedeVerAuditoria ? [{ id: 'auditoria', label: 'Auditoría' }] : []),
@@ -45,7 +53,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                'cursor-pointer px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
                 tab === t.id
                   ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -61,7 +69,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
         {tab === 'firma' && <TabFirma />}
         {tab === 'solicitudes' && <TabSolicitudes />}
         {tab === 'calendario' && <TabCalendario />}
-        {tab === 'evaluaciones' && <TabEvaluaciones />}
+        {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <TabEvaluaciones />}
         {tab === 'formularios' && <TabFormularios />}
         {tab === 'usuarios' && <UsuariosPage />}
         {tab === 'auditoria' && <TabAuditoria />}

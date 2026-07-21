@@ -121,6 +121,7 @@ model Post {
   categoriaId  Int?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  editedAt     DateTime?
 
   autor        User          @relation("PostAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   categoria    Category?     @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -146,6 +147,7 @@ model PostComment {
   autorId   Int
   contenido String   @db.NVarChar(Max)
   createdAt DateTime @default(now())
+  editedAt  DateTime?
 
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   autor  User @relation("PostCommentAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)

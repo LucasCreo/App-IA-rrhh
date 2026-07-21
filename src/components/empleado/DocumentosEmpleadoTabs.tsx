@@ -7,6 +7,7 @@ import { MisSolicitudes } from './MisSolicitudes'
 import { MisEvaluaciones } from './MisEvaluaciones'
 import { MisFormularios } from './MisFormularios'
 import { cn } from '@/lib/utils'
+import { EVALUACIONES_ENABLED } from '@/lib/features'
 
 type Tab = 'recibidos' | 'solicitudes' | 'evaluaciones' | 'formularios'
 
@@ -42,17 +43,19 @@ export function DocumentosEmpleadoTabs({ employeeId }: Props) {
         >
           Mis solicitudes
         </button>
-        <button
-          onClick={() => setTab('evaluaciones')}
-          className={cn(
-            'px-5 py-3 text-sm font-medium transition-colors',
-            tab === 'evaluaciones'
-              ? 'border-b-2 border-green-600 text-green-700 dark:text-green-400'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          Mis evaluaciones
-        </button>
+        {EVALUACIONES_ENABLED && (
+          <button
+            onClick={() => setTab('evaluaciones')}
+            className={cn(
+              'px-5 py-3 text-sm font-medium transition-colors',
+              tab === 'evaluaciones'
+                ? 'border-b-2 border-green-600 text-green-700 dark:text-green-400'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Mis evaluaciones
+          </button>
+        )}
         <button
           onClick={() => setTab('formularios')}
           className={cn(
@@ -72,7 +75,7 @@ export function DocumentosEmpleadoTabs({ employeeId }: Props) {
           <MisSolicitudes />
         </div>
       )}
-      {tab === 'evaluaciones' && (
+      {EVALUACIONES_ENABLED && tab === 'evaluaciones' && (
         <div className="p-5">
           <MisEvaluaciones />
         </div>

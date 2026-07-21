@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 
 interface Props {
   lastSync?: string | null
@@ -27,7 +28,7 @@ export function GoogleSyncButton({ lastSync: initialLastSync }: Props) {
       toast.success(`Sincronizado — ${partes.join(', ')}`)
       router.refresh()
     } else {
-      toast.error('Error al sincronizar')
+      await handleApiError(res, href => router.push(href))
     }
   }
 

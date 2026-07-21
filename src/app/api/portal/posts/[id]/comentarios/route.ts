@@ -27,6 +27,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       id: c.id,
       contenido: c.contenido,
       createdAt: c.createdAt,
+      editedAt: c.editedAt,
       autor: {
         id: c.autor.id,
         avatarUrl: c.autor.avatarUrl,

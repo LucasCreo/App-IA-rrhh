@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Check, X, FileText } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Check, X, FileText, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -35,7 +36,15 @@ const FILTROS = [
 export function SolicitudesTab() {
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [filtro, setFiltro] = useState('PENDIENTE')
+  const [q, setQ] = useState('')
+  const [qDebounced, setQDebounced] = useState('')
+  const [tipoFiltro, setTipoFiltro] = useState<number | ''>('')
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [q])
   const [accion, setAccion] = useState<AccionDialog>(null)
   const [comentario, setComentario] = useState('')
   const [visible, setVisible] = useState(false)
@@ -73,6 +82,19 @@ export function SolicitudesTab() {
 
   const esAprobacion = accion?.estado === 'APROBADO'
 
+  const tiposDisponibles = Array.from(
+    new Map(solicitudes.map(s => [s.tipo.id, { id: s.tipo.id, nombre: s.tipo.nombre }])).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  const solicitudesFiltradas = solicitudes.filter(s => {
+    if (tipoFiltro !== '' && s.tipo.id !== tipoFiltro) return false
+    if (qDebounced) {
+      const nombre = `${s.employee.apellido} ${s.employee.nombre}`.toLowerCase()
+      if (!nombre.includes(qDebounced) && !s.employee.legajo.toLowerCase().includes(qDebounced)) return false
+    }
+    return true
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 border-b pb-0">
@@ -81,7 +103,7 @@ export function SolicitudesTab() {
             key={f.value}
             onClick={() => setFiltro(f.value)}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'cursor-pointer px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               filtro === f.value
                 ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -92,15 +114,47 @@ export function SolicitudesTab() {
         ))}
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-56 max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-8 h-9"
+            placeholder="Buscar por nombre o legajo…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          value={tipoFiltro === '' ? '' : String(tipoFiltro)}
+          onChange={e => setTipoFiltro(e.target.value === '' ? '' : Number(e.target.value))}
+        >
+          <option value="">Todos los tipos</option>
+          {tiposDisponibles.map(t => (
+            <option key={t.id} value={t.id}>{t.nombre}</option>
+          ))}
+        </select>
+        {(q || tipoFiltro !== '') && (
+          <Button variant="ghost" size="sm" onClick={() => { setQ(''); setTipoFiltro('') }}>
+            <X size={13} className="mr-1" /> Limpiar
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {solicitudesFiltradas.length} de {solicitudes.length}
+        </span>
+      </div>
+
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
         </div>
-      ) : solicitudes.length === 0 ? (
-        <p className="text-center text-muted-foreground py-12">No hay solicitudes en esta categoría.</p>
+      ) : solicitudesFiltradas.length === 0 ? (
+        <p className="text-center text-muted-foreground py-12">
+          {solicitudes.length === 0 ? 'No hay solicitudes en esta categoría.' : 'Sin coincidencias para los filtros aplicados.'}
+        </p>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {solicitudes.map(s => (
+          {solicitudesFiltradas.map(s => (
             <div key={s.id} className="flex items-start gap-4 px-4 py-3 bg-card">
               <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">

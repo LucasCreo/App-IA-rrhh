@@ -16,13 +16,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
   const ACCIONES = ['FIRMA', 'LECTURA', 'NINGUNA']
+  const nuevaAccion = ACCIONES.includes(accion) ? accion : undefined
+
+  // Bloquear cambio de acción si ya hay documentos usando este tipo
+  if (nuevaAccion && existing && nuevaAccion !== existing.accion) {
+    const docsCount = await prisma.document.count({ where: { tipoDocumentoId: Number(id) } })
+    if (docsCount > 0) {
+      return NextResponse.json({
+        error: `No se puede cambiar la acción: hay ${docsCount} documento(s) cargado(s) con este tipo. Eliminá o migrá esos documentos antes de cambiar la acción.`,
+        code: 'TIPO_ACCION_EN_USO',
+      }, { status: 409 })
+    }
+  }
+
   try {
     const tipo = await prisma.tipoDocumento.update({
       where: { id: Number(id) },
       data: {
         nombre: nombre.trim(),
         descripcion: descripcion?.trim() || null,
-        accion: ACCIONES.includes(accion) ? accion : undefined,
+        accion: nuevaAccion,
         campos: campos !== undefined ? (campos ? JSON.stringify(campos) : null) : undefined,
         tienePeriodo: tienePeriodo !== undefined ? tienePeriodo !== false : undefined,
       },

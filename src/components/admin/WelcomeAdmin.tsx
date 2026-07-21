@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, ChevronRight, ChevronLeft, Users, FileText, CalendarDays, Star, ClipboardCheck, CalendarOff, Settings, Rocket } from 'lucide-react'
+import { EVALUACIONES_ENABLED } from '@/lib/features'
 
 const STORAGE_KEY = 'rrhh-bienvenida-admin-vista'
 
@@ -14,7 +15,7 @@ const slides = [
   {
     icon: Users,
     title: 'Personal',
-    description: 'Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos, evaluaciones y formularios desde un mismo lugar.',
+    description: `Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos${EVALUACIONES_ENABLED ? ', evaluaciones' : ''} y formularios desde un mismo lugar.`,
   },
   {
     icon: FileText,
@@ -26,11 +27,11 @@ const slides = [
     title: 'Calendario',
     description: 'Gestione eventos de la organización y asígnelos a empleados. Configure los tipos de evento y sus permisos desde Configuración › Calendario.',
   },
-  {
+  ...(EVALUACIONES_ENABLED ? [{
     icon: Star,
     title: 'Evaluaciones',
     description: 'Diseñe plantillas con criterios personalizados y organice rondas de evaluación. Los resultados quedan registrados en la ficha de cada empleado.',
-  },
+  }] : []),
   {
     icon: ClipboardCheck,
     title: 'Formularios',

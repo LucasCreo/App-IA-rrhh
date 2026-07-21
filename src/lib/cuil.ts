@@ -1,29 +1,16 @@
 /**
- * Valida un CUIL/CUIT argentino: 11 dígitos con dígito verificador.
- * Acepta con o sin guiones. Devuelve true si es válido.
- *
- * Algoritmo:
- *  - Multiplica los primeros 10 dígitos por [5,4,3,2,7,6,5,4,3,2].
- *  - Suma los productos.
- *  - Resto = suma mod 11.
- *  - Dígito verificador = 11 - resto.
- *  - Casos especiales: si el resultado es 11 → 0, si es 10 → CUIL inválido.
+ * Valida el formato de un CUIL/CUIT argentino.
+ * Acepta dos formatos:
+ *  - 11 dígitos sin separadores: `XXXXXXXXXXX`
+ *  - Con guiones: `XX-XXXXXXXX-X`
+ * NO valida el dígito verificador (solo la forma).
  */
 export function validarCuil(cuil: string): boolean {
   if (!cuil) return false
-  const solo = cuil.replace(/[-\s]/g, '')
-  if (!/^\d{11}$/.test(solo)) return false
-  const digitos = solo.split('').map(Number)
-  const coef = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
-  const suma = coef.reduce((acc, c, i) => acc + c * digitos[i], 0)
-  const resto = suma % 11
-  let verificador = 11 - resto
-  if (verificador === 11) verificador = 0
-  if (verificador === 10) return false
-  return verificador === digitos[10]
+  return /^\d{11}$/.test(cuil) || /^\d{2}-\d{8}-\d$/.test(cuil)
 }
 
-/** Formatea a XX-XXXXXXXX-X si es válido (o largo 11). */
+/** Formatea a XX-XXXXXXXX-X si tiene 11 dígitos; devuelve tal cual si no. */
 export function formatearCuil(cuil: string): string {
   const solo = cuil.replace(/\D/g, '')
   if (solo.length !== 11) return cuil

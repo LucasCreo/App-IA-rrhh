@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { sendToSign } from '@/lib/signature'
+import { sendToSign, SignatureError } from '@/lib/signature'
 import { sendMail } from '@/lib/email'
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,6 +20,23 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   const docs = await prisma.document.findMany({
     where: { loteId: Number(id), estado: { in: ['BORRADOR', 'ERROR'] } },
   })
+
+  // Pre-check: si la firma no está configurada, abortar antes de tocar la DB
+  if (accion !== 'LECTURA' && accion !== 'NINGUNA') {
+    const cfg = await prisma.signatureConfig.findFirst()
+    if (!cfg) {
+      return NextResponse.json({
+        error: 'El proveedor de firma electrónica no está configurado.',
+        code: 'SIGNATURE_NOT_CONFIGURED',
+      }, { status: 400 })
+    }
+    if (!cfg.providerUrl || !cfg.apiKey) {
+      return NextResponse.json({
+        error: 'La configuración de firma está incompleta (falta URL o API key).',
+        code: 'SIGNATURE_INCOMPLETE',
+      }, { status: 400 })
+    }
+  }
 
   let sent = 0
   const errors: string[] = []
@@ -41,6 +58,8 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
       sent++
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error'
+      const code = e instanceof SignatureError ? e.code : undefined
+      void code
       await prisma.document.update({ where: { id: doc.id }, data: { estado: 'ERROR' } })
       errors.push(`Doc ${doc.id}: ${msg}`)
     }

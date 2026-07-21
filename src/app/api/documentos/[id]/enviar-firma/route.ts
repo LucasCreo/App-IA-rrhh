@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { sendToSign, checkSignatureStatus } from '@/lib/signature'
+import { sendToSign, checkSignatureStatus, SignatureError } from '@/lib/signature'
 import { sendMail } from '@/lib/email'
 import { getScopedEmployeeIds } from '@/lib/scope'
 
@@ -80,8 +80,10 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     return NextResponse.json({ ok: true, externalId })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Error desconocido'
+    const code = e instanceof SignatureError ? e.code : undefined
     await prisma.document.update({ where: { id: Number(id) }, data: { estado: 'ERROR' } })
-    return NextResponse.json({ error: message }, { status: 500 })
+    const status = code === 'SIGNATURE_NOT_CONFIGURED' || code === 'SIGNATURE_INCOMPLETE' ? 400 : 502
+    return NextResponse.json({ error: message, code }, { status })
   }
 }
 
@@ -116,6 +118,8 @@ export async function PATCH(_: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ ok: true, estado: newEstado, raw: result })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    const code = e instanceof SignatureError ? e.code : undefined
+    const status = code === 'SIGNATURE_NOT_CONFIGURED' || code === 'SIGNATURE_INCOMPLETE' ? 400 : 502
+    return NextResponse.json({ error: message, code }, { status })
   }
 }

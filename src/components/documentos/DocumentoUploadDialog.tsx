@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef, Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { parseApiError, showApiError } from '@/lib/apiErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +53,7 @@ function buildDefaultValues(campos: CampoDefinicion[]): Record<string, string> {
 }
 
 export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Props) {
+  const router = useRouter()
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [tipos, setTipos] = useState<Tipo[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
@@ -63,20 +66,27 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
     fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => setEmpleados(d.employees))
     const RECIBO_TIPO = 'Recibo de Sueldo'
     fetch('/api/configuracion/tipos-documento').then(r => r.json()).then((data: Tipo[]) => {
-      setTipos(esRecibo === true
+      const filtered = esRecibo === true
         ? data.filter(t => t.nombre === RECIBO_TIPO)
         : esRecibo === false
           ? data.filter(t => t.nombre !== RECIBO_TIPO)
-          : data)
+          : data
+      setTipos(filtered)
+      if (esRecibo === true) {
+        const recibo = filtered.find(t => t.nombre === RECIBO_TIPO)
+        if (recibo) setTipoId(String(recibo.id))
+      }
     })
     setEntries([])
-    setTipoId('')
+    if (esRecibo !== true) setTipoId('')
   }, [open, esRecibo])
 
   const selectedTipo = tipos.find(t => String(t.id) === tipoId)
-  const activeCampos: CampoDefinicion[] = selectedTipo?.campos?.length
-    ? selectedTipo.campos
-    : (selectedTipo && selectedTipo.tienePeriodo === false) ? [] : DEFAULT_CAMPOS
+  const activeCampos: CampoDefinicion[] = !selectedTipo
+    ? []
+    : selectedTipo.campos?.length
+      ? selectedTipo.campos
+      : selectedTipo.tienePeriodo === false ? [] : DEFAULT_CAMPOS
 
   // Reset campo values when tipo changes
   useEffect(() => {
@@ -136,18 +146,36 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
     if (!entries.length) return
     setLoading(true)
     try {
-      const results = await Promise.all(entries.map(entry =>
-        fetch('/api/documentos', { method: 'POST', body: buildFormData(entry) })
-      ))
-      const failed = results.filter(r => !r.ok)
-      if (failed.length > 0) {
-        toast.error(`${failed.length} archivo(s) no pudieron cargarse`)
+      const results = await Promise.all(entries.map(async entry => {
+        const res = await fetch('/api/documentos', { method: 'POST', body: buildFormData(entry) })
+        return { entry, res }
+      }))
+      const failed = results.filter(r => !r.res.ok)
+      const ok = results.length - failed.length
+
+      if (failed.length === 0) {
+        toast.success(`${ok} archivo${ok === 1 ? '' : 's'} cargado${ok === 1 ? '' : 's'}`)
+        onSaved()
+        onClose()
         return
       }
+
+      // Parsear el primer error para dar detalle específico
+      const firstErr = await parseApiError(failed[0].res)
+      const nombre = failed[0].entry.file.name
+
+      if (failed.length === 1) {
+        showApiError({ ...firstErr, error: `${nombre}: ${firstErr.error}` }, href => router.push(href))
+      } else {
+        showApiError({
+          ...firstErr,
+          error: `${failed.length} de ${results.length} archivos fallaron. Primer error — ${nombre}: ${firstErr.error}`,
+        }, href => router.push(href))
+      }
+      if (ok > 0) toast.success(`${ok} archivo${ok === 1 ? '' : 's'} cargado${ok === 1 ? '' : 's'} correctamente`)
       onSaved()
-      onClose()
-    } catch {
-      toast.error('Error al cargar los archivos')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de red al cargar los archivos')
     } finally {
       setLoading(false)
     }
@@ -178,7 +206,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
-          {tipos.length > 0 && (
+          {tipos.length > 0 && esRecibo !== true && (
             <div>
               <Label className="mb-1.5">Tipo de documento</Label>
               <Select value={tipoId} onValueChange={v => setTipoId(v ?? '')}>

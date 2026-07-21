@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Popover } from '@base-ui/react/popover'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,12 +83,12 @@ export function EmpleadosTable() {
     const res = await fetch(`/api/empleados/${target.id}`, { method: 'DELETE' })
     setDeleteTarget(null)
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
+      const data = await res.clone().json().catch(() => ({}))
       if (res.status === 409 && Array.isArray(data.dependencias)) {
         setBlockedDelete({ id: target.id, legajo: target.legajo, dependencias: data.dependencias })
         return
       }
-      toast.error(data.error ?? 'No se pudo eliminar el empleado')
+      await handleApiError(res, href => router.push(href))
       return
     }
     toast.success('Empleado eliminado')
@@ -223,7 +224,7 @@ export function EmpleadosTable() {
           <Upload size={14} className="mr-1" /> Importar
         </Button>
         <Button className="bg-green-700 hover:bg-green-800 shrink-0" onClick={() => setDialog(true)}>
-          <Plus size={15} className="mr-1" /> Nuevo Empleado
+          <Plus size={15} className="mr-1" /> Nuevo
         </Button>
       </div>
 

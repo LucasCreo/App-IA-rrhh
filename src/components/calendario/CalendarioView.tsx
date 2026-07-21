@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import { handleApiError } from '@/lib/apiErrors'
 
 interface TipoEvento {
   id: number
@@ -78,6 +80,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 export function CalendarioView({ isAdmin = false, empleados = [], currentUserId, currentEmployeeId, googleConnected }: Props) {
+  const router = useRouter()
   const now = new Date()
   const [vista, setVista] = useState<Vista>('mes')
   const [mes, setMes] = useState(now.getMonth() + 1)
@@ -194,7 +197,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ moveOnly: true, fechaInicio: nuevaInicio, fechaFin: nuevaFin }),
     })
-    if (!res.ok) { toast.error('No se pudo mover el evento'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Evento movido')
     load()
   }
@@ -281,7 +284,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     const method = isEdit ? 'PUT' : 'POST'
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     setSaving(false)
-    if (!res.ok) { toast.error((await res.json()).error ?? 'Error al guardar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success(isEdit ? 'Evento actualizado' : 'Evento creado')
     setDialog(null)
     load()
@@ -296,7 +299,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
       body: JSON.stringify({ comentarioAdminOnly: true, comentarioAdmin }),
     })
     setSavingComment(false)
-    if (!res.ok) { toast.error('Error al guardar comentario'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Comentario guardado')
     load()
   }
@@ -305,7 +308,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     if (!deleteEventId) return
     const res = await fetch(`/api/eventos/${deleteEventId}`, { method: 'DELETE' })
     setDeleteEventId(null)
-    if (!res.ok) { toast.error('Error al eliminar'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Evento eliminado')
     setDialog(null)
     load()

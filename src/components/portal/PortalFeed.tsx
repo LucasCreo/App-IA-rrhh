@@ -5,10 +5,16 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus } from 'lucide-react'
+import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, Check } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RichEditor } from './RichEditor'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { handleApiError } from '@/lib/apiErrors'
+
+const EDIT_WINDOW_MIN = 60 * 24
+function dentroDeVentanaEdicion(createdAt: string): boolean {
+  return (Date.now() - new Date(createdAt).getTime()) / 60000 <= EDIT_WINDOW_MIN
+}
 
 function PostContent({ html }: { html: string }) {
   if (!html) return null
@@ -39,6 +45,7 @@ interface Post {
   alcance: 'GLOBAL' | 'CATEGORIA'
   categoria: { id: number; nombre: string } | null
   createdAt: string
+  editedAt?: string | null
   autor: Autor
   totalReacciones: number
   miReaccion: string | null
@@ -49,6 +56,7 @@ interface Comentario {
   id: number
   contenido: string
   createdAt: string
+  editedAt?: string | null
   autor: {
     id: number
     avatarUrl: string | null
@@ -154,8 +162,10 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
           {isAdmin && (
             <>
               <Select value={alcance} onValueChange={v => setAlcance(v as any)}>
-                <SelectTrigger className="w-40 h-9 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="w-52 h-9 text-sm">
+                  <SelectValue>
+                    {alcance === 'GLOBAL' ? 'Todos los empleados' : 'Por categoría'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="GLOBAL">Todos los empleados</SelectItem>
@@ -200,7 +210,52 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
   const [enviando, setEnviando] = useState(false)
   const [likesOpen, setLikesOpen] = useState(false)
   const [likes, setLikes] = useState<Array<{ id: number; nombreCompleto: string; avatarUrl: string | null; avatarBgColor?: string | null; avatarTextColor?: string | null }> | null>(null)
+  const [editando, setEditando] = useState(false)
+  const [contenidoEdit, setContenidoEdit] = useState('')
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const [comentarioEditId, setComentarioEditId] = useState<number | null>(null)
+  const [comentarioEditContenido, setComentarioEditContenido] = useState('')
   const puedeBorrar = post.autor.id === userId
+  const puedeEditarPost = post.autor.id === userId && dentroDeVentanaEdicion(post.createdAt)
+
+  function iniciarEdicionPost() {
+    setContenidoEdit(post.contenido)
+    setEditando(true)
+  }
+
+  async function guardarEdicionPost() {
+    if (esContenidoVacio(contenidoEdit)) { toast.error('El contenido no puede quedar vacío'); return }
+    setGuardandoEdit(true)
+    const r = await fetch(`/api/portal/posts/${post.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contenido: contenidoEdit }),
+    })
+    setGuardandoEdit(false)
+    if (!r.ok) { await handleApiError(r); return }
+    toast.success('Publicación actualizada')
+    setEditando(false)
+    onReaccion()
+  }
+
+  function iniciarEdicionComentario(c: Comentario) {
+    setComentarioEditId(c.id)
+    setComentarioEditContenido(c.contenido)
+  }
+
+  async function guardarEdicionComentario() {
+    if (comentarioEditId === null) return
+    if (esContenidoVacio(comentarioEditContenido)) { toast.error('El comentario no puede quedar vacío'); return }
+    const cid = comentarioEditId
+    const r = await fetch(`/api/portal/posts/${post.id}/comentarios/${cid}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contenido: comentarioEditContenido }),
+    })
+    if (!r.ok) { await handleApiError(r); return }
+    setComentarioEditId(null)
+    setComentarios(prev => prev?.map(c => c.id === cid ? { ...c, contenido: comentarioEditContenido, editedAt: new Date().toISOString() } : c) ?? null)
+  }
 
   async function abrirLikes() {
     setLikesOpen(true)
@@ -271,25 +326,49 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
               )}
               <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                 {timeAgo(post.createdAt)}
+                {post.editedAt && <span className="italic">· editado</span>}
                 {' · '}
                 {post.alcance === 'GLOBAL'
                   ? <><Globe size={10} /> Todos</>
                   : <><Users size={10} /> {post.categoria?.nombre}</>}
               </p>
             </div>
-            {puedeBorrar && (
-              <button
-                onClick={borrarPost}
-                className="text-muted-foreground hover:text-red-600 p-1 rounded transition-colors"
-                title="Eliminar"
-              >
-                <Trash2 size={14} />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {puedeEditarPost && !editando && (
+                <button
+                  onClick={iniciarEdicionPost}
+                  className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                  title="Editar"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {puedeBorrar && (
+                <button
+                  onClick={borrarPost}
+                  className="text-muted-foreground hover:text-red-600 p-1 rounded transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      {post.contenido && (
+      {editando ? (
+        <div className="px-4 pb-3 space-y-2">
+          <RichEditor value={contenidoEdit} onChange={setContenidoEdit} placeholder="Editá el contenido…" />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setEditando(false)} disabled={guardandoEdit}>
+              Cancelar
+            </Button>
+            <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={guardarEdicionPost} disabled={guardandoEdit}>
+              <Check size={13} className="mr-1" />{guardandoEdit ? 'Guardando…' : 'Guardar'}
+            </Button>
+          </div>
+        </div>
+      ) : post.contenido && (
         <div className="px-4 pb-3">
           <PostContent html={post.contenido} />
         </div>
@@ -344,26 +423,64 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
           ) : comentarios.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-2">Sé el primero en comentar</p>
           ) : (
-            comentarios.map(c => (
-              <div key={c.id} className="flex items-start gap-2 group">
-                <Avatar autor={c.autor} size={28} />
-                <div className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5">
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-xs font-semibold">{c.autor.nombreCompleto}</p>
-                    <p className="text-[10px] text-muted-foreground">{timeAgo(c.createdAt)}</p>
+            comentarios.map(c => {
+              const puedeEditarComentario = c.autor.id === userId && dentroDeVentanaEdicion(c.createdAt)
+              const editandoEste = comentarioEditId === c.id
+              return (
+                <div key={c.id} className="flex items-start gap-2 group">
+                  <Avatar autor={c.autor} size={28} />
+                  <div className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5">
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-xs font-semibold">{c.autor.nombreCompleto}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {timeAgo(c.createdAt)}{c.editedAt && <span className="italic"> · editado</span>}
+                      </p>
+                    </div>
+                    {editandoEste ? (
+                      <div className="mt-1 space-y-1.5">
+                        <RichEditor
+                          value={comentarioEditContenido}
+                          onChange={setComentarioEditContenido}
+                          variant="mini"
+                          minHeight={40}
+                          onSubmit={guardarEdicionComentario}
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setComentarioEditId(null)}>
+                            Cancelar
+                          </Button>
+                          <Button size="sm" className="bg-green-700 hover:bg-green-800 h-6 text-[11px] px-2" onClick={guardarEdicionComentario}>
+                            Guardar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-0.5"><PostContent html={c.contenido} /></div>
+                    )}
                   </div>
-                  <div className="mt-0.5"><PostContent html={c.contenido} /></div>
+                  {c.autor.id === userId && !editandoEste && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {puedeEditarComentario && (
+                        <button
+                          onClick={() => iniciarEdicionComentario(c)}
+                          className="text-muted-foreground hover:text-foreground p-1"
+                          title="Editar"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => borrarComentario(c.id)}
+                        className="text-muted-foreground hover:text-red-600 p-1"
+                        title="Eliminar"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {c.autor.id === userId && (
-                  <button
-                    onClick={() => borrarComentario(c.id)}
-                    className="text-muted-foreground hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            ))
+              )
+            })
           )}
           <div className="flex gap-2 items-start pt-1">
             <div className="flex-1">

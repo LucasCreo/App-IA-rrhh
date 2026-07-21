@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +30,7 @@ function fmt(iso: string) {
 }
 
 export function MisAusencias() {
+  const router = useRouter()
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [saldo, setSaldo] = useState<Saldo | null>(null)
   const [tipos, setTipos] = useState<TipoAusencia[]>([])
@@ -65,7 +68,7 @@ export function MisAusencias() {
     if (archivo) fd.append('archivo', archivo)
     const res = await fetch('/api/empleado/ausencias', { method: 'POST', body: fd })
     setSaving(false)
-    if (!res.ok) { const e = await res.json(); toast.error(e.error ?? 'Error'); return }
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success('Solicitud enviada')
     setDialog(false)
     setForm({ tipoAusenciaId: '', fechaInicio: '', fechaFin: '', motivo: '' })

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { parseApiError, showApiError } from '@/lib/apiErrors'
+import { EVALUACIONES_ENABLED } from '@/lib/features'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -139,8 +141,9 @@ export default function EmpleadoDetailPage() {
     })
     setSaving(false)
     if (!res.ok) {
-      const text = await res.text()
-      toast.error(`Error al guardar: ${text}`)
+      const payloadErr = await parseApiError(res)
+      if (payloadErr.field) setErrors(prev => new Set(prev).add(payloadErr.field!))
+      showApiError(payloadErr, href => router.push(href))
       return
     }
     toast.success('Empleado guardado')
@@ -176,7 +179,7 @@ export default function EmpleadoDetailPage() {
           {([
             { id: 'datos', label: 'Datos' },
             { id: 'documentos', label: 'Documentos' },
-            { id: 'evaluaciones', label: 'Evaluaciones' },
+            ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones' as const, label: 'Evaluaciones' }] : []),
             { id: 'formularios', label: 'Formularios' },
             { id: 'calendario', label: 'Calendario' },
           ] as const).map(t => (
@@ -196,7 +199,7 @@ export default function EmpleadoDetailPage() {
         </div>
 
         {tab === 'documentos' && <DocumentosTable employeeId={form.id} />}
-        {tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
+        {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'formularios' && <EmpleadoFormulariosTab employeeId={form.id} />}
         {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}
         {tab === 'datos' && <div className="max-w-3xl space-y-6">
@@ -325,6 +328,9 @@ export default function EmpleadoDetailPage() {
                             const { fileName } = await res.json()
                             setValoresCustom(prev => ({ ...prev, [c.id]: fileName }))
                             clearError(`custom_${c.id}`)
+                          } else {
+                            const errP = await parseApiError(res)
+                            showApiError(errP, href => router.push(href))
                           }
                         }}
                       />

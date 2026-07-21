@@ -76,6 +76,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'CUIL inválido' }, { status: 400 })
   }
 
+  // Pre-checks de unicidad con mensajes específicos
+  if (body.email) {
+    const [empByEmail, userByEmail] = await Promise.all([
+      prisma.employee.findFirst({ where: { email: body.email }, select: { id: true } }),
+      prisma.user.findFirst({ where: { email: body.email }, select: { id: true } }),
+    ])
+    if (empByEmail || userByEmail) {
+      return NextResponse.json({ error: 'Ya existe una cuenta con ese email', field: 'email' }, { status: 409 })
+    }
+  }
+  if (body.legajo) {
+    const dup = await prisma.employee.findFirst({ where: { legajo: body.legajo }, select: { id: true } })
+    if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese legajo', field: 'legajo' }, { status: 409 })
+  }
+  if (body.cuil) {
+    const dup = await prisma.employee.findFirst({ where: { cuil: body.cuil }, select: { id: true } })
+    if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese CUIL', field: 'cuil' }, { status: 409 })
+  }
 
   try {
     const emp = await prisma.$transaction(async (tx) => {
@@ -116,7 +134,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(emp, { status: 201 })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-      return NextResponse.json({ error: 'Ya existe un empleado con ese legajo, CUIL o email' }, { status: 409 })
+      const target = (e.meta?.target as string[] | undefined) ?? []
+      let msg = 'Ya existe un registro con ese valor'
+      let field = ''
+      if (target.some(t => t.includes('email'))) { msg = 'Ya existe una cuenta con ese email'; field = 'email' }
+      else if (target.some(t => t.includes('legajo'))) { msg = 'Ya existe un empleado con ese legajo'; field = 'legajo' }
+      else if (target.some(t => t.includes('cuil'))) { msg = 'Ya existe un empleado con ese CUIL'; field = 'cuil' }
+      return NextResponse.json({ error: msg, field }, { status: 409 })
     }
     throw e
   }

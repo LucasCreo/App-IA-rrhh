@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { FileText, CalendarOff, UserPen, Clock } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 interface Props {
@@ -39,6 +38,32 @@ export function WelcomeCard({ me, pendingSolicitudesDoc, pendingSolicitudesMod, 
     ? `${me.nombre[0]}${me.apellido[0]}`.toUpperCase()
     : me.nombre.slice(0, 2).toUpperCase()
 
+  const items = [
+    { count: pendingAusencias, singular: 'solicitud de ausencia', plural: 'solicitudes de ausencia' },
+    { count: pendingSolicitudesDoc, singular: 'solicitud de documento', plural: 'solicitudes de documentos' },
+    { count: pendingSolicitudesMod, singular: 'modificación de datos', plural: 'modificaciones de datos' },
+  ]
+
+  const pendientesLabel = () => {
+    if (totalPendientes === 0) return 'No tenés nada pendiente por revisar.'
+    const conPendientes = items.filter(i => i.count > 0)
+    if (conPendientes.length === 1) {
+      const it = conPendientes[0]
+      return (
+        <>
+          Tenés <strong className="text-foreground">{it.count}</strong>{' '}
+          {it.count === 1 ? it.singular : it.plural} pendiente{it.count === 1 ? '' : 's'} de revisión.
+        </>
+      )
+    }
+    const partes = conPendientes.map(i => `${i.count} ${i.count === 1 ? i.singular : i.plural}`)
+    return (
+      <>
+        Tenés pendientes: <strong className="text-foreground">{partes.join(' · ')}</strong>.
+      </>
+    )
+  }
+
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-4">
@@ -56,50 +81,9 @@ export function WelcomeCard({ me, pendingSolicitudesDoc, pendingSolicitudesMod, 
           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 capitalize">
             <Clock size={12} /> {fechaLarga()}
           </p>
-          {totalPendientes > 0 ? (
-            <p className="text-sm text-muted-foreground mt-1">
-              Tenés <strong className="text-foreground">{totalPendientes}</strong> {totalPendientes === 1 ? 'solicitud pendiente' : 'solicitudes pendientes'} de revisión.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground mt-1">No tenés solicitudes pendientes.</p>
-          )}
+          <p className="text-sm text-muted-foreground mt-1">{pendientesLabel()}</p>
         </div>
       </div>
-
-      {totalPendientes > 0 && (
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <Link
-            href="/admin/ausencias"
-            className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 hover:bg-muted transition-colors"
-          >
-            <CalendarOff size={14} className="text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground truncate">Ausencias</p>
-              <p className="text-sm font-semibold">{pendingAusencias}</p>
-            </div>
-          </Link>
-          <Link
-            href="/admin/documentos?tab=solicitudes"
-            className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 hover:bg-muted transition-colors"
-          >
-            <FileText size={14} className="text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground truncate">Documentos</p>
-              <p className="text-sm font-semibold">{pendingSolicitudesDoc}</p>
-            </div>
-          </Link>
-          <Link
-            href="/admin/empleados?tab=modificaciones"
-            className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 hover:bg-muted transition-colors"
-          >
-            <UserPen size={14} className="text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground truncate">Modificaciones</p>
-              <p className="text-sm font-semibold">{pendingSolicitudesMod}</p>
-            </div>
-          </Link>
-        </div>
-      )}
     </div>
   )
 }

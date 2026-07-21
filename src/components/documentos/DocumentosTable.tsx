@@ -1,17 +1,19 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DocumentoUploadDialog } from './DocumentoUploadDialog'
-import { DocumentoMasivoDialog } from './DocumentoMasivoDialog'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Send, Trash2, Plus, RefreshCw, Download, Users, Search, SlidersHorizontal, X } from 'lucide-react'
+import { FileText, Send, Trash2, Plus, RefreshCw, Download, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
 interface Props { esRecibo?: boolean; employeeId?: number }
@@ -38,9 +40,9 @@ const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
 export function DocumentosTable({ esRecibo, employeeId }: Props) {
+  const router = useRouter()
   const [docs, setDocs] = useState<Doc[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [masivoOpen, setMasivoOpen] = useState(false)
   const [cargarOpen, setCargarOpen] = useState(false)
   const [sending, setSending] = useState<number | null>(null)
   const [sendingBulk, setSendingBulk] = useState(false)
@@ -59,6 +61,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
   const [empleados, setEmpleados] = useState<{ id: number; nombre: string; apellido: string; legajo: string }[]>([])
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -79,7 +82,12 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
     params.set('page', String(page))
     fetch(`/api/documentos?${params}`)
       .then(r => r.json())
-      .then(data => { setDocs(data.docs ?? []); setTotal(data.total ?? 0); setPages(data.pages ?? 1) })
+      .then(data => {
+        setDocs(data.docs ?? [])
+        setTotal(data.total ?? 0)
+        setPages(data.pages ?? 1)
+        setSelected(new Set())
+      })
       .finally(() => setLoading(false))
   }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtQDebounced, esRecibo, employeeId, page])
 
@@ -112,33 +120,75 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
   async function handleSendToSign(id: number) {
     setSending(id)
     const res = await fetch(`/api/documentos/${id}/enviar-firma`, { method: 'POST' })
-    const data = await res.json()
-    if (!res.ok) toast.error(`Error: ${data.error}`)
-    else toast.success('Enviado a firma')
+    if (!res.ok) {
+      await handleApiError(res, href => router.push(href))
+    } else {
+      toast.success('Enviado')
+    }
     setSending(null)
     load()
   }
 
   async function handleBulkSend() {
-    const pendientes = docs.filter(d => d.estado === 'BORRADOR' || d.estado === 'ERROR')
-    if (!pendientes.length) return
+    // Si hay seleccionados, usar esa lista; si no, todos los enviables
+    const enviables = docs.filter(d =>
+      (d.estado === 'BORRADOR' || d.estado === 'ERROR') && d.tipoDocumento?.accion !== 'NINGUNA'
+    )
+    const target = selected.size > 0
+      ? enviables.filter(d => selected.has(d.id))
+      : enviables
+    if (!target.length) return
     setSendingBulk(true)
     let ok = 0, fail = 0
-    for (const doc of pendientes) {
+    let configError: Awaited<ReturnType<typeof handleApiError>> | null = null
+    for (const doc of target) {
       const res = await fetch(`/api/documentos/${doc.id}/enviar-firma`, { method: 'POST' })
-      if (res.ok) ok++; else fail++
+      if (res.ok) { ok++; continue }
+      fail++
+      // Si el error es de configuración, detenemos e informamos una sola vez
+      const payload = await res.clone().json().catch(() => null)
+      if (payload?.code === 'SIGNATURE_NOT_CONFIGURED' || payload?.code === 'SIGNATURE_INCOMPLETE') {
+        configError = payload
+        break
+      }
     }
     setSendingBulk(false)
-    if (fail > 0) toast.error(`${fail} envío(s) fallaron`)
-    if (ok > 0) toast.success(`${ok} enviado(s) a firma`)
+    if (configError) {
+      // Reusar el helper para mostrar con acción "Configurar firma"
+      const { showApiError } = await import('@/lib/apiErrors')
+      showApiError(configError, href => router.push(href))
+    } else if (fail > 0) toast.error(`${fail} envío(s) fallaron`)
+    if (ok > 0) toast.success(`${ok} enviado(s)`)
     load()
+  }
+
+  const seleccionables = docs.filter(d =>
+    (d.estado === 'BORRADOR' || d.estado === 'ERROR') && d.tipoDocumento?.accion !== 'NINGUNA'
+  )
+  const allSelected = seleccionables.length > 0 && seleccionables.every(d => selected.has(d.id))
+  const someSelected = selected.size > 0 && !allSelected
+
+  function toggleOne(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function toggleAll() {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(seleccionables.map(d => d.id)))
   }
 
   async function handleCheckStatus(id: number) {
     const res = await fetch(`/api/documentos/${id}/enviar-firma`, { method: 'PATCH' })
-    const data = await res.json()
-    if (!res.ok) toast.error(`Error: ${data.error}`)
-    else toast.success(`Estado actualizado: ${data.estado ?? 'OK'}`)
+    if (!res.ok) {
+      await handleApiError(res, href => router.push(href))
+    } else {
+      const data = await res.json()
+      toast.success(`Estado actualizado: ${data.estado ?? 'OK'}`)
+    }
     load()
   }
 
@@ -166,8 +216,13 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
 
   async function confirmDelete() {
     if (deleteId === null) return
-    await fetch(`/api/documentos/${deleteId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/documentos/${deleteId}`, { method: 'DELETE' })
     setDeleteId(null)
+    if (!res.ok) {
+      await handleApiError(res, href => router.push(href))
+    } else {
+      toast.success('Documento eliminado')
+    }
     load()
   }
 
@@ -221,17 +276,16 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
           {borradores.length > 0 && (
             <Button variant="outline" className="text-blue-600 border-blue-200" onClick={handleBulkSend} disabled={sendingBulk}>
               <Send size={14} className="mr-1" />
-              {sendingBulk ? 'Enviando...' : `Notificar/Enviar ${borradores.length}`}
+              {sendingBulk
+                ? 'Enviando...'
+                : selected.size > 0
+                  ? `Enviar ${selected.size} seleccionado${selected.size === 1 ? '' : 's'}`
+                  : `Enviar ${borradores.length}`}
             </Button>
           )}
           {docs.length > 0 && (
             <Button variant="outline" onClick={exportCSV}>
               <Download size={14} className="mr-1" /> CSV
-            </Button>
-          )}
-          {esRecibo === true && !employeeId && (
-            <Button variant="outline" onClick={() => setMasivoOpen(true)}>
-              <Users size={14} className="mr-1" /> Distribución masiva
             </Button>
           )}
           <Button className="bg-green-700 hover:bg-green-800" onClick={() => esRecibo === true ? setUploadOpen(true) : setCargarOpen(true)}>
@@ -366,14 +420,39 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
         <p className="text-center text-muted-foreground py-10">No hay documentos con esos filtros.</p>
       ) : (
         <>
+          {/* Master select mobile */}
+          {seleccionables.length > 0 && (
+            <div className="md:hidden flex items-center gap-2 px-1">
+              <Checkbox
+                checked={allSelected}
+                indeterminate={someSelected}
+                onCheckedChange={toggleAll}
+              />
+              <span className="text-xs text-muted-foreground">
+                {selected.size > 0 ? `${selected.size} seleccionado${selected.size === 1 ? '' : 's'}` : 'Seleccionar todos'}
+              </span>
+            </div>
+          )}
+
           {/* Vista mobile — cards */}
           <div className="md:hidden space-y-3">
-            {docs.map(doc => (
+            {docs.map(doc => {
+              const puedeSeleccionar = (doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && doc.tipoDocumento?.accion !== 'NINGUNA'
+              return (
               <div key={doc.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    {!employeeId && <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>}
-                    <p className="text-xs text-muted-foreground">{!employeeId && doc.employee.legajo}{doc.periodo ? `${!employeeId ? ' · ' : ''}${doc.periodo}` : ''}</p>
+                  <div className="flex items-start gap-2 min-w-0">
+                    {puedeSeleccionar && (
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={selected.has(doc.id)}
+                        onCheckedChange={() => toggleOne(doc.id)}
+                      />
+                    )}
+                    <div className="min-w-0">
+                      {!employeeId && <p className="font-medium text-sm">{doc.employee.apellido}, {doc.employee.nombre}</p>}
+                      <p className="text-xs text-muted-foreground">{!employeeId && doc.employee.legajo}{doc.periodo ? `${!employeeId ? ' · ' : ''}${doc.periodo}` : ''}</p>
+                    </div>
                   </div>
                   <StatusBadge estado={doc.estado} accion={doc.tipoDocumento?.accion} />
                 </div>
@@ -391,13 +470,13 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                     if (accion === 'NINGUNA') return null
                     if (accion === 'LECTURA') {
                       if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
-                        return <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Notificar'}</Button>
+                        return <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}</Button>
                       return null
                     }
                     return <>
                       {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
                         <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar a firma'}
+                          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
                         </Button>
                       )}
                       {doc.estado === 'ENVIADO_A_FIRMA' && (
@@ -412,7 +491,8 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                   </Button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Vista desktop — tabla */}
@@ -420,6 +500,16 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    {seleccionables.length > 0 && (
+                      <Checkbox
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Seleccionar todos"
+                      />
+                    )}
+                  </TableHead>
                   {!employeeId && <TableHead>Empleado</TableHead>}
                   <TableHead>Período</TableHead>
                   <TableHead>Tipo</TableHead>
@@ -430,8 +520,19 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {docs.map(doc => (
+                {docs.map(doc => {
+                  const puedeSeleccionar = (doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && doc.tipoDocumento?.accion !== 'NINGUNA'
+                  return (
                   <TableRow key={doc.id}>
+                    <TableCell className="w-10">
+                      {puedeSeleccionar && (
+                        <Checkbox
+                          checked={selected.has(doc.id)}
+                          onCheckedChange={() => toggleOne(doc.id)}
+                          aria-label={`Seleccionar ${doc.nombreArchivo}`}
+                        />
+                      )}
+                    </TableCell>
                     {!employeeId && (
                       <TableCell>
                         <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
@@ -459,13 +560,13 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                         if (accion === 'NINGUNA') return null
                         if (accion === 'LECTURA') {
                           if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
-                            return <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Notificar'}</Button>
+                            return <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}</Button>
                           return null
                         }
                         return <>
                           {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
                             <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                              <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Firmar'}
+                              <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
                             </Button>
                           )}
                           {doc.estado === 'ENVIADO_A_FIRMA' && (
@@ -480,7 +581,8 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -516,7 +618,6 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
       </AlertDialog>
 
       {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} esRecibo={esRecibo} />}
-      {masivoOpen && <DocumentoMasivoDialog open onClose={() => setMasivoOpen(false)} onSaved={load} />}
       {cargarOpen && <DocumentoCargarDialog open onClose={() => setCargarOpen(false)} onSaved={load} />}
     </div>
   )

@@ -6,10 +6,21 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 interface Log {
   id: number; accion: string; entidad: string; detalle?: string; createdAt: string
-  user: { email: string }
+  user: {
+    email: string
+    avatarUrl?: string | null
+    avatarBgColor?: string | null
+    avatarTextColor?: string | null
+    employee?: { nombre: string; apellido: string } | null
+  }
+}
+
+function nombreUsuario(u: Log['user']) {
+  return u.employee ? `${u.employee.nombre} ${u.employee.apellido}` : u.email
 }
 
 export function TabAuditoria() {
@@ -93,7 +104,23 @@ export function TabAuditoria() {
                     <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
                       {new Date(log.createdAt).toLocaleString('es-AR')}
                     </TableCell>
-                    <TableCell className="text-sm">{log.user.email}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AvatarDisplay
+                          nombre={nombreUsuario(log.user)}
+                          avatarUrl={log.user.avatarUrl}
+                          bgColor={log.user.avatarBgColor}
+                          textColor={log.user.avatarTextColor}
+                          size={24}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate">{nombreUsuario(log.user)}</p>
+                          {log.user.employee && (
+                            <p className="text-[11px] text-muted-foreground truncate">{log.user.email}</p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-400 rounded text-xs font-mono">
                         {log.accion}
@@ -119,7 +146,16 @@ export function TabAuditoria() {
                 </div>
                 <p className="text-sm font-medium">{log.entidad}</p>
                 {log.detalle && <p className="text-xs text-muted-foreground">{log.detalle}</p>}
-                <p className="text-xs text-muted-foreground">{log.user.email}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <AvatarDisplay
+                    nombre={nombreUsuario(log.user)}
+                    avatarUrl={log.user.avatarUrl}
+                    bgColor={log.user.avatarBgColor}
+                    textColor={log.user.avatarTextColor}
+                    size={20}
+                  />
+                  <p className="text-xs text-muted-foreground">{nombreUsuario(log.user)}</p>
+                </div>
               </div>
             ))}
           </div>

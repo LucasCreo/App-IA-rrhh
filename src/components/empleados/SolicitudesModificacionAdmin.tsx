@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Check, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -39,7 +40,7 @@ export function SolicitudesModificacionAdmin({ employeeId }: { employeeId: numbe
     const res = await fetch(`/api/solicitudes-modificacion/${id}`, { method: 'PATCH' })
     if (!res.ok) {
       setSolicitudes(prev)
-      toast.error('Error al actualizar')
+      await handleApiError(res, href => router.push(href))
       return
     }
     router.refresh()

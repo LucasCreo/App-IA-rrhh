@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendToSign, SignatureError } from '@/lib/signature'
 import { sendMail } from '@/lib/email'
+import { SIGNATURE_MODE } from '@/lib/features'
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -21,8 +22,8 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     where: { loteId: Number(id), estado: { in: ['BORRADOR', 'ERROR'] } },
   })
 
-  // Pre-check: si la firma no está configurada, abortar antes de tocar la DB
-  if (accion !== 'LECTURA' && accion !== 'NINGUNA') {
+  // Pre-check: si la firma va por proveedor externo, validar configuración
+  if (SIGNATURE_MODE === 'external' && accion !== 'LECTURA' && accion !== 'NINGUNA') {
     const cfg = await prisma.signatureConfig.findFirst()
     if (!cfg) {
       return NextResponse.json({
@@ -43,7 +44,7 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
   for (const doc of docs) {
     try {
-      if (accion === 'LECTURA' || accion === 'NINGUNA') {
+      if (accion === 'LECTURA' || accion === 'NINGUNA' || SIGNATURE_MODE === 'password') {
         await prisma.document.update({
           where: { id: doc.id },
           data: { estado: 'ENVIADO_A_FIRMA' },

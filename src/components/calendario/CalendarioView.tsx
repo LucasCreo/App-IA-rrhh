@@ -32,10 +32,13 @@ interface Evento {
   todoElDia: boolean
   tipo: string
   subtipo?: string | null
+  color?: string | null
   comentarioAdmin?: string | null
   creadoPorId: number
-  creadoPor?: { email: string; role: string }
+  creadoPor?: { email: string; role: string } | null
   asignados: Asignado[]
+  virtual?: boolean
+  solicitudAusenciaId?: number
 }
 
 interface Props {
@@ -164,6 +167,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     setSemanaRef(inicioSemana(t))
   }
   function canDrag(e: Evento) {
+    if (e.virtual) return false
     return isAdmin || e.creadoPorId === currentUserId
   }
 
@@ -215,6 +219,10 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     return tipos.find(t => t.nombre === tipoNombre)?.color ?? '#6b7280'
   }
 
+  function getEventColor(e: Evento): string {
+    return e.color ?? getTipoColor(e.tipo)
+  }
+
   const tiposDisponibles = tipos.filter(t => isAdmin ? t.permiteAdmin : t.permiteEmpleado)
 
   function defaultTipo() {
@@ -238,6 +246,11 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   }
 
   function openEvent(e: Evento) {
+    // Ausencias (virtuales) son solo lectura
+    if (e.virtual) {
+      setDialog({ mode: 'view', evento: e })
+      return
+    }
     // Admin viewing an event created by an employee
     if (isAdmin && e.creadoPor?.role === 'EMPLOYEE') {
       setComentarioAdmin(e.comentarioAdmin ?? '')
@@ -422,38 +435,56 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
         </div>
       </div>
 
-      {/* Leyenda de tipos */}
-      {tipos.length > 0 && (
-        <div className="px-6 py-2 border-b bg-muted/20 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">Tipos:</span>
-          {tipos.map(t => {
-            const oculto = tiposOcultos.has(t.nombre)
-            return (
+      {/* Leyenda de tipos (incluye virtuales de Ausencias) */}
+      {(() => {
+        const virtualTipos = new Map<string, { nombre: string; color: string; label: string }>()
+        for (const e of eventos) {
+          if (!e.virtual || !e.tipo.startsWith('__ausencia__:')) continue
+          if (!virtualTipos.has(e.tipo)) {
+            virtualTipos.set(e.tipo, {
+              nombre: e.tipo,
+              color: e.color ?? '#6b7280',
+              label: `Ausencia · ${e.subtipo ?? ''}`,
+            })
+          }
+        }
+        const items = [
+          ...tipos.map(t => ({ nombre: t.nombre, color: t.color, label: formatTipoLabel(t.nombre) })),
+          ...virtualTipos.values(),
+        ]
+        if (items.length === 0) return null
+        return (
+          <div className="px-6 py-2 border-b bg-muted/20 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">Tipos:</span>
+            {items.map(t => {
+              const oculto = tiposOcultos.has(t.nombre)
+              return (
+                <button
+                  key={t.nombre}
+                  onClick={() => toggleTipoOculto(t.nombre)}
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded-full border transition-all inline-flex items-center gap-1.5',
+                    oculto ? 'opacity-40 border-dashed' : 'border-transparent'
+                  )}
+                  style={oculto ? {} : { backgroundColor: `${t.color}20`, color: t.color, borderColor: `${t.color}40` }}
+                  title={oculto ? 'Mostrar' : 'Ocultar'}
+                >
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
+                  {t.label}
+                </button>
+              )
+            })}
+            {tiposOcultos.size > 0 && (
               <button
-                key={t.nombre}
-                onClick={() => toggleTipoOculto(t.nombre)}
-                className={cn(
-                  'text-xs px-2 py-0.5 rounded-full border transition-all inline-flex items-center gap-1.5',
-                  oculto ? 'opacity-40 border-dashed' : 'border-transparent'
-                )}
-                style={oculto ? {} : { backgroundColor: `${t.color}20`, color: t.color, borderColor: `${t.color}40` }}
-                title={oculto ? 'Mostrar' : 'Ocultar'}
+                onClick={() => setTiposOcultos(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground ml-1 underline"
               >
-                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
-                {formatTipoLabel(t.nombre)}
+                Mostrar todos
               </button>
-            )
-          })}
-          {tiposOcultos.size > 0 && (
-            <button
-              onClick={() => setTiposOcultos(new Set())}
-              className="text-xs text-muted-foreground hover:text-foreground ml-1 underline"
-            >
-              Mostrar todos
-            </button>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )
+      })()}
 
       {/* Filter bar (admin only) */}
       {isAdmin && showFilters && (
@@ -548,7 +579,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                               isStart && isEnd ? 'rounded' : isStart ? 'rounded-l' : isEnd ? 'rounded-r' : 'rounded-none',
                               dragEvento?.id === e.id && 'opacity-50'
                             )}
-                            style={{ backgroundColor: getTipoColor(e.tipo) }}
+                            style={{ backgroundColor: getEventColor(e) }}
                           >
                             {isStart && !e.todoElDia && (
                               <span className="opacity-75 mr-1">
@@ -626,7 +657,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                             draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
                             dragEvento?.id === e.id && 'opacity-50'
                           )}
-                          style={{ backgroundColor: getTipoColor(e.tipo) }}
+                          style={{ backgroundColor: getEventColor(e) }}
                           title={e.titulo}
                         >
                           {!e.todoElDia && (
@@ -682,7 +713,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                             onClick={() => openEvent(e)}
                             className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
                           >
-                            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: getTipoColor(e.tipo) }} />
+                            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: getEventColor(e) }} />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{e.titulo}</p>
                               {e.descripcion && <p className="text-xs text-muted-foreground truncate">{e.descripcion}</p>}
@@ -737,7 +768,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                     onClick={() => openEvent(e)}
                     className="flex items-start gap-2 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
                   >
-                    <span className="mt-1 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: getTipoColor(e.tipo) }} />
+                    <span className="mt-1 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: getEventColor(e) }} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{e.titulo}</p>
                       <p className="text-xs text-muted-foreground">
@@ -762,9 +793,15 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
               <p>
                 <span className="font-medium">Tipo: </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getTipoColor(dialog.evento?.tipo ?? '') }} />
-                  {formatTipoLabel(dialog.evento?.tipo ?? '')}
-                  {dialog.evento?.subtipo && <span className="text-muted-foreground">· {dialog.evento.subtipo}</span>}
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: dialog.evento ? getEventColor(dialog.evento) : '#6b7280' }} />
+                  {dialog.evento?.virtual
+                    ? `Ausencia · ${dialog.evento.subtipo ?? ''}`
+                    : (
+                      <>
+                        {formatTipoLabel(dialog.evento?.tipo ?? '')}
+                        {dialog.evento?.subtipo && <span className="text-muted-foreground">· {dialog.evento.subtipo}</span>}
+                      </>
+                    )}
                 </span>
               </p>
             </div>

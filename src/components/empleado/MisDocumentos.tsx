@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { FileText, Download, BookOpen, Pen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
@@ -21,6 +24,9 @@ interface Props { employeeId: number }
 export function MisDocumentos({ employeeId }: Props) {
   const [docs, setDocs] = useState<Doc[]>([])
   const [acting, setActing] = useState<number | null>(null)
+  const [firmaDoc, setFirmaDoc] = useState<Doc | null>(null)
+  const [password, setPassword] = useState('')
+  const [firmando, setFirmando] = useState(false)
 
   function load() {
     fetch(`/api/documentos?employeeId=${employeeId}&recibo=false`)
@@ -36,6 +42,32 @@ export function MisDocumentos({ employeeId }: Props) {
     if (res.ok) { toast.success('Documento marcado como leído'); load() }
     else toast.error('Error al marcar como leído')
     setActing(null)
+  }
+
+  function abrirFirma(doc: Doc) {
+    setFirmaDoc(doc)
+    setPassword('')
+  }
+
+  async function confirmarFirma() {
+    if (!firmaDoc) return
+    if (!password) { toast.error('Ingresá tu contraseña'); return }
+    setFirmando(true)
+    const res = await fetch(`/api/documentos/${firmaDoc.id}/firmar-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    setFirmando(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error ?? 'No se pudo firmar')
+      return
+    }
+    toast.success('Documento firmado')
+    setFirmaDoc(null)
+    setPassword('')
+    load()
   }
 
   if (docs.length === 0) {
@@ -64,7 +96,7 @@ export function MisDocumentos({ employeeId }: Props) {
                 {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
               </p>
             </div>
-            <StatusBadge estado={doc.estado} accion={accion} />
+            <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
             <div className="flex items-center gap-1 shrink-0">
               {pendienteLectura && (
                 <Button
@@ -79,22 +111,66 @@ export function MisDocumentos({ employeeId }: Props) {
                 </Button>
               )}
               {pendienteFirma && (
-                <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
-                  <Button size="sm" variant="outline" className="text-green-700 border-green-300">
-                    <Pen size={13} className="mr-1" /> Ver para firmar
+                <>
+                  <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
+                    <Button size="sm" variant="ghost" className="text-muted-foreground">
+                      <FileText size={13} className="mr-1" /> Ver
+                    </Button>
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-green-700 border-green-300"
+                    onClick={() => abrirFirma(doc)}
+                  >
+                    <Pen size={13} className="mr-1" /> Firmar
                   </Button>
-                </a>
+                </>
               )}
-              <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
-                <Button size="sm" variant="ghost"><FileText size={14} /></Button>
-              </a>
-              <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
-                <Button size="sm" variant="ghost"><Download size={14} /></Button>
-              </a>
+              {!pendienteFirma && (
+                <>
+                  <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
+                    <Button size="sm" variant="ghost"><FileText size={14} /></Button>
+                  </a>
+                  <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
+                    <Button size="sm" variant="ghost"><Download size={14} /></Button>
+                  </a>
+                </>
+              )}
             </div>
           </div>
         )
       })}
+
+      <Dialog open={firmaDoc !== null} onOpenChange={o => { if (!o) { setFirmaDoc(null); setPassword('') } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Firmar documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm">
+              Estás por firmar <strong>{firmaDoc?.tipoDocumento?.nombre ?? firmaDoc?.nombreArchivo}</strong>.
+              Ingresá tu contraseña para confirmar.
+            </p>
+            <div>
+              <Label className="mb-1.5">Contraseña</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmarFirma() }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFirmaDoc(null)} disabled={firmando}>Cancelar</Button>
+            <Button className="bg-green-700 hover:bg-green-800" onClick={confirmarFirma} disabled={firmando || !password}>
+              {firmando ? 'Firmando…' : 'Firmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -51,7 +51,7 @@ export default async function PerfilPage() {
             </div>
           </div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Datos personales</p>
-          <dl className="grid grid-cols-4 gap-x-8 gap-y-4 text-sm">
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 sm:gap-x-8 gap-y-4 text-sm">
             <div className="col-span-2">
               <dt className="text-xs text-muted-foreground mb-0.5">Nombre completo</dt>
               <dd className="font-medium">{employee.nombre} {employee.apellido}</dd>

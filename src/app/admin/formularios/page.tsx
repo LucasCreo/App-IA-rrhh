@@ -10,7 +10,7 @@ export default async function FormulariosPage() {
   return (
     <>
       <AdminHeader title="Formularios" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <AsignacionesList />
       </div>
     </>

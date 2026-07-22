@@ -49,7 +49,7 @@ export default async function EmpleadoPage() {
         <h1 className="font-semibold text-green-900 dark:text-green-400">Inicio</h1>
       </header>
 
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Bienvenida */}
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <div className="flex items-center gap-4">
@@ -76,7 +76,7 @@ export default async function EmpleadoPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <Link href="/empleado/recibos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             <FileText size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalRecibos}</p>

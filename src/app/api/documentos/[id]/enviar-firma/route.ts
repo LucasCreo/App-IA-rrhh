@@ -6,6 +6,7 @@ import { logAction } from '@/lib/audit'
 import { sendToSign, checkSignatureStatus, SignatureError } from '@/lib/signature'
 import { sendMail } from '@/lib/email'
 import { getScopedEmployeeIds } from '@/lib/scope'
+import { SIGNATURE_MODE } from '@/lib/features'
 
 async function notificarEmpleado(docId: number, accion: string) {
   try {
@@ -59,12 +60,13 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
 
   const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
 
-  if (accion === 'LECTURA' || accion === 'NINGUNA') {
+  if (accion === 'LECTURA' || accion === 'NINGUNA' || SIGNATURE_MODE === 'password') {
     await prisma.document.update({
       where: { id: doc.id },
       data: { estado: 'ENVIADO_A_FIRMA' },
     })
-    await logAction(user.userId, 'NOTIFICAR', 'Documento', `Doc ${doc.id} notificado para ${accion}`)
+    const label = SIGNATURE_MODE === 'password' && accion === 'FIRMA' ? 'FIRMA_PASSWORD' : accion
+    await logAction(user.userId, 'NOTIFICAR', 'Documento', `Doc ${doc.id} notificado para ${label}`)
     await notificarEmpleado(doc.id, accion)
     return NextResponse.json({ ok: true })
   }

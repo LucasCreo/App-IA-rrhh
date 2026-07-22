@@ -96,7 +96,7 @@ export default function AdminDashboard() {
           Personalizar
         </Button>
       } />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
 
         {data ? (
           <div className="space-y-6">

@@ -11,7 +11,7 @@ export default async function RondaPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <AdminHeader title="Evaluaciones de desempeño" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <RondaDetalle id={Number(id)} />
       </div>
     </>

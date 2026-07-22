@@ -479,7 +479,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                           <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
                         </Button>
                       )}
-                      {doc.estado === 'ENVIADO_A_FIRMA' && (
+                      {doc.estado === 'ENVIADO_A_FIRMA' && doc.firmaExternalId && (
                         <Button size="sm" variant="outline" className="flex-1" onClick={() => handleCheckStatus(doc.id)}>
                           <RefreshCw size={14} className="mr-1" />Ver estado
                         </Button>
@@ -511,7 +511,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                     )}
                   </TableHead>
                   {!employeeId && <TableHead>Empleado</TableHead>}
-                  <TableHead>Período</TableHead>
+                  {esRecibo !== false && <TableHead>Período</TableHead>}
                   <TableHead>Tipo</TableHead>
                   <TableHead>Archivo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -539,7 +539,9 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                         <div className="text-xs text-muted-foreground">{doc.employee.legajo}</div>
                       </TableCell>
                     )}
-                    <TableCell className="font-mono">{doc.periodo ?? '—'}</TableCell>
+                    {esRecibo !== false && (
+                      <TableCell className="font-mono">{doc.periodo ?? '—'}</TableCell>
+                    )}
                     <TableCell>
                       {doc.tipoDocumento
                         ? <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">{doc.tipoDocumento.nombre}</span>
@@ -569,7 +571,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                               <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
                             </Button>
                           )}
-                          {doc.estado === 'ENVIADO_A_FIRMA' && (
+                          {doc.estado === 'ENVIADO_A_FIRMA' && doc.firmaExternalId && (
                             <Button size="sm" variant="outline" onClick={() => handleCheckStatus(doc.id)}>
                               <RefreshCw size={14} className="mr-1" />Estado
                             </Button>

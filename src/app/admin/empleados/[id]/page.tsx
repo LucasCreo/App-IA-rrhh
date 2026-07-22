@@ -49,7 +49,7 @@ export default function EmpleadoDetailPage() {
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<'datos' | 'documentos' | 'evaluaciones' | 'formularios' | 'calendario'>('datos')
+  const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'formularios' | 'calendario'>('datos')
 
   useEffect(() => {
     Promise.all([
@@ -166,7 +166,7 @@ export default function EmpleadoDetailPage() {
   return (
     <>
       <AdminHeader title={`${form.apellido}, ${form.nombre}`} />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <button
           onClick={() => router.push('/admin/empleados')}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
@@ -175,10 +175,11 @@ export default function EmpleadoDetailPage() {
         </button>
 
         {/* Pestañas */}
-        <div className="flex border-b mb-6">
+        <div className="flex border-b mb-6 overflow-x-auto">
           {([
             { id: 'datos', label: 'Datos' },
             { id: 'documentos', label: 'Documentos' },
+            { id: 'recibos', label: 'Recibos' },
             ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones' as const, label: 'Evaluaciones' }] : []),
             { id: 'formularios', label: 'Formularios' },
             { id: 'calendario', label: 'Calendario' },
@@ -198,7 +199,8 @@ export default function EmpleadoDetailPage() {
           ))}
         </div>
 
-        {tab === 'documentos' && <DocumentosTable employeeId={form.id} />}
+        {tab === 'documentos' && <DocumentosTable employeeId={form.id} esRecibo={false} />}
+        {tab === 'recibos' && <DocumentosTable employeeId={form.id} esRecibo={true} />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'formularios' && <EmpleadoFormulariosTab employeeId={form.id} />}
         {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}

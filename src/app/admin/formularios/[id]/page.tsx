@@ -11,7 +11,7 @@ export default async function AsignacionPage({ params }: { params: Promise<{ id:
   return (
     <>
       <AdminHeader title="Formularios" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <AsignacionDetalle id={Number(id)} />
       </div>
     </>

@@ -5,7 +5,7 @@ export default function AdminPortalPage() {
   return (
     <>
       <AdminHeader title="Portal interno" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PortalFeed />
       </div>
     </>

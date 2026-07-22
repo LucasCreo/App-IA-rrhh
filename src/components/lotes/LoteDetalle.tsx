@@ -464,7 +464,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                               <Send size={14} />
                             </button>
                           )}
-                          {estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && (
+                          {estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && emp.documento?.firmaExternalId && (
                             <button
                               onClick={() => verificarDoc(docId)}
                               disabled={isLoading}

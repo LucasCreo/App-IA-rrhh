@@ -10,9 +10,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const docId = Number(id)
 
-  const { password } = await req.json().catch(() => ({ password: '' }))
-  if (typeof password !== 'string' || !password) {
+  const body = await req.json().catch(() => ({}))
+  const password: string = typeof body.password === 'string' ? body.password : ''
+  const conforme: boolean | null = typeof body.conforme === 'boolean' ? body.conforme : null
+  const comentario: string = typeof body.comentario === 'string' ? body.comentario.trim() : ''
+  if (!password) {
     return NextResponse.json({ error: 'Ingresá tu contraseña para firmar' }, { status: 400 })
+  }
+  if (conforme === null) {
+    return NextResponse.json({ error: 'Indicá si estás conforme o no' }, { status: 400 })
   }
 
   const doc = await prisma.document.findUnique({
@@ -42,7 +48,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await prisma.document.update({
     where: { id: docId },
-    data: { estado: 'FIRMADO', fechaFirma: new Date() },
+    data: {
+      estado: 'FIRMADO',
+      fechaFirma: new Date(),
+      firmaConforme: conforme,
+      firmaComentario: comentario || null,
+    },
   })
 
   await logAction(user.userId, 'FIRMAR_PASSWORD', 'Documento', `Doc ${docId}`)

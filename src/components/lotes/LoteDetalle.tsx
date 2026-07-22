@@ -17,8 +17,11 @@ import { handleApiError } from '@/lib/apiErrors'
 interface Documento {
   id: number
   estado: string
+  fechaCarga: string
   fechaFirma: string | null
   firmaExternalId: string | null
+  firmaConforme: boolean | null
+  firmaComentario: string | null
 }
 
 interface EmpleadoRow {
@@ -402,13 +405,16 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Empleado</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Legajo</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Estado</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden md:table-cell">Fecha carga</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Conformidad</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Comentario</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground">Acción</th>
               </tr>
             </thead>
             <tbody>
               {filteredEmpleados.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
                     <Users size={24} className="mx-auto mb-2 opacity-30" />
                     Sin empleados en este filtro
                   </td>
@@ -435,6 +441,35 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                         {cfg.label}
                       </span>
                     </td>
+                    <td className="py-3 px-4 text-muted-foreground text-xs hidden md:table-cell">
+                      {emp.documento?.fechaCarga
+                        ? new Date(emp.documento.fechaCarga).toLocaleDateString('es-AR')
+                        : '—'}
+                    </td>
+                    <td className="py-3 px-4 hidden lg:table-cell">
+                      {emp.documento?.firmaConforme === true ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">
+                          <Check size={12} /> Conforme
+                        </span>
+                      ) : emp.documento?.firmaConforme === false ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                          <X size={12} /> No conforme
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 hidden lg:table-cell">
+                      {emp.documento?.firmaComentario ? (
+                        <div className="max-w-[240px] overflow-hidden">
+                          <p className="text-xs text-muted-foreground line-clamp-2 break-words" title={emp.documento.firmaComentario}>
+                            {emp.documento.firmaComentario}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-right">
                       {docId && (
                         <div className="inline-flex items-center gap-0.5">
@@ -447,13 +482,15 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                           >
                             <Eye size={14} />
                           </a>
-                          <button
-                            onClick={() => abrirReemplazo(docId)}
-                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            title="Reemplazar PDF"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                          {estadoKey !== 'FIRMADO' && (
+                            <button
+                              onClick={() => abrirReemplazo(docId)}
+                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              title="Reemplazar PDF"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
                           {(estadoKey === 'BORRADOR' || estadoKey === 'ERROR') && accion !== 'NINGUNA' && (
                             <button
                               onClick={() => enviarDoc(docId)}

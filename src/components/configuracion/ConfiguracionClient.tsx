@@ -47,7 +47,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
     <>
       <AdminHeader title="Configuración" />
       <div className="p-4 sm:p-6">
-        <div className="flex border-b mb-6 overflow-x-auto whitespace-nowrap">
+        <div className="flex border-b mb-6 overflow-x-auto overflow-y-hidden whitespace-nowrap">
           {tabs.map(t => (
             <button
               key={t.id}

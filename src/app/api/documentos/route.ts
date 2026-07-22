@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const estado = searchParams.get('estado')
   const periodo = searchParams.get('periodo') ?? undefined
   const reciboParam = searchParams.get('recibo')
+  const sinLote = searchParams.get('sinLote') === 'true'
   const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
   const q = searchParams.get('q')?.trim() ?? ''
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
     ...(categoriaId ? { employee: { categoriaId } } : {}),
     ...(q ? { nombreArchivo: { contains: q } } : {}),
     ...reciboFilter,
+    ...(sinLote ? { loteId: null } : {}),
   }
 
   const [total, docs] = await Promise.all([

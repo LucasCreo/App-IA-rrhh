@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
-interface Props { esRecibo?: boolean; employeeId?: number }
+interface Props { esRecibo?: boolean; employeeId?: number; sinLote?: boolean }
 import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
@@ -39,7 +39,7 @@ const MESES = [
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
-export function DocumentosTable({ esRecibo, employeeId }: Props) {
+export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const router = useRouter()
   const [docs, setDocs] = useState<Doc[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -79,6 +79,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
     if (filtQDebounced.trim()) params.set('q', filtQDebounced.trim())
     if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
     if (employeeId) params.set('employeeId', String(employeeId))
+    if (sinLote) params.set('sinLote', 'true')
     params.set('page', String(page))
     fetch(`/api/documentos?${params}`)
       .then(r => r.json())
@@ -89,7 +90,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
         setSelected(new Set())
       })
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtQDebounced, esRecibo, employeeId, page])
+  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtQDebounced, esRecibo, employeeId, sinLote, page])
 
   useEffect(() => { load() }, [load])
 
@@ -512,7 +513,7 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                   </TableHead>
                   {!employeeId && <TableHead>Empleado</TableHead>}
                   {esRecibo !== false && <TableHead>Período</TableHead>}
-                  <TableHead>Tipo</TableHead>
+                  {esRecibo !== true && <TableHead>Tipo</TableHead>}
                   <TableHead>Archivo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Cargado</TableHead>
@@ -542,11 +543,13 @@ export function DocumentosTable({ esRecibo, employeeId }: Props) {
                     {esRecibo !== false && (
                       <TableCell className="font-mono">{doc.periodo ?? '—'}</TableCell>
                     )}
-                    <TableCell>
-                      {doc.tipoDocumento
-                        ? <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">{doc.tipoDocumento.nombre}</span>
-                        : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
+                    {esRecibo !== true && (
+                      <TableCell>
+                        {doc.tipoDocumento
+                          ? <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">{doc.tipoDocumento.nombre}</span>
+                          : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm">
                         <FileText size={14} /> {doc.nombreArchivo}

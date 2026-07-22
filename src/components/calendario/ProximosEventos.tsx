@@ -10,6 +10,8 @@ interface Evento {
   fechaInicio: string
   tipo: string
   todoElDia: boolean
+  color?: string | null
+  virtual?: boolean
 }
 
 interface TipoEvento {
@@ -72,7 +74,7 @@ export function ProximosEventos({ href }: Props) {
         <ul className="divide-y">
           {eventos.map(e => {
             const fecha = new Date(e.fechaInicio.slice(0, 10) + 'T00:00:00')
-            const color = tipoColors[e.tipo] ?? '#6b7280'
+            const color = e.color ?? tipoColors[e.tipo] ?? '#6b7280'
             return (
               <li key={e.id} className="flex items-center gap-3 px-5 py-3 text-sm">
                 <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />

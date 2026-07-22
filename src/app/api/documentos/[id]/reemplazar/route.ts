@@ -19,6 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const existing = await prisma.document.findUnique({ where: { id: docId } })
   if (!existing) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
 
+  if (existing.estado === 'FIRMADO') {
+    return NextResponse.json({ error: 'No se puede reemplazar un documento firmado. Emití un rectificativo.' }, { status: 409 })
+  }
+
   const scope = await getScopedEmployeeIds(user.userId)
   if (scope && !scope.has(existing.employeeId)) {
     return NextResponse.json({ error: 'No autorizado sobre este documento' }, { status: 403 })

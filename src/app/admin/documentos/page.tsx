@@ -21,7 +21,7 @@ export default function DocumentosPage() {
     <>
       <AdminHeader title="Documentos" />
       <div className="p-4 sm:p-6">
-        <div className="flex border-b mb-6 overflow-x-auto">
+        <div className="flex border-b mb-6 overflow-x-auto overflow-y-hidden whitespace-nowrap">
           {TABS.map(t => (
             <button
               key={t.id}

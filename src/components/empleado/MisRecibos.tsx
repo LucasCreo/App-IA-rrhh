@@ -4,11 +4,9 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FileText, Download, BookOpen, Pen } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 
 interface Doc {
   id: number; nombreArchivo: string; periodo: string | null; estado: string
@@ -22,8 +20,6 @@ export function MisRecibos({ employeeId }: Props) {
   const [docs, setDocs] = useState<Doc[]>([])
   const [marking, setMarking] = useState<number | null>(null)
   const [firmaDoc, setFirmaDoc] = useState<Doc | null>(null)
-  const [password, setPassword] = useState('')
-  const [firmando, setFirmando] = useState(false)
 
   function load() {
     fetch(`/api/documentos?employeeId=${employeeId}&recibo=true`)
@@ -39,27 +35,6 @@ export function MisRecibos({ employeeId }: Props) {
     if (res.ok) { toast.success('Documento marcado como leído'); load() }
     else toast.error('Error al marcar como leído')
     setMarking(null)
-  }
-
-  async function confirmarFirma() {
-    if (!firmaDoc) return
-    if (!password) { toast.error('Ingresá tu contraseña'); return }
-    setFirmando(true)
-    const res = await fetch(`/api/documentos/${firmaDoc.id}/firmar-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    })
-    setFirmando(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      toast.error(data.error ?? 'No se pudo firmar')
-      return
-    }
-    toast.success('Recibo firmado')
-    setFirmaDoc(null)
-    setPassword('')
-    load()
   }
 
   return (
@@ -103,7 +78,7 @@ export function MisRecibos({ employeeId }: Props) {
                     </Button>
                   )}
                   {pendienteFirma && (
-                    <Button size="sm" variant="outline" className="text-green-700 border-green-300" onClick={() => { setFirmaDoc(doc); setPassword('') }}>
+                    <Button size="sm" variant="outline" className="text-green-700 border-green-300" onClick={() => setFirmaDoc(doc)}>
                       <Pen size={14} className="mr-1" /> Firmar
                     </Button>
                   )}
@@ -120,35 +95,14 @@ export function MisRecibos({ employeeId }: Props) {
         </TableBody>
       </Table>
 
-      <Dialog open={firmaDoc !== null} onOpenChange={o => { if (!o) { setFirmaDoc(null); setPassword('') } }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Firmar recibo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm">
-              Estás por firmar el recibo <strong>{firmaDoc?.periodo ?? firmaDoc?.nombreArchivo}</strong>.
-              Ingresá tu contraseña para confirmar.
-            </p>
-            <div>
-              <Label className="mb-1.5">Contraseña</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') confirmarFirma() }}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFirmaDoc(null)} disabled={firmando}>Cancelar</Button>
-            <Button className="bg-green-700 hover:bg-green-800" onClick={confirmarFirma} disabled={firmando || !password}>
-              {firmando ? 'Firmando…' : 'Firmar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FirmarDocumentoDialog
+        open={firmaDoc !== null}
+        docId={firmaDoc?.id ?? null}
+        titulo="Firmar recibo"
+        descripcion={`Recibo del período ${firmaDoc?.periodo ?? firmaDoc?.nombreArchivo ?? ''}`}
+        onClose={() => setFirmaDoc(null)}
+        onFirmado={load}
+      />
     </>
   )
 }

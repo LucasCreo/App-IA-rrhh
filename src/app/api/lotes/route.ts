@@ -19,13 +19,18 @@ export async function GET() {
     where: scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {},
     include: {
       tipoDocumento: { select: { id: true, nombre: true } },
-      documentos: { select: { estado: true } },
+      documentos: { select: { estado: true, employeeId: true } },
+      empleados: { select: { employeeId: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
 
   return NextResponse.json(lotes.map(l => {
-    const docs = l.documentos
+    const empleadosIds = scope
+      ? l.empleados.filter(e => scope.has(e.employeeId)).map(e => e.employeeId)
+      : l.empleados.map(e => e.employeeId)
+    const docs = l.documentos.filter(d => !scope || scope.has(d.employeeId))
+    const empleadosConDoc = new Set(docs.map(d => d.employeeId))
     return {
       id: l.id,
       nombre: l.nombre,
@@ -34,12 +39,13 @@ export async function GET() {
       createdAt: l.createdAt,
       tipoDocumento: l.tipoDocumento,
       stats: {
-        total: docs.length,
+        total: empleadosIds.length,
         firmados: docs.filter(d => d.estado === 'FIRMADO').length,
         enFirma: docs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length,
         borradores: docs.filter(d => d.estado === 'BORRADOR').length,
         errores: docs.filter(d => d.estado === 'ERROR').length,
         rechazados: docs.filter(d => d.estado === 'RECHAZADO').length,
+        sinRecibo: empleadosIds.filter(id => !empleadosConDoc.has(id)).length,
       },
     }
   }))

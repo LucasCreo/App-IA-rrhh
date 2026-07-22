@@ -13,9 +13,21 @@ interface Evento {
   todoElDia: boolean
   tipo: string
   subtipo?: string | null
+  color?: string | null
+  virtual?: boolean
   asignados: Array<{ employeeId: number }>
   creadoPor?: { email: string } | null
   creadoPorId?: number
+}
+
+function tipoLabel(e: { tipo: string; subtipo?: string | null; virtual?: boolean }) {
+  if (e.virtual && e.tipo.startsWith('__ausencia__:')) return e.subtipo ?? 'Ausencia'
+  return e.tipo
+}
+
+function tipoColor(e: Evento, colorPorTipo: Map<string, string>) {
+  if (e.color) return e.color
+  return colorPorTipo.get(e.tipo) ?? '#64748b'
 }
 
 interface TipoEvento {
@@ -166,7 +178,7 @@ export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
                     key={`${c.key}-${e.id}`}
                     title={e.titulo}
                     className="truncate rounded px-1 py-0.5 text-white text-[10px] font-medium"
-                    style={{ backgroundColor: colorPorTipo.get(e.tipo) ?? '#64748b' }}
+                    style={{ backgroundColor: tipoColor(e, colorPorTipo) }}
                   >
                     {e.titulo}
                   </div>
@@ -195,7 +207,7 @@ export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
               const fin = e.fechaFin ? new Date(e.fechaFin) : null
               return (
                 <li key={e.id} className="px-5 py-3 flex items-start gap-3">
-                  <div className="mt-1 h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: colorPorTipo.get(e.tipo) ?? '#64748b' }} />
+                  <div className="mt-1 h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: tipoColor(e, colorPorTipo) }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{e.titulo}</p>
                     {e.descripcion && <p className="text-xs text-muted-foreground truncate">{e.descripcion}</p>}
@@ -203,8 +215,8 @@ export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
                       {ini.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
                       {fin && ymd(ini) !== ymd(fin) && ` – ${fin.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}`}
                       {' · '}
-                      <span className="capitalize">{e.tipo.toLowerCase()}</span>
-                      {e.subtipo && ` · ${e.subtipo}`}
+                      <span className="capitalize">{tipoLabel(e).toLowerCase()}</span>
+                      {e.virtual && e.subtipo ? '' : (e.subtipo ? ` · ${e.subtipo}` : '')}
                     </p>
                   </div>
                 </li>

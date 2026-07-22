@@ -175,7 +175,7 @@ export default function EmpleadoDetailPage() {
         </button>
 
         {/* Pestañas */}
-        <div className="flex border-b mb-6 overflow-x-auto">
+        <div className="flex border-b mb-6 overflow-x-auto overflow-y-hidden whitespace-nowrap">
           {([
             { id: 'datos', label: 'Datos' },
             { id: 'documentos', label: 'Documentos' },

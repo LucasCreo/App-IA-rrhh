@@ -9,6 +9,7 @@ import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, C
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RichEditor } from './RichEditor'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { handleApiError } from '@/lib/apiErrors'
 
 const EDIT_WINDOW_MIN = 60 * 24
@@ -215,6 +216,8 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
   const [guardandoEdit, setGuardandoEdit] = useState(false)
   const [comentarioEditId, setComentarioEditId] = useState<number | null>(null)
   const [comentarioEditContenido, setComentarioEditContenido] = useState('')
+  const [confirmDeletePost, setConfirmDeletePost] = useState(false)
+  const [confirmDeleteComentId, setConfirmDeleteComentId] = useState<number | null>(null)
   const puedeBorrar = post.autor.id === userId
   const puedeEditarPost = post.autor.id === userId && dentroDeVentanaEdicion(post.createdAt)
 
@@ -294,8 +297,10 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
   }
 
   async function borrarComentario(cid: number) {
-    await fetch(`/api/portal/posts/${post.id}/comentarios/${cid}`, { method: 'DELETE' })
+    const r = await fetch(`/api/portal/posts/${post.id}/comentarios/${cid}`, { method: 'DELETE' })
+    if (!r.ok) { await handleApiError(r); return }
     setComentarios(prev => prev?.filter(c => c.id !== cid) ?? null)
+    setConfirmDeleteComentId(null)
     onReaccion()
   }
 
@@ -306,9 +311,9 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
   }
 
   async function borrarPost() {
-    if (!confirm('¿Eliminar esta publicación?')) return
     const r = await fetch(`/api/portal/posts/${post.id}`, { method: 'DELETE' })
-    if (!r.ok) { toast.error('Error al eliminar'); return }
+    setConfirmDeletePost(false)
+    if (!r.ok) { await handleApiError(r); return }
     toast.success('Publicación eliminada')
     onDeleted()
   }
@@ -345,7 +350,7 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
               )}
               {puedeBorrar && (
                 <button
-                  onClick={borrarPost}
+                  onClick={() => setConfirmDeletePost(true)}
                   className="text-muted-foreground hover:text-red-600 p-1 rounded transition-colors"
                   title="Eliminar"
                 >
@@ -470,7 +475,7 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
                         </button>
                       )}
                       <button
-                        onClick={() => borrarComentario(c.id)}
+                        onClick={() => setConfirmDeleteComentId(c.id)}
                         className="text-muted-foreground hover:text-red-600 p-1"
                         title="Eliminar"
                       >
@@ -535,6 +540,22 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDeletePost}
+        title="¿Eliminar publicación?"
+        description="Se eliminará también todos los comentarios, reacciones y archivos adjuntos. Esta acción no se puede deshacer."
+        onConfirm={borrarPost}
+        onCancel={() => setConfirmDeletePost(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteComentId !== null}
+        title="¿Eliminar comentario?"
+        description="Esta acción no se puede deshacer."
+        onConfirm={() => { if (confirmDeleteComentId !== null) borrarComentario(confirmDeleteComentId) }}
+        onCancel={() => setConfirmDeleteComentId(null)}
+      />
     </div>
   )
 }

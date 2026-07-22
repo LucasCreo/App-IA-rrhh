@@ -103,6 +103,8 @@ model Document {
   estado          String    @default("BORRADOR")
   firmaExternalId String?
   fechaFirma      DateTime?
+  firmaConforme   Boolean?
+  firmaComentario String?   @db.NVarChar(Max)
   updatedAt       DateTime  @updatedAt
 
   cargadoPor    User           @relation("CargadoPor", fields: [cargadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)

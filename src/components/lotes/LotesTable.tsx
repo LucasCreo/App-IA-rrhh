@@ -14,6 +14,7 @@ interface LoteStats {
   borradores: number
   errores: number
   rechazados: number
+  sinRecibo: number
 }
 
 interface Lote {
@@ -111,6 +112,11 @@ export function LotesTable() {
                         {lote.stats.enFirma > 0 && (
                           <span className="text-xs text-blue-600 dark:text-blue-400 shrink-0">
                             {lote.stats.enFirma} en firma
+                          </span>
+                        )}
+                        {lote.stats.sinRecibo > 0 && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                            {lote.stats.sinRecibo} sin recibo
                           </span>
                         )}
                         {errTotal > 0 && (

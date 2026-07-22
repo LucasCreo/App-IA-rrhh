@@ -4,9 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { extraerRutasMedia, borrarMedia, sanitizePostHtml } from '@/lib/richContent'
-
-// Ventana para que el autor pueda editar su propio post (minutos) — 1 día
-const EDIT_WINDOW_MIN = 60 * 24
+import { getConfig } from '@/lib/config'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -22,10 +20,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Ventana de edición: solo para el autor (admin puede editar siempre)
   if (post.autorId === user.userId && user.role !== 'ADMIN') {
+    const { editWindowMin } = await getConfig()
     const minutos = (Date.now() - new Date(post.createdAt).getTime()) / 60000
-    if (minutos > EDIT_WINDOW_MIN) {
+    if (minutos > editWindowMin) {
       return NextResponse.json({
-        error: 'Ya no se puede editar. La ventana de edición es de 24 horas desde la publicación.',
+        error: `Ya no se puede editar. La ventana de edición es de ${Math.round(editWindowMin / 60)} horas desde la publicación.`,
         code: 'EDIT_WINDOW_CLOSED',
       }, { status: 403 })
     }

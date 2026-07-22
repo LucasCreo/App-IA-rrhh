@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { extraerRutasMedia, borrarMedia, sanitizePostHtml } from '@/lib/richContent'
-
-const EDIT_WINDOW_MIN = 60 * 24
+import { getConfig } from '@/lib/config'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; cid: string }> }) {
   const user = await getCurrentUser()
@@ -17,10 +16,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
   }
   if (comment.autorId === user.userId && user.role !== 'ADMIN') {
+    const { editWindowMin } = await getConfig()
     const minutos = (Date.now() - new Date(comment.createdAt).getTime()) / 60000
-    if (minutos > EDIT_WINDOW_MIN) {
+    if (minutos > editWindowMin) {
       return NextResponse.json({
-        error: 'Ya no se puede editar. La ventana de edición es de 24 horas desde la publicación.',
+        error: `Ya no se puede editar. La ventana de edición es de ${Math.round(editWindowMin / 60)} horas desde la publicación.`,
         code: 'EDIT_WINDOW_CLOSED',
       }, { status: 403 })
     }
@@ -55,8 +55,20 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
   }
 
-  await prisma.postComment.delete({ where: { id: Number(cid) } })
-  const rutas = extraerRutasMedia(comment.contenido)
+  // Si es raíz de un hilo, también borrar sus respuestas
+  const replies = comment.parentCommentId == null
+    ? await prisma.postComment.findMany({ where: { parentCommentId: comment.id } })
+    : []
+
+  await prisma.$transaction([
+    ...replies.map(r => prisma.postComment.delete({ where: { id: r.id } })),
+    prisma.postComment.delete({ where: { id: Number(cid) } }),
+  ])
+
+  const rutas = [
+    ...extraerRutasMedia(comment.contenido),
+    ...replies.flatMap(r => extraerRutasMedia(r.contenido)),
+  ]
   if (rutas.length > 0) await borrarMedia(rutas)
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, deletedReplies: replies.length })
 }

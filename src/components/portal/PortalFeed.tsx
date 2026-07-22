@@ -12,7 +12,7 @@ import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { handleApiError } from '@/lib/apiErrors'
 
-const EDIT_WINDOW_MIN = 60 * 24
+let EDIT_WINDOW_MIN = 60 * 24
 function dentroDeVentanaEdicion(createdAt: string): boolean {
   return (Date.now() - new Date(createdAt).getTime()) / 60000 <= EDIT_WINDOW_MIN
 }
@@ -58,6 +58,7 @@ interface Comentario {
   contenido: string
   createdAt: string
   editedAt?: string | null
+  parentCommentId: number | null
   autor: {
     id: number
     avatarUrl: string | null
@@ -218,6 +219,9 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
   const [comentarioEditContenido, setComentarioEditContenido] = useState('')
   const [confirmDeletePost, setConfirmDeletePost] = useState(false)
   const [confirmDeleteComentId, setConfirmDeleteComentId] = useState<number | null>(null)
+  const [respondiendoA, setRespondiendoA] = useState<{ parentId: number; nombre: string } | null>(null)
+  const [respuesta, setRespuesta] = useState('')
+  const [enviandoRespuesta, setEnviandoRespuesta] = useState(false)
   const puedeBorrar = post.autor.id === userId
   const puedeEditarPost = post.autor.id === userId && dentroDeVentanaEdicion(post.createdAt)
 
@@ -294,6 +298,25 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     const data = await rr.json()
     setComentarios(data.comentarios)
     onReaccion() // refresca contador
+  }
+
+  async function enviarRespuesta() {
+    if (!respondiendoA) return
+    if (esContenidoVacio(respuesta)) return
+    setEnviandoRespuesta(true)
+    const r = await fetch(`/api/portal/posts/${post.id}/comentarios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contenido: respuesta, parentCommentId: respondiendoA.parentId }),
+    })
+    setEnviandoRespuesta(false)
+    if (!r.ok) { toast.error('Error al responder'); return }
+    setRespuesta('')
+    setRespondiendoA(null)
+    const rr = await fetch(`/api/portal/posts/${post.id}/comentarios`)
+    const data = await rr.json()
+    setComentarios(data.comentarios)
+    onReaccion()
   }
 
   async function borrarComentario(cid: number) {
@@ -427,40 +450,62 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
             <p className="text-xs text-muted-foreground text-center py-2">Cargando…</p>
           ) : comentarios.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-2">Sé el primero en comentar</p>
-          ) : (
-            comentarios.map(c => {
+          ) : (() => {
+            const topLevel = comentarios.filter(c => c.parentCommentId == null)
+            const repliesByParent = new Map<number, Comentario[]>()
+            for (const c of comentarios) {
+              if (c.parentCommentId != null) {
+                const arr = repliesByParent.get(c.parentCommentId) ?? []
+                arr.push(c)
+                repliesByParent.set(c.parentCommentId, arr)
+              }
+            }
+            const renderComentario = (c: Comentario, esRespuesta: boolean) => {
               const puedeEditarComentario = c.autor.id === userId && dentroDeVentanaEdicion(c.createdAt)
               const editandoEste = comentarioEditId === c.id
               return (
                 <div key={c.id} className="flex items-start gap-2 group">
-                  <Avatar autor={c.autor} size={28} />
-                  <div className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5">
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-xs font-semibold">{c.autor.nombreCompleto}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {timeAgo(c.createdAt)}{c.editedAt && <span className="italic"> · editado</span>}
-                      </p>
-                    </div>
-                    {editandoEste ? (
-                      <div className="mt-1 space-y-1.5">
-                        <RichEditor
-                          value={comentarioEditContenido}
-                          onChange={setComentarioEditContenido}
-                          variant="mini"
-                          minHeight={40}
-                          onSubmit={guardarEdicionComentario}
-                        />
-                        <div className="flex justify-end gap-1.5">
-                          <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setComentarioEditId(null)}>
-                            Cancelar
-                          </Button>
-                          <Button size="sm" className="bg-green-700 hover:bg-green-800 h-6 text-[11px] px-2" onClick={guardarEdicionComentario}>
-                            Guardar
-                          </Button>
-                        </div>
+                  <Avatar autor={c.autor} size={esRespuesta ? 24 : 28} />
+                  <div className="flex-1 min-w-0">
+                    <div className="bg-card border border-border rounded-lg px-3 py-1.5">
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-xs font-semibold">{c.autor.nombreCompleto}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {timeAgo(c.createdAt)}{c.editedAt && <span className="italic"> · editado</span>}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="mt-0.5"><PostContent html={c.contenido} /></div>
+                      {editandoEste ? (
+                        <div className="mt-1 space-y-1.5">
+                          <RichEditor
+                            value={comentarioEditContenido}
+                            onChange={setComentarioEditContenido}
+                            variant="mini"
+                            minHeight={40}
+                            onSubmit={guardarEdicionComentario}
+                          />
+                          <div className="flex justify-end gap-1.5">
+                            <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setComentarioEditId(null)}>
+                              Cancelar
+                            </Button>
+                            <Button size="sm" className="bg-green-700 hover:bg-green-800 h-6 text-[11px] px-2" onClick={guardarEdicionComentario}>
+                              Guardar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-0.5"><PostContent html={c.contenido} /></div>
+                      )}
+                    </div>
+                    {!editandoEste && (
+                      <button
+                        onClick={() => {
+                          setRespondiendoA({ parentId: c.id, nombre: c.autor.nombreCompleto })
+                          setRespuesta('')
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5 ml-3"
+                      >
+                        Responder
+                      </button>
                     )}
                   </div>
                   {c.autor.id === userId && !editandoEste && (
@@ -485,8 +530,57 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
                   )}
                 </div>
               )
+            }
+            return topLevel.map(top => {
+              const replies = (repliesByParent.get(top.id) ?? []).sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+              )
+              const respondiendoAqui = respondiendoA?.parentId != null && (respondiendoA.parentId === top.id || replies.some(r => r.id === respondiendoA.parentId))
+              return (
+                <div key={top.id} className="space-y-1.5">
+                  {renderComentario(top, false)}
+                  {(replies.length > 0 || respondiendoAqui) && (
+                    <div className="ml-8 space-y-1.5">
+                      {replies.map(r => renderComentario(r, true))}
+                      {respondiendoAqui && (
+                        <div className="space-y-1 pt-0.5">
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>Respondiendo a <span className="font-medium text-foreground">{respondiendoA!.nombre}</span></span>
+                            <button
+                              onClick={() => { setRespondiendoA(null); setRespuesta('') }}
+                              className="hover:text-foreground"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                          <div className="flex gap-2 items-start">
+                            <div className="flex-1">
+                              <RichEditor
+                                value={respuesta}
+                                onChange={setRespuesta}
+                                placeholder={`Respondele a ${respondiendoA!.nombre}…`}
+                                variant="mini"
+                                minHeight={40}
+                                onSubmit={enviarRespuesta}
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              className="bg-green-700 hover:bg-green-800 shrink-0"
+                              onClick={enviarRespuesta}
+                              disabled={enviandoRespuesta || esContenidoVacio(respuesta)}
+                            >
+                              <Send size={13} />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
             })
-          )}
+          })()}
           <div className="flex gap-2 items-start pt-1">
             <div className="flex-1">
               <RichEditor
@@ -570,9 +664,10 @@ export function PortalFeed() {
 
   async function load() {
     setLoading(true)
-    const [rPosts, rCats] = await Promise.all([
+    const [rPosts, rCats, rCfg] = await Promise.all([
       fetch('/api/portal/posts'),
       fetch('/api/categorias'),
+      fetch('/api/configuracion/general'),
     ])
     if (rPosts.ok) {
       const data = await rPosts.json()
@@ -582,6 +677,10 @@ export function PortalFeed() {
       setIsAdmin(!!data.isAdmin)
     }
     if (rCats.ok) setCategorias(await rCats.json())
+    if (rCfg.ok) {
+      const cfg = await rCfg.json()
+      if (typeof cfg?.editWindowMin === 'number' && cfg.editWindowMin > 0) EDIT_WINDOW_MIN = cfg.editWindowMin
+    }
     setLoading(false)
   }
 

@@ -144,15 +144,18 @@ model PostReaction {
 }
 
 model PostComment {
-  id        Int      @id @default(autoincrement())
-  postId    Int
-  autorId   Int
-  contenido String   @db.NVarChar(Max)
-  createdAt DateTime @default(now())
-  editedAt  DateTime?
+  id              Int      @id @default(autoincrement())
+  postId          Int
+  autorId         Int
+  contenido       String   @db.NVarChar(Max)
+  createdAt       DateTime @default(now())
+  editedAt        DateTime?
+  parentCommentId Int?
 
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  autor  User @relation("PostCommentAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post    Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  autor   User          @relation("PostCommentAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parent  PostComment?  @relation("PostCommentReplies", fields: [parentCommentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies PostComment[] @relation("PostCommentReplies")
 }
 
 model TipoDocumento {
@@ -194,10 +197,14 @@ model LoteEmpleado {
 }
 
 model GeneralConfig {
-  id        Int      @id @default(autoincrement())
-  appName   String   @default("RRHH")
-  logoUrl   String?
-  updatedAt DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  appName        String   @default("RRHH")
+  logoUrl        String?
+  editWindowMin  Int      @default(1440)
+  firmaMinSec    Int      @default(10)
+  soporteEmail   String?
+  soporteTel     String?
+  updatedAt      DateTime @updatedAt
 }
 
 model EmployeeFieldConfig {

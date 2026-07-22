@@ -28,6 +28,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       contenido: c.contenido,
       createdAt: c.createdAt,
       editedAt: c.editedAt,
+      parentCommentId: c.parentCommentId,
       autor: {
         id: c.autor.id,
         avatarUrl: c.autor.avatarUrl,
@@ -46,11 +47,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
-  const { contenido } = await req.json()
+  const postId = Number(id)
+  const body = await req.json()
+  const contenido: string = body.contenido
   if (!contenido?.trim()) return NextResponse.json({ error: 'Comentario vacío' }, { status: 400 })
 
+  let parentCommentId: number | null = null
+  if (body.parentCommentId != null) {
+    const requested = Number(body.parentCommentId)
+    const parent = await prisma.postComment.findUnique({
+      where: { id: requested },
+      select: { id: true, postId: true, parentCommentId: true },
+    })
+    if (!parent || parent.postId !== postId) {
+      return NextResponse.json({ error: 'Comentario padre inválido' }, { status: 400 })
+    }
+    // Flatten: replies to replies se anclan a la raíz del hilo
+    parentCommentId = parent.parentCommentId ?? parent.id
+  }
+
   const c = await prisma.postComment.create({
-    data: { postId: Number(id), autorId: user.userId, contenido: sanitizePostHtml(contenido.trim()) },
+    data: {
+      postId,
+      autorId: user.userId,
+      contenido: sanitizePostHtml(contenido.trim()),
+      parentCommentId,
+    },
   })
-  return NextResponse.json({ id: c.id }, { status: 201 })
+  return NextResponse.json({ id: c.id, parentCommentId }, { status: 201 })
 }

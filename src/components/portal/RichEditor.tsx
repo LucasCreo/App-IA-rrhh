@@ -15,6 +15,10 @@ import {
   Image as ImageIcon, Mic, Video as VideoIcon, Undo2, Redo2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /* ---------- Nodes custom para audio y video ---------- */
 
@@ -90,6 +94,8 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
   const imgRef = useRef<HTMLInputElement>(null)
   const audioRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLInputElement>(null)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
 
   async function agregarMedia(kind: 'image' | 'audio' | 'video', file?: File) {
     if (!file) return
@@ -100,15 +106,25 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
     else editor.chain().focus().insertContent({ type: 'video', attrs: { src: url } }).run()
   }
 
-  function insertarLink() {
+  function abrirDialogoLink() {
     const prev = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('URL del enlace', prev ?? 'https://')
-    if (url === null) return
-    if (url === '') {
+    setLinkUrl(prev ?? 'https://')
+    setLinkOpen(true)
+  }
+
+  function aplicarLink() {
+    const url = linkUrl.trim()
+    if (url === '' || url === 'https://') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run()
-      return
+    } else {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    setLinkOpen(false)
+  }
+
+  function quitarLink() {
+    editor.chain().focus().extendMarkRange('link').unsetLink().run()
+    setLinkOpen(false)
   }
 
   return (
@@ -127,7 +143,7 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
         <ListOrdered size={14} />
       </ToolbarBtn>
       <span className="w-px h-4 bg-border mx-1" />
-      <ToolbarBtn onClick={insertarLink} active={editor.isActive('link')} title="Enlace">
+      <ToolbarBtn onClick={abrirDialogoLink} active={editor.isActive('link')} title="Enlace">
         <LinkIcon size={14} />
       </ToolbarBtn>
       {variant === 'full' && (
@@ -157,6 +173,34 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
       <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Rehacer (Ctrl+Y)">
         <Redo2 size={14} />
       </ToolbarBtn>
+
+      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editor.isActive('link') ? 'Editar enlace' : 'Insertar enlace'}</DialogTitle>
+          </DialogHeader>
+          <div>
+            <Label className="mb-1.5">URL</Label>
+            <Input
+              type="url"
+              value={linkUrl}
+              onChange={e => setLinkUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aplicarLink() } }}
+              autoFocus
+              placeholder="https://…"
+            />
+          </div>
+          <DialogFooter>
+            {editor.isActive('link') && (
+              <Button variant="outline" onClick={quitarLink} className="mr-auto text-red-600 hover:text-red-700">
+                Quitar enlace
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setLinkOpen(false)}>Cancelar</Button>
+            <Button className="bg-green-700 hover:bg-green-800" onClick={aplicarLink}>Aceptar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

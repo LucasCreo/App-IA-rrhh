@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
-const TIEMPO_MIN_SEG = 10
+const TIEMPO_MIN_SEG_DEFAULT = 10
 
 interface Props {
   open: boolean
@@ -23,7 +23,8 @@ export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClos
   const [conforme, setConforme] = useState<'si' | 'no' | ''>('')
   const [comentario, setComentario] = useState('')
   const [firmando, setFirmando] = useState(false)
-  const [segundosRestantes, setSegundosRestantes] = useState(TIEMPO_MIN_SEG)
+  const [tiempoMinSeg, setTiempoMinSeg] = useState(TIEMPO_MIN_SEG_DEFAULT)
+  const [segundosRestantes, setSegundosRestantes] = useState(TIEMPO_MIN_SEG_DEFAULT)
   const [pasoFirma, setPasoFirma] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -33,7 +34,13 @@ export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClos
     setConforme('')
     setComentario('')
     setPasoFirma(false)
-    setSegundosRestantes(TIEMPO_MIN_SEG)
+    setSegundosRestantes(tiempoMinSeg)
+    fetch('/api/configuracion/general').then(r => r.ok ? r.json() : null).then(cfg => {
+      if (cfg && typeof cfg.firmaMinSec === 'number' && cfg.firmaMinSec >= 0) {
+        setTiempoMinSeg(cfg.firmaMinSec)
+        setSegundosRestantes(cfg.firmaMinSec)
+      }
+    }).catch(() => {})
     intervalRef.current = setInterval(() => {
       setSegundosRestantes(s => {
         if (s <= 1) {

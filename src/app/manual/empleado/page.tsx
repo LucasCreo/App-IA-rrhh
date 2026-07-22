@@ -44,7 +44,7 @@ function Note({ children }: { children: React.ReactNode }) {
 export default function ManualEmpleadoPage() {
   const router = useRouter()
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <button
         onClick={() => router.back()}
         className="print:hidden inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted transition-colors mb-6"
@@ -89,19 +89,36 @@ export default function ManualEmpleadoPage() {
       </Section>
 
       <Section title="3. Portal interno">
-        <p>Espacio donde la organización publica noticias, comunicados y contenido interno. Puede leer las publicaciones, dejar comentarios y ver las novedades del equipo.</p>
-        <p>Acceda desde <strong>Portal interno</strong> en el menú lateral.</p>
+        <p>Espacio donde la organización publica noticias, comunicados y contenido interno. Puede leer las publicaciones, reaccionar, comentar y responder a comentarios.</p>
+        <Sub title="Publicar">
+          <p>Si tiene el permiso, use el botón para crear una publicación. Puede escribir texto enriquecido, adjuntar imágenes, audio o video, y mencionar a compañeros con @.</p>
+        </Sub>
+        <Sub title="Comentar y responder">
+          <p>Cada publicación permite dejar comentarios. Cada comentario tiene el botón <strong>Responder</strong> para armar un hilo de conversación. Las respuestas quedan agrupadas debajo del comentario principal.</p>
+        </Sub>
+        <Sub title="Reaccionar">
+          <p>Use <strong>Me gusta</strong> para reaccionar. Clickee el contador para ver quiénes reaccionaron.</p>
+        </Sub>
+        <Sub title="Editar o eliminar">
+          <p>Puede editar sus publicaciones y comentarios durante las <strong>24 horas</strong> siguientes a haberlos creado. Pasado ese plazo solo puede eliminarlos.</p>
+        </Sub>
       </Section>
 
       <Section title="4. Recibos de sueldo">
-        <p>En esta sección puede visualizar y descargar sus recibos de haberes.</p>
-        <Steps items={[
-          'Acceda a Recibos desde el menú lateral.',
-          'Verá la lista de recibos disponibles ordenados por período.',
-          'Haga clic en el ícono de descarga para guardar el recibo en su dispositivo.',
-          'Si el recibo requiere confirmación de recepción, haga clic en Confirmar recepción.',
-        ]} />
-        <Note>Los recibos son publicados por el área de Recursos Humanos. Si no visualiza un recibo esperado, consulte con su área.</Note>
+        <p>Lista de recibos que la empresa cargó a su nombre.</p>
+        <Sub title="Ver y descargar">
+          <p>Cada recibo se puede abrir en el navegador o descargar. Los recibos firmados quedan disponibles permanentemente.</p>
+        </Sub>
+        <Sub title="Firmar un recibo">
+          <Steps items={[
+            'Clickee Firmar en el recibo pendiente.',
+            'Lea el recibo en el visor. El botón Continuar se habilita a los 10 segundos.',
+            'Clickee Continuar.',
+            'Elija Conforme o No conforme, escriba un comentario si lo desea, e ingrese su contraseña personal.',
+            'Clickee Firmar.',
+          ]} />
+          <Note>Firmar <em>No conforme</em> junto con un comentario equivale a firmar bajo protesta: deja recibido el recibo pero constancia de su disconformidad. La empresa ve el comentario junto al recibo.</Note>
+        </Sub>
       </Section>
 
       <Section title="5. Documentos">
@@ -120,8 +137,17 @@ export default function ManualEmpleadoPage() {
             'Haga clic en Enviar. Recibirá el documento una vez que sea procesado.',
           ]} />
         </Sub>
+        <Sub title="Marcar como leído">
+          <p>Los documentos del tipo <em>Lectura</em> (por ejemplo normas internas) piden que confirme lectura con el botón <strong>Marcar como leído</strong>. No requieren firma.</p>
+        </Sub>
         <Sub title="Firmar un documento">
-          <p>Si un documento requiere su firma, aparecerá con el estado <strong>Pendiente de firma</strong>. Ábralo y haga clic en <strong>Firmar</strong> para confirmar su recepción electrónica.</p>
+          <Steps items={[
+            'Clickee Firmar en el documento pendiente.',
+            'Se abre el visor de PDF. Léalo (el botón Continuar se habilita a los 10 segundos).',
+            'Clickee Continuar para abrir la ventana de confirmación.',
+            'Ingrese su contraseña personal y clickee Firmar.',
+          ]} />
+          <Note>La firma queda registrada con fecha, hora y su contraseña como validación de identidad. Una vez firmado, el documento no puede ser modificado por la empresa.</Note>
         </Sub>
       </Section>
 
@@ -187,12 +213,8 @@ export default function ManualEmpleadoPage() {
 
       <Section title="9. Mi perfil">
         <p>Acceda a su perfil haciendo clic en su nombre o avatar en la parte inferior del menú lateral.</p>
-        <Sub title="Actualizar foto de perfil">
-          <Steps items={[
-            'En Mi perfil, haga clic sobre su foto o iniciales.',
-            'Seleccione una imagen desde su dispositivo.',
-            'La foto se actualizará automáticamente.',
-          ]} />
+        <Sub title="Avatar personalizado">
+          <p>Puede subir una foto propia o usar el avatar con sus iniciales, eligiendo el color de fondo y de texto que prefiera. Ambas opciones son intercambiables desde Mi perfil.</p>
         </Sub>
         <Sub title="Cambiar contraseña">
           <Steps items={[

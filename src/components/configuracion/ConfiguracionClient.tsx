@@ -23,7 +23,7 @@ interface Props {
 
 export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria }: Props) {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('tab') ?? 'general')
+  const [tab, setTab] = useState(searchParams.get('tab') ?? 'empleados')
 
   useEffect(() => {
     const t = searchParams.get('tab')
@@ -31,7 +31,6 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
   }, [searchParams])
 
   const tabs = [
-    { id: 'general', label: 'General' },
     { id: 'empleados', label: 'Personal' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'firma', label: 'Firma' },

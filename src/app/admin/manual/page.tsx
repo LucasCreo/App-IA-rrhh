@@ -141,10 +141,15 @@ export default function ManualAdminPage() {
 
         <Sub title="Ver, reemplazar o eliminar">
           <p>Cada fila permite visualizar el PDF, reemplazarlo por una nueva versión (el documento vuelve a estado Borrador) o eliminarlo. Los recibos vinculados a un lote también pueden gestionarse individualmente desde el detalle del lote.</p>
+          <Note>Un documento en estado Firmado no puede reemplazarse: la firma es sobre esa versión específica del archivo. Si hubo un error, emita un documento rectificativo nuevo.</Note>
         </Sub>
 
         <Sub title="Estados de documento">
           <p><strong>Borrador:</strong> visible solo para administradores. <strong>Enviado a firma:</strong> visible para el empleado, pendiente de firma. <strong>Firmado:</strong> el empleado confirmó recepción. <strong>Rechazado:</strong> el empleado rechazó el documento.</p>
+        </Sub>
+
+        <Sub title="Firma con contraseña">
+          <p>Para firmar, el empleado abre el documento en un visor con retardo mínimo de lectura (10 segundos), luego confirma indicando <strong>Conforme</strong> o <strong>No conforme</strong> (aplicable a recibos), agrega un comentario opcional e ingresa su contraseña personal. La conformidad y el comentario quedan registrados junto al documento.</p>
         </Sub>
 
         <Sub title="Tipos de documento">
@@ -153,7 +158,11 @@ export default function ManualAdminPage() {
       </Section>
 
       <Section title="4. Recibos de sueldo">
-        <p>Módulo para cargar y distribuir recibos en forma masiva mediante lotes.</p>
+        <p>Módulo para cargar y distribuir recibos. Ofrece dos pestañas:</p>
+        <ul className="list-disc list-inside space-y-0.5 mt-1">
+          <li><strong>Lotes:</strong> creación y gestión masiva por período.</li>
+          <li><strong>Individuales:</strong> recibos cargados de a uno (sueltos), fuera de cualquier lote. Los recibos que forman parte de un lote no aparecen acá para evitar duplicar gestión.</li>
+        </ul>
 
         <Sub title="Crear un lote">
           <Steps items={[
@@ -171,12 +180,16 @@ export default function ManualAdminPage() {
           <p>Desde el detalle del lote, use <strong>Editar empleados</strong> para agregar o quitar personas del lote sin necesidad de recrearlo.</p>
         </Sub>
 
-        <Sub title="Gestionar recibos individuales">
-          <p>En el detalle del lote, cada recibo tiene acciones para <strong>ver</strong>, <strong>reemplazar</strong> el PDF (icono de lápiz) o <strong>eliminarlo</strong>. Reemplazar deja el recibo nuevamente en estado Borrador.</p>
+        <Sub title="Gestionar recibos individuales dentro del lote">
+          <p>En el detalle del lote, cada recibo tiene acciones para <strong>ver</strong>, <strong>reemplazar</strong> el PDF (solo si no está firmado) o <strong>eliminarlo</strong>. La grilla muestra fecha de carga, conformidad (Conforme / No conforme) y comentario del empleado que firmó.</p>
+        </Sub>
+
+        <Sub title="Progreso del lote">
+          <p>El indicador de progreso considera todos los empleados del lote, no solo los que ya tienen recibo cargado. Los empleados sin recibo se muestran en la etiqueta <em>sin recibo</em>.</p>
         </Sub>
 
         <Sub title="Publicación">
-          <p>Al publicar el lote, los recibos pasan a estado Enviado a firma y quedan disponibles para los empleados desde su portal. También aparecen listados en el módulo Documentos.</p>
+          <p>Al publicar el lote, los recibos pasan a estado Enviado a firma y quedan disponibles para los empleados desde su portal.</p>
         </Sub>
       </Section>
 
@@ -192,6 +205,9 @@ export default function ManualAdminPage() {
         </Sub>
         <Sub title="Tipos de evento">
           <p>Se configuran en <strong>Configuración › Calendario</strong>. Cada tipo define si puede ser creado por administradores, por empleados, y qué color se muestra en el calendario.</p>
+        </Sub>
+        <Sub title="Ausencias aprobadas en el calendario">
+          <p>Las solicitudes de ausencia aprobadas aparecen automáticamente como eventos en el calendario (con el color del tipo de ausencia) sin necesidad de crearse como evento aparte. Se gestionan desde el módulo Ausencias.</p>
         </Sub>
         <Sub title="Sincronización con Google Calendar">
           <p>Al vincular una cuenta de Google desde el perfil, los eventos se sincronizan en ambas direcciones:</p>
@@ -277,7 +293,19 @@ export default function ManualAdminPage() {
       </Section>
 
       <Section title="9. Portal interno (publicaciones)">
-        <p>Sección donde los empleados pueden leer y comentar publicaciones internas de la organización. Desde el panel de admin puede crear posts, moderar comentarios y personalizar qué secciones del portal quedan visibles para los empleados.</p>
+        <p>Sección donde los empleados pueden leer y comentar publicaciones internas de la organización.</p>
+        <Sub title="Publicar">
+          <p>Los posts pueden ser <strong>Globales</strong> (visibles para todos) o <strong>Por categoría</strong> (solo para los empleados de una categoría). Admiten texto enriquecido, imágenes, audio y video.</p>
+        </Sub>
+        <Sub title="Edición y eliminación">
+          <p>El autor puede editar sus posts y comentarios dentro de las <strong>24 horas</strong> siguientes a la publicación. Pasado ese tiempo solo se pueden eliminar. Los admins pueden editar sin límite de tiempo.</p>
+        </Sub>
+        <Sub title="Comentarios y respuestas">
+          <p>Cada post admite comentarios; cada comentario admite respuestas (un solo nivel de anidamiento, estilo Instagram). Al eliminar un comentario raíz se eliminan también todas sus respuestas.</p>
+        </Sub>
+        <Sub title="Reacciones">
+          <p>Los empleados pueden dar &quot;Me gusta&quot; a los posts. Al clickear el contador se ve el listado de quiénes reaccionaron.</p>
+        </Sub>
       </Section>
 
       <Section title="10. Auditoría">
@@ -311,7 +339,7 @@ export default function ManualAdminPage() {
 
       <Section title="12. Configuración">
         <Sub title="General">
-          <p>Nombre y logo de la aplicación, configuración SMTP para envío de emails. El botón <strong>Probar SMTP</strong> envía un email de prueba a su dirección para validar las credenciales.</p>
+          <p>Enlaces a los manuales, comportamiento global de la app (ventana de edición de posts, tiempo mínimo de lectura antes de firmar), contacto de soporte, información del sistema (versión, migraciones, contadores) y estado de servicios (DB, firma, Google, SMTP).</p>
         </Sub>
         <Sub title="Empleados">
           <p>Define qué campos del legajo son visibles y cuáles son obligatorios. También permite crear campos personalizados adicionales.</p>
@@ -354,7 +382,7 @@ export default function ManualAdminPage() {
           <li><strong>Solicitud de documento:</strong> recibe mail el superior jerárquico.</li>
           <li><strong>Recuperación de contraseña:</strong> el usuario recibe un link válido por 1 hora para restablecer su clave.</li>
         </ul>
-        <Note>Los envíos son automáticos y no bloquean el uso de la aplicación. Si un mail no llega, verifique la carpeta de correo no deseado o pruebe la conexión SMTP desde Configuración › General.</Note>
+        <Note>Los envíos son automáticos y no bloquean el uso de la aplicación. Si un mail no llega, verifique la carpeta de correo no deseado. El estado de la conexión SMTP se puede consultar en Configuración › General › Estado de servicios.</Note>
       </Section>
 
       <div className="mt-10 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 print:mt-6">

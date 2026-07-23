@@ -13,6 +13,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Pencil, Trash2, Plus, X } from 'lucide-react'
+import { TabTipos as TabTiposAusencia } from '@/components/ausencias/AusenciasAdmin'
 
 interface CampoSolicitud {
   nombre: string
@@ -318,6 +319,18 @@ export function TabSolicitudes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tipos de ausencia</CardTitle>
+          <CardDescription className="mt-1">
+            Definí los tipos de ausencia (vacaciones, licencias, etc.) que pueden solicitar los empleados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TabTiposAusencia />
+        </CardContent>
+      </Card>
 
       <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>

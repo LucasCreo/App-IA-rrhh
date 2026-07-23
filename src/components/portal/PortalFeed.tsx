@@ -95,6 +95,7 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
   const [contenido, setContenido] = useState('')
   const [alcance, setAlcance] = useState<'GLOBAL' | 'CATEGORIA'>('GLOBAL')
   const [categoriaId, setCategoriaId] = useState<string>('')
+  const [notificar, setNotificar] = useState(true)
   const [publicando, setPublicando] = useState(false)
 
   function cerrar() {
@@ -102,6 +103,7 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
     setContenido('')
     setAlcance('GLOBAL')
     setCategoriaId('')
+    setNotificar(true)
   }
 
   async function handlePublish() {
@@ -113,6 +115,7 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
     fd.append('contenido', contenido)
     fd.append('alcance', alcance)
     if (alcance === 'CATEGORIA') fd.append('categoriaId', categoriaId)
+    fd.append('notificar', notificar ? 'true' : 'false')
 
     const r = await fetch('/api/portal/posts', { method: 'POST', body: fd })
     setPublicando(false)
@@ -186,6 +189,15 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
               )}
             </>
           )}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notificar}
+              onChange={e => setNotificar(e.target.checked)}
+              className="w-3.5 h-3.5 accent-green-700"
+            />
+            Notificar por email
+          </label>
         </div>
         <Button
           className="bg-green-700 hover:bg-green-800"
@@ -681,6 +693,7 @@ export function PortalFeed() {
       const cfg = await rCfg.json()
       if (typeof cfg?.editWindowMin === 'number' && cfg.editWindowMin > 0) EDIT_WINDOW_MIN = cfg.editWindowMin
     }
+    fetch('/api/portal/posts/mark-seen', { method: 'POST' }).catch(() => {})
     setLoading(false)
   }
 

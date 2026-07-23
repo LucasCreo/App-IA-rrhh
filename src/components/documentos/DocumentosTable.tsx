@@ -622,7 +622,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} esRecibo={esRecibo} />}
+      {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} esRecibo={esRecibo} employeeId={employeeId} />}
       {cargarOpen && <DocumentoCargarDialog open onClose={() => setCargarOpen(false)} onSaved={load} />}
     </div>
   )

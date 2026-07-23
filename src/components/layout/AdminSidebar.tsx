@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, ClipboardCheck, GripVertical, CalendarOff, UserCircle, Newspaper } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, GripVertical, UserCircle, Newspaper } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
@@ -17,8 +17,7 @@ const nav = [
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
   ...(EVALUACIONES_ENABLED ? [{ href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' }] : []),
-  { href: '/admin/formularios', label: 'Formularios', icon: ClipboardCheck, permiso: 'GESTIONAR_FORMULARIOS' },
-  { href: '/admin/ausencias', label: 'Ausencias', icon: CalendarOff, permiso: 'GESTIONAR_AUSENCIAS' },
+  { href: '/admin/solicitudes', label: 'Solicitudes', icon: ClipboardList, permiso: 'GESTIONAR_SOLICITUDES' },
 ]
 const NAV_DASHBOARD = nav[0]
 const NAV_DRAGGABLE = nav.slice(1)
@@ -82,6 +81,20 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   }
 
   useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  const [avisosUnread, setAvisosUnread] = useState(0)
+  useEffect(() => {
+    let cancel = false
+    const load = () => fetch('/api/portal/posts/unread-count')
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
+      .catch(() => {})
+    load()
+    const int = setInterval(load, 60_000)
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => { cancel = true; clearInterval(int); window.removeEventListener('focus', onFocus) }
+  }, [pathname])
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -190,13 +203,23 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                   {collapsed && href === '/admin/empleados' && pendingModificaciones > 0 && (
                     <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
                   )}
-                  {!collapsed && href === '/admin/documentos' && pendingSolicitudes > 0 && (
+                  {!collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
                     <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 text-yellow-900 text-xs font-bold px-1">
                       {pendingSolicitudes}
                     </span>
                   )}
-                  {collapsed && href === '/admin/documentos' && pendingSolicitudes > 0 && (
+                  {collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
                     <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
+                  )}
+                  {!collapsed && href === '/admin/portal' && avisosUnread > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1.5">
+                      {avisosUnread > 99 ? '99+' : avisosUnread}
+                    </span>
+                  )}
+                  {collapsed && href === '/admin/portal' && avisosUnread > 0 && (
+                    <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {avisosUnread > 9 ? '9+' : avisosUnread}
+                    </span>
                   )}
                   {!collapsed && (
                     <GripVertical size={14} className="opacity-0 group-hover:opacity-30 shrink-0 cursor-grab active:cursor-grabbing" />

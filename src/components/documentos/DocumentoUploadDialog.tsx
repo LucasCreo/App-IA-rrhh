@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { EmpleadoPicker } from './EmpleadoPicker'
 import { Upload, X } from 'lucide-react'
 
 interface CampoDefinicion {
@@ -18,10 +19,10 @@ interface CampoDefinicion {
   requerido: boolean
 }
 
-interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
+interface Empleado { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nombre: string } | null }
 interface Tipo { id: number; nombre: string; campos?: CampoDefinicion[] | null; tienePeriodo?: boolean }
 interface Entry { file: File; empleadoId: string; campoValues: Record<string, string> }
-interface Props { open: boolean; onClose: () => void; onSaved: () => void; esRecibo?: boolean }
+interface Props { open: boolean; onClose: () => void; onSaved: () => void; esRecibo?: boolean; employeeId?: number }
 
 const MESES = [
   { value: '01', label: 'Enero' }, { value: '02', label: 'Febrero' },
@@ -52,9 +53,10 @@ function buildDefaultValues(campos: CampoDefinicion[]): Record<string, string> {
   return defaults
 }
 
-export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Props) {
+export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employeeId }: Props) {
   const router = useRouter()
   const [empleados, setEmpleados] = useState<Empleado[]>([])
+  const [empleadoFijo, setEmpleadoFijo] = useState<Empleado | null>(null)
   const [tipos, setTipos] = useState<Tipo[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
   const [tipoId, setTipoId] = useState('')
@@ -63,7 +65,11 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
 
   useEffect(() => {
     if (!open) return
-    fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => setEmpleados(d.employees))
+    if (employeeId) {
+      fetch(`/api/empleados/${employeeId}`).then(r => r.json()).then((e: Empleado) => setEmpleadoFijo(e))
+    } else {
+      fetch('/api/empleados?all=true&estado=ACTIVO').then(r => r.json()).then(d => setEmpleados(d.employees))
+    }
     const RECIBO_TIPO = 'Recibo de Sueldo'
     fetch('/api/configuracion/tipos-documento').then(r => r.json()).then((data: Tipo[]) => {
       const filtered = esRecibo === true
@@ -79,7 +85,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
     })
     setEntries([])
     if (esRecibo !== true) setTipoId('')
-  }, [open, esRecibo])
+  }, [open, esRecibo, employeeId])
 
   const selectedTipo = tipos.find(t => String(t.id) === tipoId)
   const activeCampos: CampoDefinicion[] = !selectedTipo
@@ -98,7 +104,8 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
 
   function addFiles(newFiles: File[]) {
     const defaults = buildDefaultValues(activeCampos)
-    setEntries(prev => [...prev, ...newFiles.map(file => ({ file, empleadoId: '', campoValues: defaults }))])
+    const eid = employeeId ? String(employeeId) : ''
+    setEntries(prev => [...prev, ...newFiles.map(file => ({ file, empleadoId: eid, campoValues: defaults }))])
   }
 
   function removeEntry(index: number) {
@@ -203,6 +210,11 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
       <DialogContent className="sm:max-w-2xl flex flex-col max-h-[85vh] overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>{dialogTitle}</DialogTitle>
+          {empleadoFijo && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Para <span className="font-medium text-foreground">{empleadoFijo.apellido}, {empleadoFijo.nombre}</span> ({empleadoFijo.legajo})
+            </p>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
@@ -248,23 +260,14 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
-                      <SelectTrigger className="flex-1 min-w-40 h-8 text-xs">
-                        <SelectValue placeholder="Empleado…">
-                          {(() => {
-                            const emp = empleados.find(e => String(e.id) === entry.empleadoId)
-                            return emp ? `${emp.apellido}, ${emp.nombre} (${emp.legajo})` : 'Empleado…'
-                          })()}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {empleados.map(e => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.apellido}, {e.nombre} <span className="text-muted-foreground">({e.legajo})</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {!employeeId && (
+                      <EmpleadoPicker
+                        value={entry.empleadoId}
+                        onChange={v => setEntryEmpleado(i, v)}
+                        empleados={empleados}
+                        className="flex-1 min-w-40"
+                      />
+                    )}
                     {activeCampos.map(campo => {
                       if (campo.tipo === 'mes_anio') {
                         return (

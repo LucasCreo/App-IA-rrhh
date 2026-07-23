@@ -1,7 +1,8 @@
 ﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Plus, X, Trash2, Search, SlidersHorizontal, CalendarDays, List, LayoutGrid } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Trash2, Search, SlidersHorizontal, CalendarDays, List, LayoutGrid, Users } from 'lucide-react'
+import { Popover } from '@base-ui/react/popover'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -90,6 +91,15 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   const [anio, setAnio] = useState(now.getFullYear())
   const [semanaRef, setSemanaRef] = useState<Date>(() => inicioSemana(now))
   const [tiposOcultos, setTiposOcultos] = useState<Set<string>>(new Set())
+  const [empleadosOcultos, setEmpleadosOcultos] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const raw = localStorage.getItem('calendario-empleados-ocultos')
+      if (!raw) return new Set()
+      return new Set(JSON.parse(raw) as number[])
+    } catch { return new Set() }
+  })
+  const [empleadosSearch, setEmpleadosSearch] = useState('')
   const [dragEvento, setDragEvento] = useState<Evento | null>(null)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
   const [eventos, setEventos] = useState<Evento[]>([])
@@ -215,6 +225,22 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     })
   }
 
+  function toggleEmpleadoOculto(id: number) {
+    setEmpleadosOcultos(prev => {
+      const s = new Set(prev)
+      if (s.has(id)) s.delete(id)
+      else s.add(id)
+      try { localStorage.setItem('calendario-empleados-ocultos', JSON.stringify([...s])) } catch {}
+      return s
+    })
+  }
+
+  function setAllEmpleadosOcultos(ocultos: number[]) {
+    const s = new Set(ocultos)
+    setEmpleadosOcultos(s)
+    try { localStorage.setItem('calendario-empleados-ocultos', JSON.stringify([...s])) } catch {}
+  }
+
   function getTipoColor(tipoNombre: string) {
     return tipos.find(t => t.nombre === tipoNombre)?.color ?? '#6b7280'
   }
@@ -330,6 +356,10 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   // Filter eventos
   const eventosFiltrados = eventos.filter(e => {
     if (tiposOcultos.has(e.tipo)) return false
+    if (isAdmin && empleadosOcultos.size > 0 && e.asignados.length > 0) {
+      const algunoVisible = e.asignados.some(a => !empleadosOcultos.has(a.employeeId))
+      if (!algunoVisible) return false
+    }
     if (filterText) {
       const q = filterText.toLowerCase()
       if (!e.titulo.toLowerCase().includes(q) && !(e.descripcion?.toLowerCase().includes(q))) return false
@@ -419,6 +449,85 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
               )
             })}
           </div>
+          {isAdmin && (
+            <Popover.Root>
+              <Popover.Trigger
+                className={cn(
+                  'inline-flex items-center gap-1 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                  'bg-background hover:bg-muted border-input',
+                  empleadosOcultos.size > 0 && 'border-green-600 text-green-700 dark:text-green-400',
+                )}
+              >
+                <Users size={13} /> Empleados
+                {empleadosOcultos.size > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold">
+                    {empleados.length - empleadosOcultos.size}
+                  </span>
+                )}
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
+                  <Popover.Popup className="w-72 rounded-xl border bg-popover text-popover-foreground shadow-lg outline-none flex flex-col max-h-96">
+                    <div className="p-2 border-b space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mostrar empleados</p>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setAllEmpleadosOcultos([])}
+                            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                          >
+                            Todos
+                          </button>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <button
+                            onClick={() => setAllEmpleadosOcultos(empleados.map(e => e.id))}
+                            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                          >
+                            Ninguno
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <Input
+                          className="pl-7 h-8 text-xs"
+                          placeholder="Buscar…"
+                          value={empleadosSearch}
+                          onChange={e => setEmpleadosSearch(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto py-1">
+                      {(() => {
+                        const q = empleadosSearch.trim().toLowerCase()
+                        const list = q
+                          ? empleados.filter(e => `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase().includes(q))
+                          : empleados
+                        if (list.length === 0) return <p className="text-xs text-muted-foreground text-center py-4">Sin resultados</p>
+                        return list.map(e => {
+                          const visible = !empleadosOcultos.has(e.id)
+                          return (
+                            <label key={e.id} className="flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer hover:bg-accent">
+                              <input
+                                type="checkbox"
+                                checked={visible}
+                                onChange={() => toggleEmpleadoOculto(e.id)}
+                                className="w-3.5 h-3.5 accent-green-700 shrink-0"
+                              />
+                              <span className={cn('flex-1 truncate', !visible && 'text-muted-foreground line-through')}>
+                                {e.apellido}, {e.nombre}
+                              </span>
+                              <span className="text-muted-foreground text-[10px]">{e.legajo}</span>
+                            </label>
+                          )
+                        })
+                      })()}
+                    </div>
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
+          )}
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => setShowFilters(f => !f)} className="relative">
               <SlidersHorizontal size={14} className="mr-1" /> Filtrar

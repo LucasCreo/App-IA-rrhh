@@ -20,6 +20,7 @@ model User {
   avatarTextColor     String?
   googleRefreshToken  String?
   googleLastSync      DateTime?
+  avisosLastSeenAt    DateTime?
   createdAt    DateTime  @default(now())
 
   employee  Employee?  @relation(fields: [employeeId], references: [id])

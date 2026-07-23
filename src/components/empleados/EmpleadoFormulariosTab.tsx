@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CheckCircle2, Clock, Download } from 'lucide-react'
+import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 
 interface Campo { nombre: string; label: string; tipo: string; rellena: string }
 
@@ -28,6 +29,7 @@ export function EmpleadoFormulariosTab({ employeeId }: { employeeId: number }) {
   const [respuestas, setRespuestas] = useState<Respuesta[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Respuesta | null>(null)
+  const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
 
   useEffect(() => {
     fetch(`/api/empleados/${employeeId}/formularios`)
@@ -133,14 +135,12 @@ export function EmpleadoFormulariosTab({ employeeId }: { employeeId: number }) {
                     <div key={c.nombre} className="flex items-start justify-between text-sm gap-4">
                       <span className="text-muted-foreground shrink-0">{c.label}</span>
                       {c.tipo === 'archivo' && valor ? (
-                        <a
-                          href={`/api/formularios/archivo?file=${valor}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          onClick={() => setPreview({ url: `/api/formularios/archivo?file=${valor}`, filename: valor })}
                           className="font-medium text-right text-green-700 dark:text-green-400 hover:underline truncate max-w-[200px]"
                         >
                           {valor.replace(/^\d+-/, '')}
-                        </a>
+                        </button>
                       ) : (
                         <span className="font-medium text-right">{valor || '—'}</span>
                       )}
@@ -164,6 +164,13 @@ export function EmpleadoFormulariosTab({ employeeId }: { employeeId: number }) {
           )}
         </DialogContent>
       </Dialog>
+
+      <ArchivoPreviewDialog
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        url={preview?.url ?? null}
+        filename={preview?.filename ?? null}
+      />
     </>
   )
 }

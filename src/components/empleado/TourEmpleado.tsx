@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, LayoutDashboard, FileText, FolderOpen, CalendarDays, CalendarOff, UserCircle, BookOpen } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, LayoutDashboard, FileText, FolderOpen, CalendarDays, ClipboardList, UserCircle, BookOpen } from 'lucide-react'
 
 const STORAGE_KEY = 'rrhh-tour-empleado-visto'
 
@@ -32,9 +32,9 @@ const slides = [
     description: 'Visualice los eventos de la organización y sus eventos personales. También puede sincronizar con Google Calendar desde su perfil.',
   },
   {
-    icon: CalendarOff,
-    title: 'Ausencias',
-    description: 'Solicite licencias, vacaciones u otros tipos de ausencia. Consulte su saldo de días disponibles y el estado de cada solicitud.',
+    icon: ClipboardList,
+    title: 'Solicitudes',
+    description: 'Gestione desde un mismo lugar sus solicitudes de ausencias, licencias, vacaciones y documentos. Consulte su saldo de días disponibles y el estado de cada solicitud.',
   },
   {
     icon: UserCircle,

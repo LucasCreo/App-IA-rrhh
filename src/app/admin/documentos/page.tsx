@@ -4,18 +4,20 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
-import { SolicitudesTab } from '@/components/solicitudes/SolicitudesTab'
+import { AsignacionesList } from '@/components/formularios/AsignacionesList'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   { id: 'documentos', label: 'Documentos' },
-  { id: 'solicitudes', label: 'Solicitudes de empleados' },
-]
+  { id: 'formularios', label: 'Formularios' },
+] as const
+
+type Tab = typeof TABS[number]['id']
 
 export default function DocumentosPage() {
   const searchParams = useSearchParams()
-  const initial = searchParams.get('tab') === 'solicitudes' ? 'solicitudes' : 'documentos'
-  const [tab, setTab] = useState(initial)
+  const initial = (searchParams.get('tab') as Tab) === 'formularios' ? 'formularios' : 'documentos'
+  const [tab, setTab] = useState<Tab>(initial)
 
   return (
     <>
@@ -38,7 +40,7 @@ export default function DocumentosPage() {
           ))}
         </div>
         {tab === 'documentos' && <DocumentosTable esRecibo={false} />}
-        {tab === 'solicitudes' && <SolicitudesTab />}
+        {tab === 'formularios' && <AsignacionesList />}
       </div>
     </>
   )

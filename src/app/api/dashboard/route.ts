@@ -98,7 +98,7 @@ export async function GET() {
       legajo: s.employee.legajo,
       descripcion: `Solicita: ${s.tipo.nombre}`,
       createdAt: s.createdAt,
-      href: '/admin/documentos?tab=solicitudes',
+      href: '/admin/solicitudes',
     })),
     ...recentPendAusencias.map(a => ({
       id: `aus-${a.id}`,

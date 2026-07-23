@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
           { apellido: { contains: q } },
           { legajo: { contains: q } },
           { cuil: { contains: q } },
+          { email: { contains: q } },
         ],
       } : {},
       estado ? { estado } : {},

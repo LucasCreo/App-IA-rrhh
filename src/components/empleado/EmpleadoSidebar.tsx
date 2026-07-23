@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, CalendarOff, BookOpen, Shield, Newspaper } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, BookOpen, Shield, Newspaper, ClipboardList } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -14,7 +14,7 @@ const nav = [
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
-  { href: '/empleado/ausencias', label: 'Solicitudes', icon: CalendarOff },
+  { href: '/empleado/solicitudes', label: 'Solicitudes', icon: ClipboardList },
 ]
 
 interface Props {
@@ -36,6 +36,20 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  const [avisosUnread, setAvisosUnread] = useState(0)
+  useEffect(() => {
+    let cancel = false
+    const load = () => fetch('/api/portal/posts/unread-count')
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
+      .catch(() => {})
+    load()
+    const int = setInterval(load, 60_000)
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => { cancel = true; clearInterval(int); window.removeEventListener('focus', onFocus) }
+  }, [pathname])
 
   const perfilActive = pathname === '/empleado/perfil'
 
@@ -102,14 +116,15 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
         {nav.map(({ href, label, icon: Icon }) => {
           const active = href === '/empleado' ? pathname === '/empleado' : pathname.startsWith(href)
           const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
+          const badge = href === '/empleado/portal' && avisosUnread > 0 ? avisosUnread : 0
           return (
             <Link
               key={href}
               href={href}
               data-tour={tourKey}
-              title={collapsed ? label : undefined}
+              title={collapsed ? `${label}${badge ? ` (${badge})` : ''}` : undefined}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 collapsed && 'justify-center',
                 active
                   ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
@@ -117,7 +132,18 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
               )}
             >
               <Icon size={16} className="shrink-0" />
-              {!collapsed && label}
+              {!collapsed && <span className="flex-1">{label}</span>}
+              {badge > 0 && (
+                collapsed ? (
+                  <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                ) : (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )
+              )}
             </Link>
           )
         })}

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { CheckCircle2, Circle, ChevronLeft, Trash2, Pencil, AlertTriangle, Paperclip } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
+import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 
 interface Campo {
   nombre: string
@@ -56,6 +57,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
   const [editFechaLimite, setEditFechaLimite] = useState('')
   const [editDatosAdmin, setEditDatosAdmin] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
 
   async function openEdit() {
     const pRes = await fetch('/api/configuracion/plantillas-formulario').then(r => r.json())
@@ -80,7 +82,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
     setEditOpen(false)
     const updated = await fetch(`/api/formularios/asignaciones/${id}`).then(r => r.json())
     setAsignacion(updated)
-    toast.success('Asignación actualizada')
+    toast.success('Solicitud actualizada')
   }
 
   async function handleDelete() {
@@ -88,7 +90,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
     const res = await fetch(`/api/formularios/asignaciones/${id}`, { method: 'DELETE' })
     setDeleting(false)
     if (!res.ok) { toast.error('Error al eliminar'); return }
-    toast.success('Asignación eliminada')
+    toast.success('Solicitud eliminada')
     router.push('/admin/formularios')
   }
 
@@ -184,7 +186,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
       <Dialog open={editOpen} onOpenChange={v => !v && setEditOpen(false)}>
         <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Editar asignación</DialogTitle>
+            <DialogTitle>Editar solicitud</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
             <div>
@@ -248,7 +250,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
       <Dialog open={confirmDelete} onOpenChange={v => !v && setConfirmDelete(false)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>¿Eliminar asignación?</DialogTitle>
+            <DialogTitle>¿Eliminar solicitud?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground py-2">Se eliminarán todas las respuestas asociadas. Esta acción no se puede deshacer.</p>
           <DialogFooter>
@@ -273,14 +275,12 @@ export function AsignacionDetalle({ id }: { id: number }) {
                 <div key={campo.nombre}>
                   <p className="text-xs font-medium text-muted-foreground mb-1">{campo.label}</p>
                   {campo.tipo === 'archivo' && valor ? (
-                    <a
-                      href={`/api/formularios/archivo?file=${valor}`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      onClick={() => setPreview({ url: `/api/formularios/archivo?file=${valor}`, filename: valor })}
                       className="text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1"
                     >
                       <Paperclip size={13} /> {valor.replace(/^\d+-/, '')}
-                    </a>
+                    </button>
                   ) : (
                     <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
                       {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
@@ -292,6 +292,13 @@ export function AsignacionDetalle({ id }: { id: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ArchivoPreviewDialog
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        url={preview?.url ?? null}
+        filename={preview?.filename ?? null}
+      />
     </div>
   )
 }

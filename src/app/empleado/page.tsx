@@ -82,10 +82,10 @@ export default async function EmpleadoPage() {
             <p className="text-2xl font-bold">{totalRecibos}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Recibos</p>
           </Link>
-          <Link href="/empleado/documentos?tab=solicitudes" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/empleado/solicitudes" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             <Send size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalSolicitudes}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Documentos enviados</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Solicitudes enviadas</p>
           </Link>
           <Link href="/empleado/documentos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             <Clock size={18} className="mx-auto mb-1.5 text-muted-foreground" />

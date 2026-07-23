@@ -219,7 +219,7 @@ function TabSolicitudes() {
 }
 
 // ── Tab Saldos ───────────────────────────────────────────────────────────────
-function TabSaldos() {
+export function TabSaldos() {
   const router = useRouter()
   const [data, setData] = useState<SaldoRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -303,7 +303,7 @@ function TabSaldos() {
 }
 
 // ── Tab Tipos ────────────────────────────────────────────────────────────────
-function TabTipos() {
+export function TabTipos() {
   const router = useRouter()
   const [tipos, setTipos] = useState<TipoAusencia[]>([])
   const [loading, setLoading] = useState(true)

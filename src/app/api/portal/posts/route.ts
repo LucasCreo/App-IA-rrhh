@@ -6,6 +6,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { logAction } from '@/lib/audit'
 import { sanitizePostHtml } from '@/lib/richContent'
+import { sendMail } from '@/lib/email'
 
 const MAX_IMG = 5 * 1024 * 1024
 
@@ -127,5 +128,47 @@ export async function POST(req: NextRequest) {
   })
 
   await logAction(user.userId, 'PUBLICAR', 'Post', `Post ${post.id}`)
+
+  const notificar = formData.get('notificar') !== 'false'
+  if (notificar) {
+    // Destinatarios: empleados con acceso al sistema del scope del post, excepto el autor
+    const destinatarios = await prisma.user.findMany({
+      where: {
+        id: { not: user.userId },
+        email: { not: '' },
+        employeeId: { not: null },
+        ...(alcance === 'CATEGORIA' && categoriaId
+          ? { employee: { categoriaId, estado: 'ACTIVO' } }
+          : { employee: { estado: 'ACTIVO' } }),
+      },
+      select: {
+        email: true,
+        employee: { select: { nombre: true } },
+      },
+    })
+    const autor = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { email: true, employee: { select: { nombre: true, apellido: true } } },
+    }).catch(() => null)
+    const autorNombre = autor?.employee
+      ? `${autor.employee.nombre} ${autor.employee.apellido}`
+      : autor?.email ?? 'Un compañero'
+    const previewHtml = contenido
+      ? sanitizePostHtml(contenido).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+      : '(sin texto)'
+    Promise.all(destinatarios.map(d => sendMail({
+      to: d.email,
+      subject: `Nuevo aviso de ${autorNombre}`,
+      title: 'Nuevo aviso publicado',
+      bodyHtml: `
+        <p>Hola ${d.employee?.nombre ?? ''},</p>
+        <p><strong>${autorNombre}</strong> publicó un nuevo aviso:</p>
+        <blockquote style="border-left:3px solid #16a34a;padding-left:12px;color:#374151;margin:12px 0;">${previewHtml}${previewHtml.length >= 200 ? '…' : ''}</blockquote>
+      `,
+      ctaLabel: 'Ver aviso',
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/portal`,
+    }))).catch(e => console.error('[email/post] fallo:', e))
+  }
+
   return NextResponse.json({ id: post.id }, { status: 201 })
 }

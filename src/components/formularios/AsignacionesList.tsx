@@ -104,7 +104,7 @@ export function AsignacionesList() {
     setEditSaving(false)
     if (!res.ok) { toast.error('Error al guardar'); return }
     setToEdit(null); load()
-    toast.success('Asignación actualizada')
+    toast.success('Solicitud actualizada')
   }
 
   async function handleDelete() {
@@ -114,7 +114,7 @@ export function AsignacionesList() {
     setDeleting(false)
     if (!res.ok) { toast.error('Error al eliminar'); return }
     setToDelete(null); load()
-    toast.success('Asignación eliminada')
+    toast.success('Solicitud eliminada')
   }
 
   async function handleCrear() {
@@ -130,22 +130,22 @@ export function AsignacionesList() {
     setSaving(false)
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? 'Error'); return }
     setOpen(false); load()
-    toast.success('Formulario asignado')
+    toast.success('Solicitud creada')
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{asignaciones.length} asignación{asignaciones.length !== 1 ? 'es' : ''}</p>
+        <p className="text-sm text-muted-foreground">{asignaciones.length} solicitud{asignaciones.length !== 1 ? 'es' : ''}</p>
         <Button className="bg-green-700 hover:bg-green-800 gap-1.5" onClick={openDialog}>
-          <Plus size={15} /> Nueva asignación
+          <Plus size={15} /> Nueva solicitud
         </Button>
       </div>
 
       {asignaciones.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Sin formularios asignados todavía</p>
+          <p className="text-sm">Sin solicitudes creadas todavía</p>
         </div>
       ) : (
         <div className="border rounded-xl overflow-hidden">
@@ -216,7 +216,7 @@ export function AsignacionesList() {
       <Dialog open={toEdit !== null} onOpenChange={v => !v && setToEdit(null)}>
         <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Editar asignación</DialogTitle>
+            <DialogTitle>Editar solicitud</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
             <div>
@@ -280,7 +280,7 @@ export function AsignacionesList() {
       <Dialog open={toDelete !== null} onOpenChange={v => !v && setToDelete(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>¿Eliminar asignación?</DialogTitle>
+            <DialogTitle>¿Eliminar solicitud?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground py-2">Se eliminarán todas las respuestas de <span className="font-medium text-foreground">"{toDelete?.nombre}"</span>. Esta acción no se puede deshacer.</p>
           <DialogFooter>
@@ -295,11 +295,11 @@ export function AsignacionesList() {
       <Dialog open={open} onOpenChange={v => !v && setOpen(false)}>
         <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Nueva asignación de formulario</DialogTitle>
+            <DialogTitle>Nueva solicitud</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Nombre de la asignación</p>
+              <p className="text-xs text-muted-foreground mb-1">Nombre de la solicitud</p>
               <Input placeholder="Ej: Alta de haberes — Junio 2026" value={nombre} onChange={e => setNombre(e.target.value)} />
             </div>
             <div>
@@ -382,7 +382,7 @@ export function AsignacionesList() {
           <DialogFooter className="shrink-0 border-t border-border pt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button className="bg-green-700 hover:bg-green-800" onClick={handleCrear} disabled={saving}>
-              {saving ? 'Asignando...' : 'Asignar'}
+              {saving ? 'Solicitando...' : 'Solicitar'}
             </Button>
           </DialogFooter>
         </DialogContent>

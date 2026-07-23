@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { parseApiError, showApiError } from '@/lib/apiErrors'
@@ -14,9 +14,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from '@/components/empleados/SolicitudesModificacionAdmin'
 import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
+import { ManagerDialog } from '@/components/usuarios/ManagerDialog'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
 import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulariosTab'
+import { EmpleadoSolicitudesTab } from '@/components/empleados/EmpleadoSolicitudesTab'
 import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { validarCuil } from '@/lib/cuil'
@@ -50,8 +52,12 @@ export default function EmpleadoDetailPage() {
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'formularios' | 'calendario'>('datos')
+  const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'formularios' | 'solicitudes' | 'calendario'>('datos')
   const [subordinadosOpen, setSubordinadosOpen] = useState(false)
+  const [managerOpen, setManagerOpen] = useState(false)
+  const [manager, setManager] = useState<{ id: number; label: string } | null>(null)
+  const [subordinados, setSubordinados] = useState<Array<{ id: number; label: string; sub: string }>>([])
+  const [orgLoading, setOrgLoading] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -83,6 +89,43 @@ export default function EmpleadoDetailPage() {
       setLoading(false)
     })
   }, [id])
+
+  const loadOrganigrama = useCallback(async (uid: number) => {
+    setOrgLoading(true)
+    try {
+      const [mgrRes, subsRes, allRes] = await Promise.all([
+        fetch(`/api/usuarios/${uid}/manager`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/usuarios/${uid}/subordinados`).then(r => r.ok ? r.json() : null),
+        fetch('/api/usuarios').then(r => r.ok ? r.json() : []),
+      ])
+      if (mgrRes?.manager) {
+        const emp = mgrRes.manager.employee
+        setManager({
+          id: mgrRes.manager.id,
+          label: emp ? `${emp.apellido}, ${emp.nombre} (${emp.legajo})` : mgrRes.manager.email,
+        })
+      } else {
+        setManager(null)
+      }
+      const ids: number[] = subsRes?.subordinadoIds ?? []
+      const all: Array<{ id: number; email: string; employee: { nombre: string; apellido: string; legajo: string } | null }> = Array.isArray(allRes) ? allRes : []
+      setSubordinados(
+        all
+          .filter(u => ids.includes(u.id))
+          .map(u => ({
+            id: u.id,
+            label: u.employee ? `${u.employee.apellido}, ${u.employee.nombre}` : u.email,
+            sub: u.employee ? u.employee.legajo : '',
+          }))
+      )
+    } finally {
+      setOrgLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (existingUser?.id) loadOrganigrama(existingUser.id)
+  }, [existingUser?.id, loadOrganigrama])
 
   function isVisible(campo: string) {
     const cfg = fieldConfig.find(f => f.campo === campo)
@@ -184,6 +227,7 @@ export default function EmpleadoDetailPage() {
             { id: 'recibos', label: 'Recibos' },
             ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones' as const, label: 'Evaluaciones' }] : []),
             { id: 'formularios', label: 'Formularios' },
+            { id: 'solicitudes', label: 'Solicitudes' },
             { id: 'calendario', label: 'Calendario' },
           ] as const).map(t => (
             <button
@@ -205,6 +249,7 @@ export default function EmpleadoDetailPage() {
         {tab === 'recibos' && <DocumentosTable employeeId={form.id} esRecibo={true} />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'formularios' && <EmpleadoFormulariosTab employeeId={form.id} />}
+        {tab === 'solicitudes' && <EmpleadoSolicitudesTab employeeId={form.id} />}
         {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}
         {tab === 'datos' && <div className="max-w-3xl space-y-6">
 
@@ -361,14 +406,55 @@ export default function EmpleadoDetailPage() {
 
         {/* Organigrama */}
         {existingUser && (
-          <div className="rounded-xl border bg-card shadow-sm p-5 space-y-3">
+          <div className="rounded-xl border bg-card shadow-sm p-5 space-y-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Organigrama</p>
-            <p className="text-sm text-muted-foreground">
-              Marcá qué empleados están un orden jerárquico por debajo de este. Los descendientes definen a quiénes puede aprobar solicitudes y ver su información.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setSubordinadosOpen(true)}>
-              <Network size={14} className="mr-1.5" /> Configurar subordinados
-            </Button>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Reporta a</p>
+                  {orgLoading ? (
+                    <Skeleton className="h-4 w-40 mt-1" />
+                  ) : manager ? (
+                    <p className="text-sm font-medium truncate">{manager.label}</p>
+                  ) : (
+                    <p className="text-sm italic text-muted-foreground">Sin superior (en la cima del organigrama)</p>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setManagerOpen(true)}>
+                  <Network size={13} className="mr-1.5" /> {manager ? 'Cambiar' : 'Asignar'} superior
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">
+                    Subordinados directos {!orgLoading && `(${subordinados.length})`}
+                  </p>
+                  {orgLoading ? (
+                    <Skeleton className="h-4 w-40 mt-1" />
+                  ) : subordinados.length === 0 ? (
+                    <p className="text-sm italic text-muted-foreground">Sin subordinados asignados</p>
+                  ) : (
+                    <ul className="mt-1 space-y-0.5">
+                      {subordinados.slice(0, 5).map(s => (
+                        <li key={s.id} className="text-sm truncate">
+                          {s.label} {s.sub && <span className="text-xs text-muted-foreground">· {s.sub}</span>}
+                        </li>
+                      ))}
+                      {subordinados.length > 5 && (
+                        <li className="text-xs text-muted-foreground">y {subordinados.length - 5} más…</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setSubordinadosOpen(true)}>
+                  <Network size={13} className="mr-1.5" /> Configurar
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -423,12 +509,22 @@ export default function EmpleadoDetailPage() {
         </div>}
       </div>
       {existingUser && (
-        <SubordinadosDialog
-          open={subordinadosOpen}
-          managerId={existingUser.id}
-          managerLabel={`${form.apellido}, ${form.nombre}`}
-          onClose={() => setSubordinadosOpen(false)}
-        />
+        <>
+          <SubordinadosDialog
+            open={subordinadosOpen}
+            managerId={existingUser.id}
+            managerLabel={`${form.apellido}, ${form.nombre}`}
+            onClose={() => setSubordinadosOpen(false)}
+            onSaved={() => loadOrganigrama(existingUser.id)}
+          />
+          <ManagerDialog
+            open={managerOpen}
+            userId={existingUser.id}
+            userLabel={`${form.apellido}, ${form.nombre}`}
+            onClose={() => setManagerOpen(false)}
+            onSaved={() => loadOrganigrama(existingUser.id)}
+          />
+        </>
       )}
     </>
   )

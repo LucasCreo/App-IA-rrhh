@@ -110,7 +110,7 @@ export function EmpleadosTable() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9"
-            placeholder="Buscar por nombre, legajo, CUIL..."
+            placeholder="Buscar por nombre, legajo, CUIL, email..."
             value={q}
             onChange={e => { setQ(e.target.value); setPage(1) }}
           />

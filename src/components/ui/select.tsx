@@ -6,20 +6,27 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-// Registry context so SelectItem can register its value→label mapping
-const SelectItemRegistryContext = React.createContext<(value: string, label: string) => void>(() => {})
+function collectItems(nodes: React.ReactNode, map: Record<string, string>): void {
+  React.Children.forEach(nodes, node => {
+    if (!React.isValidElement(node)) return
+    const props = node.props as { value?: unknown; children?: React.ReactNode }
+    if (props.value != null && typeof props.children === 'string') {
+      map[String(props.value)] = props.children
+    }
+    if (props.children) collectItems(props.children, map)
+  })
+}
 
 function Select({ children, ...props }: SelectPrimitive.Root.Props<string>) {
-  const [itemsMap, setItemsMap] = React.useState<Record<string, string>>({})
-  const registerItem = React.useCallback((value: string, label: string) => {
-    setItemsMap(prev => prev[value] === label ? prev : { ...prev, [value]: label })
-  }, [])
+  const itemsMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    collectItems(children, map)
+    return map
+  }, [children])
   return (
-    <SelectItemRegistryContext.Provider value={registerItem}>
-      <SelectPrimitive.Root items={Object.keys(itemsMap).length > 0 ? itemsMap : undefined} {...props}>
-        {children}
-      </SelectPrimitive.Root>
-    </SelectItemRegistryContext.Provider>
+    <SelectPrimitive.Root items={Object.keys(itemsMap).length > 0 ? itemsMap : undefined} {...props}>
+      {children}
+    </SelectPrimitive.Root>
   )
 }
 
@@ -128,12 +135,6 @@ function SelectItem({
   children,
   ...props
 }: SelectPrimitive.Item.Props) {
-  const registerItem = React.useContext(SelectItemRegistryContext)
-  React.useEffect(() => {
-    if (props.value != null && typeof children === 'string') {
-      registerItem(String(props.value), children)
-    }
-  }, [props.value, children, registerItem])
   return (
     <SelectPrimitive.Item
       data-slot="select-item"

@@ -9,14 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { CheckCircle2, Circle, ChevronLeft, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Circle, ChevronLeft, Trash2, Pencil, AlertTriangle, Paperclip } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
 
 interface Campo {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo'
   opciones?: string
   requerido: boolean
   rellena?: 'admin' | 'empleado'
@@ -267,14 +267,28 @@ export function AsignacionDetalle({ id }: { id: number }) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             {campos.length === 0 && <p className="text-sm text-muted-foreground">Este formulario no tiene campos.</p>}
-            {campos.map(campo => (
-              <div key={campo.nombre}>
-                <p className="text-xs font-medium text-muted-foreground mb-1">{campo.label}</p>
-                <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
-                  {viewRespuesta?.datos?.[campo.nombre] || <span className="text-muted-foreground italic">Sin respuesta</span>}
-                </p>
-              </div>
-            ))}
+            {campos.map(campo => {
+              const valor = viewRespuesta?.datos?.[campo.nombre]
+              return (
+                <div key={campo.nombre}>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{campo.label}</p>
+                  {campo.tipo === 'archivo' && valor ? (
+                    <a
+                      href={`/api/formularios/archivo?file=${valor}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <Paperclip size={13} /> {valor.replace(/^\d+-/, '')}
+                    </a>
+                  ) : (
+                    <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
+                      {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </DialogContent>
       </Dialog>

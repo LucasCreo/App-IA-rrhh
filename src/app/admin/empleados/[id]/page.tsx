@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from '@/components/empleados/SolicitudesModificacionAdmin'
+import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
 import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulariosTab'
@@ -20,7 +21,7 @@ import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendario
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { validarCuil } from '@/lib/cuil'
 import { cn } from '@/lib/utils'
-import { Paperclip, X, ArrowLeft } from 'lucide-react'
+import { Paperclip, X, ArrowLeft, Network } from 'lucide-react'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
@@ -50,6 +51,7 @@ export default function EmpleadoDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'formularios' | 'calendario'>('datos')
+  const [subordinadosOpen, setSubordinadosOpen] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -357,6 +359,19 @@ export default function EmpleadoDetailPage() {
           <SolicitudesModificacionAdmin employeeId={form.id} />
         </div>
 
+        {/* Organigrama */}
+        {existingUser && (
+          <div className="rounded-xl border bg-card shadow-sm p-5 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Organigrama</p>
+            <p className="text-sm text-muted-foreground">
+              Marcá qué empleados están un orden jerárquico por debajo de este. Los descendientes definen a quiénes puede aprobar solicitudes y ver su información.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setSubordinadosOpen(true)}>
+              <Network size={14} className="mr-1.5" /> Configurar subordinados
+            </Button>
+          </div>
+        )}
+
         {/* Acceso al sistema */}
         <div className="rounded-xl border bg-card shadow-sm p-5 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acceso al sistema</p>
@@ -407,6 +422,14 @@ export default function EmpleadoDetailPage() {
         </div>
         </div>}
       </div>
+      {existingUser && (
+        <SubordinadosDialog
+          open={subordinadosOpen}
+          managerId={existingUser.id}
+          managerLabel={`${form.apellido}, ${form.nombre}`}
+          onClose={() => setSubordinadosOpen(false)}
+        />
+      )}
     </>
   )
 }

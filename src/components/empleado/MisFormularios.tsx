@@ -1,18 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ClipboardList, CheckCircle2, Circle } from 'lucide-react'
+import { ClipboardList, CheckCircle2, Circle, Upload, Paperclip, X } from 'lucide-react'
 
 interface Campo {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo'
   opciones?: string
   requerido: boolean
   rellena?: 'admin' | 'empleado'
@@ -31,12 +31,28 @@ interface Respuesta {
   }
 }
 
+function displayNameFromFile(f: string) { return f.replace(/^\d+-/, '') }
+
 export function MisFormularios() {
   const [respuestas, setRespuestas] = useState<Respuesta[]>([])
   const [editRespuesta, setEditRespuesta] = useState<Respuesta | null>(null)
   const [viewRespuesta, setViewRespuesta] = useState<Respuesta | null>(null)
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [uploadingCampo, setUploadingCampo] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingCampo, setPendingCampo] = useState<string | null>(null)
+
+  async function subirArchivo(campo: string, file: File) {
+    setUploadingCampo(campo)
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch('/api/formularios/archivo', { method: 'POST', body: fd })
+    setUploadingCampo(null)
+    if (!r.ok) { toast.error('Error al subir el archivo'); return }
+    const { fileName } = await r.json()
+    setForm(prev => ({ ...prev, [campo]: fileName }))
+  }
 
   function load() {
     fetch('/api/empleado/formularios').then(r => r.json()).then(setRespuestas)
@@ -177,6 +193,41 @@ export function MisFormularios() {
                         ))}
                       </SelectContent>
                     </Select>
+                  ) : campo.tipo === 'archivo' ? (
+                    <div className="flex items-center gap-2">
+                      {form[campo.nombre] ? (
+                        <>
+                          <a
+                            href={`/api/formularios/archivo?file=${form[campo.nombre]}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 truncate"
+                          >
+                            <Paperclip size={13} /> {displayNameFromFile(form[campo.nombre])}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setField(campo.nombre, '')}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Quitar"
+                          >
+                            <X size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9"
+                          disabled={uploadingCampo === campo.nombre}
+                          onClick={() => { setPendingCampo(campo.nombre); fileInputRef.current?.click() }}
+                        >
+                          <Upload size={13} className="mr-1.5" />
+                          {uploadingCampo === campo.nombre ? 'Subiendo…' : 'Subir archivo'}
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     <Input
                       type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
@@ -195,6 +246,17 @@ export function MisFormularios() {
               {saving ? 'Enviando...' : 'Enviar'}
             </Button>
           </DialogFooter>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file && pendingCampo) subirArchivo(pendingCampo, file)
+              setPendingCampo(null)
+              e.target.value = ''
+            }}
+          />
         </DialogContent>
       </Dialog>
 
@@ -217,9 +279,20 @@ export function MisFormularios() {
                     {campo.label}
                     {esAdmin && <span className="text-xs text-blue-500">(RRHH)</span>}
                   </p>
-                  <p className={`text-sm rounded-md px-3 py-2 ${esAdmin ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100' : 'bg-muted/40'}`}>
-                    {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
-                  </p>
+                  {campo.tipo === 'archivo' && valor ? (
+                    <a
+                      href={`/api/formularios/archivo?file=${valor}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <Paperclip size={13} /> {displayNameFromFile(valor)}
+                    </a>
+                  ) : (
+                    <p className={`text-sm rounded-md px-3 py-2 ${esAdmin ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100' : 'bg-muted/40'}`}>
+                      {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
+                    </p>
+                  )}
                 </div>
               )
             })}

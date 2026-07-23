@@ -111,7 +111,7 @@ export default function ManualAdminPage() {
         </Sub>
 
         <Sub title="Organigrama">
-          <p>Disponible como pestaña dentro de <strong>Personal › Organigrama</strong>. Muestra la jerarquía por usuario. Para configurar quiénes reportan a alguien, use el botón <strong>Subordinados</strong> desde Configuración › Usuarios: seleccione a los usuarios que están un orden jerárquico por debajo. El sistema previene ciclos.</p>
+          <p>Disponible como pestaña dentro de <strong>Personal › Organigrama</strong>. Muestra la jerarquía por usuario. Para configurar quiénes reportan a alguien, abrí la ficha del empleado (<strong>Personal → click en el nombre</strong>) y usá el botón <strong>Configurar subordinados</strong> de la sección Organigrama: seleccioná a los empleados que están un orden jerárquico por debajo. El sistema previene ciclos.</p>
           <p>El organigrama determina el <strong>alcance de datos</strong>: cada usuario con legajo ve solo su propio legajo y el de sus descendientes, aprueba solicitudes solo de sus descendientes, y sus propias solicitudes se auto-aprueban si está en la cima del organigrama.</p>
         </Sub>
 
@@ -249,7 +249,7 @@ export default function ManualAdminPage() {
           <Steps items={[
             'Acceda a Configuración › Formularios.',
             'Haga clic en Nueva plantilla.',
-            'Agregue los campos definiendo nombre, etiqueta, tipo (texto, número, fecha, select, etc.) y si es requerido.',
+            'Agregue los campos definiendo etiqueta, tipo (texto, número, fecha, selección o archivo) y si es requerido.',
             'Indique para cada campo si lo completa el empleado o el administrador.',
           ]} />
         </Sub>
@@ -321,7 +321,7 @@ export default function ManualAdminPage() {
         </Sub>
 
         <Sub title="Subordinados (organigrama)">
-          <p>El botón <strong>Subordinados</strong> permite marcar qué usuarios reportan a esta persona. Esto arma el organigrama y define el alcance de datos y aprobación de solicitudes.</p>
+          <p>La configuración de subordinados se hace ahora desde la ficha del empleado (<strong>Personal → click en el nombre → sección Organigrama</strong>). Desde ahí marcás qué empleados están un orden jerárquico por debajo. Esto arma el organigrama y define el alcance de datos y aprobación de solicitudes.</p>
         </Sub>
 
         <Sub title="Ir al legajo">

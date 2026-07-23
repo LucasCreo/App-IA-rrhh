@@ -127,12 +127,26 @@ export function EmpleadoFormulariosTab({ employeeId }: { employeeId: number }) {
             <div className="space-y-2 mt-1 max-h-96 overflow-y-auto pr-1">
               {selected.asignacion.plantilla.campos
                 .filter(c => c.rellena === 'empleado')
-                .map(c => (
-                  <div key={c.nombre} className="flex items-start justify-between text-sm gap-4">
-                    <span className="text-muted-foreground shrink-0">{c.label}</span>
-                    <span className="font-medium text-right">{selected.datos[c.nombre] || '—'}</span>
-                  </div>
-                ))}
+                .map(c => {
+                  const valor = selected.datos[c.nombre]
+                  return (
+                    <div key={c.nombre} className="flex items-start justify-between text-sm gap-4">
+                      <span className="text-muted-foreground shrink-0">{c.label}</span>
+                      {c.tipo === 'archivo' && valor ? (
+                        <a
+                          href={`/api/formularios/archivo?file=${valor}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-right text-green-700 dark:text-green-400 hover:underline truncate max-w-[200px]"
+                        >
+                          {valor.replace(/^\d+-/, '')}
+                        </a>
+                      ) : (
+                        <span className="font-medium text-right">{valor || '—'}</span>
+                      )}
+                    </div>
+                  )
+                })}
               {selected.asignacion.plantilla.campos.some(c => c.rellena === 'admin') && (
                 <div className="border-t pt-3 mt-1">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Datos administrativos</p>

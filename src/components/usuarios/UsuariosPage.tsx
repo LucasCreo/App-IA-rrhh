@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Trash2, ShieldCheck, User, ExternalLink, Network, KeyRound } from 'lucide-react'
+import { Trash2, ShieldCheck, User, ExternalLink, KeyRound } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { BloqueoEliminacionDialog } from '@/components/shared/BloqueoEliminacionDialog'
-import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
 import { PermisosDialog } from '@/components/usuarios/PermisosDialog'
 
 interface Usuario {
@@ -24,7 +23,6 @@ export function UsuariosPage() {
   const [loading, setLoading] = useState(true)
   const [deleteUser, setDeleteUser] = useState<{ id: number; email: string; hasEmployee: boolean } | null>(null)
   const [blockedDelete, setBlockedDelete] = useState<{ id: number; email: string; dependencias: { label: string; count: number; href: string }[] } | null>(null)
-  const [subordinadosOf, setSubordinadosOf] = useState<{ id: number; label: string } | null>(null)
   const [permisosOf, setPermisosOf] = useState<Usuario | null>(null)
 
   async function fetchAll() {
@@ -69,7 +67,7 @@ export function UsuariosPage() {
     <div className="max-w-5xl space-y-6">
       <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-muted-foreground">
-          Los usuarios se crean desde <strong>Personal → Nuevo empleado</strong>. Acá gestionás el acceso, permisos y organigrama de los ya existentes.
+          Los usuarios se crean desde <strong>Personal → Nuevo empleado</strong>. Acá gestionás el acceso y los permisos. El organigrama (subordinados) se configura desde la ficha del empleado.
         </p>
         <Link href="/admin/empleados" className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 shrink-0">
           Ir a Personal <ExternalLink size={11} />
@@ -147,18 +145,6 @@ export function UsuariosPage() {
                       <KeyRound size={13} />
                     </button>
                   )}
-                  {u.employee && (
-                    <button
-                      onClick={() => setSubordinadosOf({
-                        id: u.id,
-                        label: `${u.employee!.apellido}, ${u.employee!.nombre}`,
-                      })}
-                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mr-1"
-                      title="Configurar subordinados"
-                    >
-                      <Network size={13} />
-                    </button>
-                  )}
                   <button
                     onClick={() => setDeleteUser({ id: u.id, email: u.email, hasEmployee: !!u.employee })}
                     className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
@@ -190,15 +176,6 @@ export function UsuariosPage() {
         confirmToken={blockedDelete?.email}
         onDeleted={fetchAll}
       />
-      {subordinadosOf && (
-        <SubordinadosDialog
-          open={true}
-          managerId={subordinadosOf.id}
-          managerLabel={subordinadosOf.label}
-          onClose={() => setSubordinadosOf(null)}
-          onSaved={fetchAll}
-        />
-      )}
       {permisosOf && (
         <PermisosDialog
           open={true}

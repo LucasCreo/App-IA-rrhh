@@ -16,3 +16,14 @@ export function formatearCuil(cuil: string): string {
   if (solo.length !== 11) return cuil
   return `${solo.slice(0, 2)}-${solo.slice(2, 10)}-${solo.slice(10)}`
 }
+
+/**
+ * Aplica máscara XX-XXXXXXXX-X mientras el usuario tipea.
+ * Descarta caracteres no numéricos, limita a 11 dígitos e inserta guiones.
+ */
+export function maskCuilInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 10) return `${digits.slice(0, 2)}-${digits.slice(2)}`
+  return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`
+}

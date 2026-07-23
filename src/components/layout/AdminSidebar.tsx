@@ -12,7 +12,7 @@ import { EVALUACIONES_ENABLED } from '@/lib/features'
 const nav = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permiso: 'VER_DASHBOARD' },
   { href: '/admin/empleados', label: 'Personal', icon: Users, permiso: 'GESTIONAR_EMPLEADOS' },
-  { href: '/admin/portal', label: 'Portal interno', icon: Newspaper, permiso: 'VER_DASHBOARD' },
+  { href: '/admin/portal', label: 'Avisos', icon: Newspaper, permiso: 'VER_DASHBOARD' },
   { href: '/admin/documentos', label: 'Documentos', icon: FileText, permiso: 'GESTIONAR_DOCUMENTOS' },
   { href: '/admin/recibos', label: 'Recibos', icon: Receipt, permiso: 'GESTIONAR_LOTES' },
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },

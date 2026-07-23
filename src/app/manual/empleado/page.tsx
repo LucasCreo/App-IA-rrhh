@@ -88,7 +88,7 @@ export default function ManualEmpleadoPage() {
         <p>Haga clic en cualquier indicador para ir directamente al módulo correspondiente.</p>
       </Section>
 
-      <Section title="3. Portal interno">
+      <Section title="3. Avisos">
         <p>Espacio donde la organización publica noticias, comunicados y contenido interno. Puede leer las publicaciones, reaccionar, comentar y responder a comentarios.</p>
         <Sub title="Publicar">
           <p>Si tiene el permiso, use el botón para crear una publicación. Puede escribir texto enriquecido, adjuntar imágenes, audio o video, y mencionar a compañeros con @.</p>

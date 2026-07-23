@@ -5,10 +5,9 @@ import { useSearchParams } from 'next/navigation'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
-import { TabDocumentos } from '@/components/configuracion/TabDocumentos'
+import { TabDocsSolicitudes } from '@/components/configuracion/TabDocsSolicitudes'
 import { TabFirma } from '@/components/configuracion/TabFirma'
 import { TabAuditoria } from '@/components/configuracion/TabAuditoria'
-import { TabSolicitudes } from '@/components/configuracion/TabSolicitudes'
 import { TabCalendario } from '@/components/configuracion/TabCalendario'
 import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
 import { TabFormularios } from '@/components/configuracion/TabFormularios'
@@ -32,9 +31,8 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
 
   const tabs = [
     { id: 'empleados', label: 'Personal' },
-    { id: 'documentos', label: 'Documentos' },
+    { id: 'docs-solicitudes', label: 'Documentos y solicitudes' },
     { id: 'firma', label: 'Firma' },
-    { id: 'solicitudes', label: 'Solicitudes' },
     { id: 'calendario', label: 'Calendario' },
     ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones', label: 'Evaluaciones' }] : []),
     { id: 'formularios', label: 'Formularios' },
@@ -64,9 +62,8 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
         </div>
         {tab === 'general' && <TabGeneral />}
         {tab === 'empleados' && <TabEmpleados />}
-        {tab === 'documentos' && <TabDocumentos />}
+        {tab === 'docs-solicitudes' && <TabDocsSolicitudes />}
         {tab === 'firma' && <TabFirma />}
-        {tab === 'solicitudes' && <TabSolicitudes />}
         {tab === 'calendario' && <TabCalendario />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <TabEvaluaciones />}
         {tab === 'formularios' && <TabFormularios />}

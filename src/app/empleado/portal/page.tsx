@@ -9,7 +9,7 @@ export default function EmpleadoPortalPage() {
         <Link href="/empleado" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={18} />
         </Link>
-        <h1 className="font-semibold text-green-900 dark:text-green-400">Portal interno</h1>
+        <h1 className="font-semibold text-green-900 dark:text-green-400">Avisos</h1>
       </header>
       <div className="flex-1 overflow-auto p-6">
         <PortalFeed />

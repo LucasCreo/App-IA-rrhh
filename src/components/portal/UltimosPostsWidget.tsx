@@ -50,7 +50,7 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: '/admin/portal' | '
       <div className="flex items-center justify-between px-5 py-4 border-b">
         <div className="flex items-center gap-2">
           <Newspaper size={14} className="text-muted-foreground" />
-          <span className="text-sm font-semibold">Portal interno</span>
+          <span className="text-sm font-semibold">Avisos</span>
         </div>
         <Link href={baseHref} className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todo</Link>
       </div>

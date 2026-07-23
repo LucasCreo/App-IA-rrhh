@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { Paperclip, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
-import { validarCuil } from '@/lib/cuil'
+import { validarCuil, maskCuilInput } from '@/lib/cuil'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
@@ -272,7 +272,10 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                     <Label className="mb-1.5">{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
                     <Input
                       value={(form[k] ?? '') as string}
-                      onChange={e => set(k)(e.target.value)}
+                      onChange={e => set(k)(k === 'cuil' ? maskCuilInput(e.target.value) : e.target.value)}
+                      inputMode={k === 'cuil' ? 'numeric' : undefined}
+                      maxLength={k === 'cuil' ? 13 : undefined}
+                      placeholder={k === 'cuil' ? '20-12345678-9' : undefined}
                       className={cn(err(k as string) && 'border-red-500 focus-visible:ring-red-500')}
                     />
                     {k === 'cuil' && err('cuil') && (

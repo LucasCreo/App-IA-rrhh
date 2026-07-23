@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validarCuil, formatearCuil } from './cuil'
+import { validarCuil, formatearCuil, maskCuilInput } from './cuil'
 
 describe('validarCuil', () => {
   it('acepta 11 dígitos sin separadores', () => {
@@ -43,5 +43,24 @@ describe('formatearCuil', () => {
 
   it('formatea aunque venga ya con guiones', () => {
     expect(formatearCuil('20-12345678-3')).toBe('20-12345678-3')
+  })
+})
+
+describe('maskCuilInput', () => {
+  it('descarta caracteres no numéricos', () => {
+    expect(maskCuilInput('abc20xyz1234')).toBe('20-1234')
+  })
+
+  it('limita a 11 dígitos y agrega guiones', () => {
+    expect(maskCuilInput('123456789012345645845645')).toBe('12-34567890-1')
+  })
+
+  it('inserta guiones progresivamente', () => {
+    expect(maskCuilInput('2')).toBe('2')
+    expect(maskCuilInput('20')).toBe('20')
+    expect(maskCuilInput('201')).toBe('20-1')
+    expect(maskCuilInput('20123456')).toBe('20-123456')
+    expect(maskCuilInput('2012345678')).toBe('20-12345678')
+    expect(maskCuilInput('20123456783')).toBe('20-12345678-3')
   })
 })

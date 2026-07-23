@@ -31,5 +31,5 @@ export const LABELS_PERMISOS: Record<Permiso, string> = {
   GESTIONAR_EVALUACIONES: 'Gestionar evaluaciones de desempeño',
   GESTIONAR_FORMULARIOS: 'Gestionar formularios',
   GESTIONAR_AUSENCIAS: 'Gestionar ausencias y vacaciones',
-  PUBLICAR_FEED: 'Publicar en el portal interno',
+  PUBLICAR_FEED: 'Publicar en Avisos',
 }

@@ -292,7 +292,7 @@ export default function ManualAdminPage() {
         </Sub>
       </Section>
 
-      <Section title="9. Portal interno (publicaciones)">
+      <Section title="9. Avisos (publicaciones)">
         <p>Sección donde los empleados pueden leer y comentar publicaciones internas de la organización.</p>
         <Sub title="Publicar">
           <p>Los posts pueden ser <strong>Globales</strong> (visibles para todos) o <strong>Por categoría</strong> (solo para los empleados de una categoría). Admiten texto enriquecido, imágenes, audio y video.</p>

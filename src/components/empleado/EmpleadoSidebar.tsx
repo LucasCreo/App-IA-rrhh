@@ -10,11 +10,11 @@ import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const nav = [
   { href: '/empleado', label: 'Inicio', icon: LayoutDashboard },
-  { href: '/empleado/portal', label: 'Portal interno', icon: Newspaper },
+  { href: '/empleado/portal', label: 'Avisos', icon: Newspaper },
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
-  { href: '/empleado/ausencias', label: 'Ausencias', icon: CalendarOff },
+  { href: '/empleado/ausencias', label: 'Solicitudes', icon: CalendarOff },
 ]
 
 interface Props {

@@ -250,12 +250,17 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo }: Prop
                   <div className="flex flex-wrap gap-2">
                     <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
                       <SelectTrigger className="flex-1 min-w-40 h-8 text-xs">
-                        <SelectValue placeholder="Empleado…" />
+                        <SelectValue placeholder="Empleado…">
+                          {(() => {
+                            const emp = empleados.find(e => String(e.id) === entry.empleadoId)
+                            return emp ? `${emp.apellido}, ${emp.nombre} (${emp.legajo})` : 'Empleado…'
+                          })()}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {empleados.map(e => (
                           <SelectItem key={e.id} value={String(e.id)}>
-                            {e.legajo} — {e.apellido}, {e.nombre}
+                            {e.apellido}, {e.nombre} <span className="text-muted-foreground">({e.legajo})</span>
                           </SelectItem>
                         ))}
                       </SelectContent>

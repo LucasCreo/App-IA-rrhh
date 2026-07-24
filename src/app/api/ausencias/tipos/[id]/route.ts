@@ -7,6 +7,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { id } = await params
   const data = await req.json()
+  const existing = await prisma.tipoAusencia.findUnique({ where: { id: Number(id) } })
+  if (!existing) return NextResponse.json({ error: 'Tipo no encontrado' }, { status: 404 })
+  if (existing.protegido && data.afectaSaldo === false) {
+    return NextResponse.json({ error: 'No podés desactivar "afecta saldo" en un tipo protegido' }, { status: 400 })
+  }
   try {
     const tipo = await prisma.tipoAusencia.update({
       where: { id: Number(id) },
@@ -14,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...(data.nombre !== undefined && { nombre: data.nombre.trim() }),
         ...(data.color !== undefined && { color: data.color }),
         ...(data.requiereAprobacion !== undefined && { requiereAprobacion: data.requiereAprobacion }),
-        ...(data.afectaSaldo !== undefined && { afectaSaldo: data.afectaSaldo }),
+        ...(data.afectaSaldo !== undefined && !existing.protegido && { afectaSaldo: data.afectaSaldo }),
         ...(data.activo !== undefined && { activo: data.activo }),
       },
     })
@@ -31,6 +36,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const user = await getCurrentUser()
   if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { id } = await params
+  const existing = await prisma.tipoAusencia.findUnique({ where: { id: Number(id) } })
+  if (!existing) return NextResponse.json({ error: 'Tipo no encontrado' }, { status: 404 })
+  if (existing.protegido) {
+    return NextResponse.json({ error: 'Este tipo está protegido y no puede eliminarse' }, { status: 400 })
+  }
   await prisma.tipoAusencia.delete({ where: { id: Number(id) } })
   return NextResponse.json({ ok: true })
 }

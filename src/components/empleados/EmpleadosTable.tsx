@@ -147,7 +147,7 @@ export function EmpleadosTable() {
                         className={cn(
                           'flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors',
                           estado === v
-                            ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                            ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                             : 'border-input hover:bg-muted text-muted-foreground',
                         )}
                       >
@@ -166,7 +166,7 @@ export function EmpleadosTable() {
                       className={cn(
                         'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                         categoriaId === ''
-                          ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                          ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                           : 'border-input hover:bg-muted text-muted-foreground',
                       )}
                     >
@@ -179,7 +179,7 @@ export function EmpleadosTable() {
                         className={cn(
                           'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                           categoriaId === String(c.id)
-                            ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                            ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                             : 'border-input hover:bg-muted text-muted-foreground',
                         )}
                       >
@@ -234,7 +234,7 @@ export function EmpleadosTable() {
           {activeFilters.map(f => (
             <span
               key={f.key}
-              className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-400"
+              className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-500/15 dark:text-green-300"
             >
               {f.label}
               <button onClick={f.clear} className="hover:text-green-900 dark:hover:text-green-200 ml-0.5">

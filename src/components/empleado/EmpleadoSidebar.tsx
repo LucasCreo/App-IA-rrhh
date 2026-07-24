@@ -127,7 +127,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
                 'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 collapsed && 'justify-center',
                 active
-                  ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+                  ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -157,7 +157,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
             'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
             collapsed && 'justify-center',
             pathname.startsWith('/manual/empleado')
-              ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+              ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           )}
         >

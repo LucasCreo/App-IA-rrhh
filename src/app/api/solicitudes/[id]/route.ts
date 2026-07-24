@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { isAncestorOfUser } from '@/lib/scope'
+
+const patchSchema = z.object({
+  estado: z.enum(['APROBADO', 'RECHAZADO']),
+  comentario: z.string().max(2000).optional().nullable(),
+  comentarioVisible: z.boolean().optional(),
+})
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { estado, comentario, comentarioVisible } = await req.json()
-  if (!['APROBADO', 'RECHAZADO'].includes(estado)) return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+  const raw = await req.json().catch(() => null)
+  const parsed = patchSchema.safeParse(raw)
+  if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  const { estado, comentario, comentarioVisible } = parsed.data
 
   const actual = await prisma.solicitudDocumento.findUnique({
     where: { id: Number(id) },
@@ -21,13 +30,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Solo un superior en el organigrama puede resolver esta solicitud' }, { status: 403 })
   }
 
-  const solicitud = await prisma.solicitudDocumento.update({
-    where: { id: Number(id) },
+  // Lock optimista: solo actualiza si la solicitud sigue PENDIENTE.
+  // Previene doble-resolución si dos admins la abren a la vez.
+  const claim = await prisma.solicitudDocumento.updateMany({
+    where: { id: Number(id), estado: 'PENDIENTE' },
     data: {
       estado,
       comentario: comentario?.trim() || null,
       comentarioVisible: comentario?.trim() ? (comentarioVisible ?? false) : false,
     },
+  })
+  if (claim.count === 0) {
+    return NextResponse.json({ error: 'La solicitud ya fue procesada por otro administrador' }, { status: 409 })
+  }
+  const solicitud = await prisma.solicitudDocumento.findUnique({
+    where: { id: Number(id) },
     include: {
       employee: { select: { nombre: true, apellido: true, legajo: true } },
       tipo: true,

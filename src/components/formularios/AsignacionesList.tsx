@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 
-interface Asignacion {
+interface SolicitudFormulario {
   id: number
   nombre: string
   plantillaId: number
@@ -29,7 +29,7 @@ interface Empleado { id: number; nombre: string; apellido: string; legajo: strin
 
 export function AsignacionesList() {
   const router = useRouter()
-  const [asignaciones, setAsignaciones] = useState<Asignacion[]>([])
+  const [solicitudes, setSolicitudes] = useState<SolicitudFormulario[]>([])
   const [open, setOpen] = useState(false)
   const [nombre, setNombre] = useState('')
   const [plantillaId, setPlantillaId] = useState<string>('')
@@ -40,9 +40,9 @@ export function AsignacionesList() {
   const [selected, setSelected] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
   const [datosAdmin, setDatosAdmin] = useState<Record<string, string>>({})
-  const [toDelete, setToDelete] = useState<Asignacion | null>(null)
+  const [toDelete, setToDelete] = useState<SolicitudFormulario | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [toEdit, setToEdit] = useState<Asignacion | null>(null)
+  const [toEdit, setToEdit] = useState<SolicitudFormulario | null>(null)
   const [editNombre, setEditNombre] = useState('')
   const [editPlantillaId, setEditPlantillaId] = useState('')
   const [editFechaLimite, setEditFechaLimite] = useState('')
@@ -50,7 +50,7 @@ export function AsignacionesList() {
   const [editSaving, setEditSaving] = useState(false)
 
   function load() {
-    fetch('/api/formularios/asignaciones').then(r => r.json()).then(setAsignaciones)
+    fetch('/api/formularios/asignaciones').then(r => r.json()).then(setSolicitudes)
   }
 
   useEffect(() => { load() }, [])
@@ -61,7 +61,8 @@ export function AsignacionesList() {
       fetch('/api/empleados?all=true').then(r => r.json()),
     ])
     setPlantillas((pRes as Plantilla[]).filter(p => p.activo))
-    setEmpleados((eRes as any).employees ?? eRes)
+    const list = (eRes as { employees?: Empleado[] }).employees ?? (eRes as Empleado[])
+    setEmpleados(list)
     setNombre(''); setPlantillaId(''); setFechaLimite(''); setSearch(''); setSelected([]); setDatosAdmin({})
     setOpen(true)
   }
@@ -80,7 +81,7 @@ export function AsignacionesList() {
     setSelected(prev => allSelected ? prev.filter(id => !ids.includes(id)) : [...new Set([...prev, ...ids])])
   }
 
-  async function openEditDialog(a: Asignacion) {
+  async function openEditDialog(a: SolicitudFormulario) {
     const [pRes, detail] = await Promise.all([
       fetch('/api/configuracion/plantillas-formulario').then(r => r.json()),
       fetch(`/api/formularios/asignaciones/${a.id}`).then(r => r.json()),
@@ -136,13 +137,13 @@ export function AsignacionesList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{asignaciones.length} solicitud{asignaciones.length !== 1 ? 'es' : ''}</p>
+        <p className="text-sm text-muted-foreground">{solicitudes.length} solicitud{solicitudes.length !== 1 ? 'es' : ''}</p>
         <Button className="bg-green-700 hover:bg-green-800 gap-1.5" onClick={openDialog}>
           <Plus size={15} /> Nueva solicitud
         </Button>
       </div>
 
-      {asignaciones.length === 0 ? (
+      {solicitudes.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">Sin solicitudes creadas todavía</p>
@@ -162,7 +163,7 @@ export function AsignacionesList() {
               </tr>
             </thead>
             <tbody>
-              {asignaciones.map(a => (
+              {solicitudes.map(a => (
                 <tr
                   key={a.id}
                   className="border-t hover:bg-muted/40 cursor-pointer transition-colors"

@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const tipos = await prisma.tipoAusencia.findMany({ orderBy: { nombre: 'asc' } })
+  const tipos = await prisma.tipoAusencia.findMany({ orderBy: [{ protegido: 'desc' }, { nombre: 'asc' }] })
   return NextResponse.json(tipos)
 }
 

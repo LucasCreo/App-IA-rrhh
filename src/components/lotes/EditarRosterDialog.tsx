@@ -34,9 +34,9 @@ export function EditarRosterDialog({ open, loteId, onClose, onSaved }: Props) {
       fetch(`/api/lotes/${loteId}`).then(r => r.json()),
     ]).then(([emps, lote]) => {
       setEmpleados(emps.employees ?? [])
-      const empsEnLote: any[] = lote.empleados ?? []
-      setSelected(new Set(empsEnLote.map((e: any) => e.id)))
-      setBloqueados(new Set(empsEnLote.filter((e: any) => e.documento).map((e: any) => e.id)))
+      const empsEnLote: Array<{ id: number; documento?: unknown }> = lote.empleados ?? []
+      setSelected(new Set(empsEnLote.map(e => e.id)))
+      setBloqueados(new Set(empsEnLote.filter(e => e.documento).map(e => e.id)))
     }).finally(() => setLoading(false))
   }, [open, loteId])
 

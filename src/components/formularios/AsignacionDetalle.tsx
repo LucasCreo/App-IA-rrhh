@@ -33,7 +33,7 @@ interface Respuesta {
   employee: { id: number; nombre: string; apellido: string; legajo: string }
 }
 
-interface Asignacion {
+interface SolicitudFormulario {
   id: number
   nombre: string
   plantillaId: number
@@ -46,7 +46,7 @@ interface Asignacion {
 
 export function AsignacionDetalle({ id }: { id: number }) {
   const router = useRouter()
-  const [asignacion, setAsignacion] = useState<Asignacion | null>(null)
+  const [asignacion, setAsignacion] = useState<SolicitudFormulario | null>(null)
   const [viewRespuesta, setViewRespuesta] = useState<Respuesta | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)

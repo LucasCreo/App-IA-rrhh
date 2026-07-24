@@ -7,6 +7,7 @@ import { join } from 'path'
 import { logAction } from '@/lib/audit'
 import { sanitizePostHtml } from '@/lib/richContent'
 import { sendMail } from '@/lib/email'
+import { validateFile, extForKind } from '@/lib/fileValidation'
 
 const MAX_IMG = 5 * 1024 * 1024
 
@@ -15,7 +16,8 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const limitParam = new URL(req.url).searchParams.get('limit')
-  const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : undefined
+  // Cap por defecto de 200 posts para evitar respuestas gigantes cuando el historial crezca
+  const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : 200
 
   // Categoría del usuario (si es empleado) para filtrar posts con alcance CATEGORIA
   let miCategoriaId: number | null = null
@@ -28,14 +30,15 @@ export async function GET(req: NextRequest) {
   }
 
   const posts = await prisma.post.findMany({
-    where: {
+    where: user.role === 'ADMIN' ? {} : {
       OR: [
         { alcance: 'GLOBAL' },
+        { autorId: user.userId },
         ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
       ],
     },
     orderBy: { createdAt: 'desc' },
-    ...(limit ? { take: limit } : {}),
+    take: limit,
     include: {
       autor: {
         select: {
@@ -89,19 +92,31 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const contenido = (formData.get('contenido') as string)?.trim()
   const esAdmin = user.role === 'ADMIN'
-  const alcance = esAdmin ? ((formData.get('alcance') as string) || 'GLOBAL') : 'GLOBAL'
-  const categoriaIdRaw = esAdmin ? formData.get('categoriaId') : null
   const imagen = formData.get('imagen') as File | null
 
   if (!contenido && !imagen) {
     return NextResponse.json({ error: 'El post no puede estar vacío' }, { status: 400 })
   }
-  if (alcance !== 'GLOBAL' && alcance !== 'CATEGORIA') {
-    return NextResponse.json({ error: 'Alcance inválido' }, { status: 400 })
-  }
-  const categoriaId = alcance === 'CATEGORIA' && categoriaIdRaw ? Number(categoriaIdRaw) : null
-  if (alcance === 'CATEGORIA' && !categoriaId) {
-    return NextResponse.json({ error: 'Seleccioná una categoría para el alcance limitado' }, { status: 400 })
+
+  // Empleados solo pueden publicar en su propia categoría
+  let alcance: string
+  let categoriaId: number | null
+  if (esAdmin) {
+    alcance = (formData.get('alcance') as string) || 'GLOBAL'
+    if (alcance !== 'GLOBAL' && alcance !== 'CATEGORIA') {
+      return NextResponse.json({ error: 'Alcance inválido' }, { status: 400 })
+    }
+    const raw = formData.get('categoriaId')
+    categoriaId = alcance === 'CATEGORIA' && raw ? Number(raw) : null
+    if (alcance === 'CATEGORIA' && !categoriaId) {
+      return NextResponse.json({ error: 'Seleccioná una categoría para el alcance limitado' }, { status: 400 })
+    }
+  } else {
+    if (!user.employeeId) return NextResponse.json({ error: 'Sin empleado asociado' }, { status: 400 })
+    const emp = await prisma.employee.findUnique({ where: { id: user.employeeId }, select: { categoriaId: true } })
+    if (!emp) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 400 })
+    alcance = 'CATEGORIA'
+    categoriaId = emp.categoriaId
   }
 
   let imagenUrl: string | null = null
@@ -109,11 +124,13 @@ export async function POST(req: NextRequest) {
     if (imagen.size > MAX_IMG) {
       return NextResponse.json({ error: 'La imagen supera 5 MB' }, { status: 400 })
     }
+    const buffer = Buffer.from(await imagen.arrayBuffer())
+    const check = validateFile(buffer, 'image')
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
     const dir = join(process.cwd(), 'public', 'uploads', 'posts')
     await mkdir(dir, { recursive: true })
-    const ext = imagen.name.split('.').pop()?.toLowerCase() || 'bin'
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-    await writeFile(join(dir, fileName), Buffer.from(await imagen.arrayBuffer()))
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extForKind(check.kind)}`
+    await writeFile(join(dir, fileName), buffer)
     imagenUrl = `/uploads/posts/${fileName}`
   }
 

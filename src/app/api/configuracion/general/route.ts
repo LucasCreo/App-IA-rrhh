@@ -22,9 +22,15 @@ export async function PUT(req: NextRequest) {
   if (typeof body.firmaMinSec === 'number' && body.firmaMinSec >= 0) data.firmaMinSec = Math.floor(body.firmaMinSec)
   if ('soporteEmail' in body) data.soporteEmail = body.soporteEmail?.trim() || null
   if ('soporteTel' in body) data.soporteTel = body.soporteTel?.trim() || null
-  const config = existing
-    ? await prisma.generalConfig.update({ where: { id: existing.id }, data })
-    : await prisma.generalConfig.create({ data })
-  invalidateConfigCache()
-  return NextResponse.json(config)
+  if (typeof body.avisosEmpleadosHabilitados === 'boolean') data.avisosEmpleadosHabilitados = body.avisosEmpleadosHabilitados
+  try {
+    const config = existing
+      ? await prisma.generalConfig.update({ where: { id: existing.id }, data })
+      : await prisma.generalConfig.create({ data })
+    invalidateConfigCache()
+    return NextResponse.json(config)
+  } catch (e: any) {
+    console.error('[configuracion/general] fallo al guardar:', e)
+    return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
+  }
 }

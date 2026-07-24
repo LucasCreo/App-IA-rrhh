@@ -1,19 +1,25 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { sendMail } from '@/lib/email'
 import { getScopedEmployeeIds, isAncestorOfUser } from '@/lib/scope'
 
+const patchSchema = z.object({
+  estado: z.enum(['APROBADA', 'RECHAZADA']),
+  comentarioAdmin: z.string().max(2000).optional().nullable(),
+})
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user || user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
-  const { estado, comentarioAdmin } = await req.json()
-
-  if (!['APROBADA', 'RECHAZADA'].includes(estado))
-    return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+  const raw = await req.json().catch(() => null)
+  const parsed = patchSchema.safeParse(raw)
+  if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  const { estado, comentarioAdmin } = parsed.data
 
   const solicitud = await prisma.solicitudAusencia.findUnique({
     where: { id: Number(id) },
@@ -33,10 +39,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Solo un superior en el organigrama puede resolver esta solicitud' }, { status: 403 })
   }
 
-  await prisma.solicitudAusencia.update({
-    where: { id: Number(id) },
+  // updateMany con filtro por estado = 'PENDIENTE' actúa como lock optimista:
+  // si otro admin ya la resolvió, count = 0 y abortamos antes de duplicar eventos/saldo.
+  const claim = await prisma.solicitudAusencia.updateMany({
+    where: { id: Number(id), estado: 'PENDIENTE' },
     data: { estado, comentarioAdmin: comentarioAdmin ?? null },
   })
+  if (claim.count === 0) {
+    return NextResponse.json({ error: 'La solicitud ya fue procesada por otro administrador' }, { status: 409 })
+  }
 
   if (estado === 'APROBADA') {
     // Crear evento en el calendario

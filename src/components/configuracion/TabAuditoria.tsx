@@ -122,7 +122,7 @@ export function TabAuditoria() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-400 rounded text-xs font-mono">
+                      <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-500/15 dark:text-green-300 rounded text-xs font-mono">
                         {log.accion}
                       </span>
                     </TableCell>
@@ -139,7 +139,7 @@ export function TabAuditoria() {
             {logs.map(log => (
               <div key={log.id} className="bg-card border border-border rounded-lg px-4 py-3 space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-400 rounded text-xs font-mono">
+                  <span className="px-2 py-0.5 bg-green-50 text-green-800 dark:bg-green-500/15 dark:text-green-300 rounded text-xs font-mono">
                     {log.accion}
                   </span>
                   <span className="text-xs text-muted-foreground">{new Date(log.createdAt).toLocaleString('es-AR')}</span>

@@ -78,7 +78,7 @@ export function EmpleadoPicker({ value, onChange, empleados, placeholder = 'Empl
                     className={cn(
                       'rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
                       categoriaId === ''
-                        ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                        ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                         : 'border-input text-muted-foreground hover:bg-muted',
                     )}
                   >
@@ -91,7 +91,7 @@ export function EmpleadoPicker({ value, onChange, empleados, placeholder = 'Empl
                       className={cn(
                         'rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
                         categoriaId === String(c.id)
-                          ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                          ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                           : 'border-input text-muted-foreground hover:bg-muted',
                       )}
                     >

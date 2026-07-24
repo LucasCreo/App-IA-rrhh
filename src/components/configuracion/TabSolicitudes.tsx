@@ -133,9 +133,9 @@ export function TabSolicitudes() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>Tipos de documentos</CardTitle>
+              <CardTitle>Tipos de solicitud</CardTitle>
               <CardDescription className="mt-1">
-                Definí qué tipos de documentos pueden subir los empleados desde su portal.
+                Definí qué tipos de solicitud puede iniciar un empleado desde su portal (por ejemplo: constancia de trabajo, certificado médico).
               </CardDescription>
             </div>
             {!showForm && (
@@ -235,7 +235,7 @@ export function TabSolicitudes() {
       <Dialog open={editTipo !== null} onOpenChange={v => !v && setEditTipo(null)}>
         <DialogContent className="sm:max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Editar tipo de documento</DialogTitle>
+            <DialogTitle>Editar tipo de solicitud</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">

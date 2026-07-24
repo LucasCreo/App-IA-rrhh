@@ -17,7 +17,7 @@ import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 
 interface CampoSolicitud { nombre: string; label: string; tipo: 'texto' | 'numero' | 'fecha'; requerido: boolean }
 interface TipoSolicitud { id: number; nombre: string; descripcion?: string; requiereAprobacion: boolean; campos: CampoSolicitud[] }
-interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean }
+interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
 
 interface SolicitudDoc {
   id: number; nombreArchivo?: string; estado: string
@@ -46,6 +46,23 @@ type Filtro = typeof FILTROS[number]['value']
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
+}
+
+function diasHabiles(desde: string, hasta: string): number {
+  if (!desde || !hasta) return 0
+  const [yA, mA, dA] = desde.split('-').map(Number)
+  const [yB, mB, dB] = hasta.split('-').map(Number)
+  const a = new Date(yA, mA - 1, dA)
+  const b = new Date(yB, mB - 1, dB)
+  if (b < a) return 0
+  let n = 0
+  const cur = new Date(a)
+  while (cur <= b) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6) n++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return n
 }
 
 const ESTADO_AUS: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
@@ -216,7 +233,7 @@ export function MisSolicitudes() {
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
                 filtro === f.value
-                  ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -357,6 +374,20 @@ export function MisSolicitudes() {
                     <Input type="date" value={ausForm.fechaFin} onChange={e => setAusForm(f => ({ ...f, fechaFin: e.target.value }))} className="h-8 text-sm" />
                   </div>
                 </div>
+                {(() => {
+                  if (!parsed.tipo.afectaSaldo || !saldo) return null
+                  const solicitados = diasHabiles(ausForm.fechaInicio, ausForm.fechaFin)
+                  if (solicitados === 0) return null
+                  const restantes = saldo.diasTotales - saldo.diasUsados
+                  if (solicitados <= restantes) {
+                    return <p className="text-xs text-muted-foreground">{solicitados} día{solicitados !== 1 ? 's' : ''} hábiles · te quedarían {restantes - solicitados}</p>
+                  }
+                  return (
+                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
+                      Estás solicitando {solicitados} días hábiles pero solo te quedan {restantes}. Podés enviar la solicitud igual; queda a criterio del administrador aprobarla.
+                    </div>
+                  )
+                })()}
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Motivo (opcional)</p>
                   <Input value={ausForm.motivo} onChange={e => setAusForm(f => ({ ...f, motivo: e.target.value }))} className="h-8 text-sm" placeholder="Ej: vacaciones familiares" />

@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getEmployeeDependencies, getUserDependencies, deletePersona, deletePersonaCascade } from '@/lib/personDependencies'
 
+const patchSchema = z.object({
+  role: z.enum(['ADMIN', 'EMPLOYEE']).optional(),
+  permisos: z.array(z.string().max(100)).max(200).optional(),
+})
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_USUARIOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const body = await req.json()
-  const { role, permisos } = body
+  const raw = await req.json().catch(() => null)
+  const parsed = patchSchema.safeParse(raw)
+  if (!parsed.success) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  const { role, permisos } = parsed.data
 
   const target = await prisma.user.findUnique({ where: { id: Number(id) } })
   if (!target) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
@@ -20,16 +28,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'No podés cambiar tu propio rol de acceso' }, { status: 400 })
   }
 
-  const data: any = {}
-  if (role !== undefined) data.role = role
+  const data: { role?: 'ADMIN' | 'EMPLOYEE' } = {}
+  if (role) data.role = role
 
-  if (Array.isArray(permisos)) {
-    const cleanPermisos: string[] = permisos.filter((p: unknown) => typeof p === 'string')
+  if (permisos) {
     await prisma.$transaction([
       ...(Object.keys(data).length > 0 ? [prisma.user.update({ where: { id: target.id }, data })] : []),
       prisma.userPermiso.deleteMany({ where: { userId: target.id } }),
-      ...(cleanPermisos.length > 0
-        ? [prisma.userPermiso.createMany({ data: cleanPermisos.map(p => ({ userId: target.id, permiso: p })) })]
+      ...(permisos.length > 0
+        ? [prisma.userPermiso.createMany({ data: permisos.map(p => ({ userId: target.id, permiso: p })) })]
         : []),
     ])
   } else if (Object.keys(data).length > 0) {

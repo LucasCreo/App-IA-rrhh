@@ -114,7 +114,7 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
             className={cn(
               'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
               filtro === f.value
-                ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >

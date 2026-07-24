@@ -43,10 +43,15 @@ export async function POST() {
   })
 
   const items = res.data.items ?? []
+  const validItems = items.filter(i => i.id && i.summary)
+  const itemIds = validItems.map(i => i.id!) as string[]
 
-  for (const item of items) {
-    if (!item.id || !item.summary) continue
+  const existentes = itemIds.length > 0
+    ? await prisma.evento.findMany({ where: { googleEventId: { in: itemIds } }, select: { id: true, googleEventId: true } })
+    : []
+  const existentesPorGoogleId = new Map(existentes.map(e => [e.googleEventId!, e.id]))
 
+  for (const item of validItems) {
     const isAllDay = !!item.start?.date
     const fechaInicio = isAllDay
       ? new Date(item.start!.date!)
@@ -55,12 +60,12 @@ export async function POST() {
       ? isAllDay ? new Date(item.end.date!) : new Date(item.end.dateTime!)
       : null
 
-    const existing = await prisma.evento.findFirst({ where: { googleEventId: item.id } })
-    if (existing) {
+    const existingId = existentesPorGoogleId.get(item.id!)
+    if (existingId) {
       await prisma.evento.update({
-        where: { id: existing.id },
+        where: { id: existingId },
         data: {
-          titulo: item.summary,
+          titulo: item.summary!,
           descripcion: item.description ?? null,
           fechaInicio,
           fechaFin,
@@ -70,13 +75,13 @@ export async function POST() {
     } else {
       await prisma.evento.create({
         data: {
-          titulo: item.summary,
+          titulo: item.summary!,
           descripcion: item.description ?? null,
           fechaInicio,
           fechaFin,
           todoElDia: isAllDay,
           tipo: 'Google Calendar',
-          googleEventId: item.id,
+          googleEventId: item.id!,
           creadoPorId: decoded.userId,
           asignados: { create: { employeeId: decoded.employeeId } },
         },

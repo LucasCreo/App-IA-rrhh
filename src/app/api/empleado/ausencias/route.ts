@@ -7,6 +7,7 @@ import { sendMail } from '@/lib/email'
 import { parseClientDate } from '@/lib/dates'
 import { esTopDelOrganigrama } from '@/lib/scope'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
+import { validateFile, extForKind } from '@/lib/fileValidation'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -55,11 +56,14 @@ export async function POST(req: Request) {
 
   let archivoUrl: string | null = null
   if (archivo && archivo.size > 0) {
-    const ext = path.extname(archivo.name)
-    const filename = `${user.employeeId}-${Date.now()}${ext}`
+    if (archivo.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'El archivo supera los 10 MB' }, { status: 400 })
+    const buffer = Buffer.from(await archivo.arrayBuffer())
+    const check = validateFile(buffer, 'pdf-or-image')
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
+    const filename = `${user.employeeId}-${Date.now()}.${extForKind(check.kind)}`
     const dest = path.join(process.cwd(), 'public', 'uploads', 'ausencias', filename)
     await mkdir(path.dirname(dest), { recursive: true })
-    await writeFile(dest, Buffer.from(await archivo.arrayBuffer()))
+    await writeFile(dest, buffer)
     archivoUrl = `/uploads/ausencias/${filename}`
   }
 

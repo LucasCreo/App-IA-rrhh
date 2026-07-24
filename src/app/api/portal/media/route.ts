@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { detectFileKind, extForKind, type FileKind } from '@/lib/fileValidation'
 
 const LIMITES = {
   image: 5 * 1024 * 1024,   // 5 MB
@@ -9,10 +10,10 @@ const LIMITES = {
   video: 30 * 1024 * 1024,  // 30 MB
 }
 
-function tipoDeArchivo(mime: string): 'image' | 'audio' | 'video' | null {
-  if (mime.startsWith('image/')) return 'image'
-  if (mime.startsWith('audio/')) return 'audio'
-  if (mime.startsWith('video/')) return 'video'
+function grupoDeKind(kind: FileKind): 'image' | 'audio' | 'video' | null {
+  if (kind === 'jpeg' || kind === 'png' || kind === 'webp' || kind === 'gif') return 'image'
+  if (kind === 'mp3' || kind === 'wav') return 'audio'
+  if (kind === 'mp4' || kind === 'webm') return 'video'
   return null
 }
 
@@ -23,20 +24,23 @@ export async function POST(req: NextRequest) {
   const fd = await req.formData()
   const file = fd.get('file') as File | null
   if (!file || file.size === 0) return NextResponse.json({ error: 'Archivo faltante' }, { status: 400 })
+  if (file.size > LIMITES.video) return NextResponse.json({ error: 'El archivo supera el límite máximo (30 MB)' }, { status: 400 })
 
-  const tipo = tipoDeArchivo(file.type)
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const kind = detectFileKind(buffer)
+  if (!kind) return NextResponse.json({ error: 'Tipo de archivo no reconocido' }, { status: 400 })
+  const tipo = grupoDeKind(kind)
   if (!tipo) return NextResponse.json({ error: 'Tipo de archivo no soportado' }, { status: 400 })
 
-  if (file.size > LIMITES[tipo]) {
+  if (buffer.length > LIMITES[tipo]) {
     const mb = LIMITES[tipo] / (1024 * 1024)
     return NextResponse.json({ error: `El archivo supera ${mb} MB` }, { status: 400 })
   }
 
   const dir = join(process.cwd(), 'public', 'uploads', 'posts', tipo)
   await mkdir(dir, { recursive: true })
-  const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
-  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  await writeFile(join(dir, fileName), Buffer.from(await file.arrayBuffer()))
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extForKind(kind)}`
+  await writeFile(join(dir, fileName), buffer)
 
   return NextResponse.json({
     url: `/uploads/posts/${tipo}/${fileName}`,

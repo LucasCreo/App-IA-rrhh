@@ -3,6 +3,7 @@ import { writeFile } from 'fs/promises'
 import path from 'path'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { validateFile, extForKind } from '@/lib/fileValidation'
 
 export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
@@ -11,10 +12,13 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const file = form.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
+  if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'El logo supera los 5 MB' }, { status: 400 })
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
-  const filename = `logo.${ext}`
+  const check = validateFile(buffer, 'image')
+  if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
+
+  const filename = `logo.${extForKind(check.kind)}`
   const dest = path.join(process.cwd(), 'public', 'uploads', filename)
   await writeFile(dest, buffer)
 

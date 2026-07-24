@@ -61,7 +61,7 @@ function formatPeriodo(p: string) {
 type EstadoKey = 'FIRMADO' | 'ENVIADO_A_FIRMA' | 'BORRADOR' | 'ERROR' | 'RECHAZADO' | 'SIN_RECIBO'
 
 const ESTADO_CONFIG: Record<EstadoKey, { label: string; classes: string; Icon: React.ElementType }> = {
-  FIRMADO:         { label: 'Firmado',    classes: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400',       Icon: CheckCircle2 },
+  FIRMADO:         { label: 'Firmado',    classes: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',       Icon: CheckCircle2 },
   ENVIADO_A_FIRMA: { label: 'En firma',   classes: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',          Icon: Clock },
   BORRADOR:        { label: 'Borrador',   classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',             Icon: FileX },
   ERROR:           { label: 'Error',      classes: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400',              Icon: AlertCircle },
@@ -388,7 +388,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
               onClick={() => setFiltro(tab.key)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 filtro === tab.key
-                  ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >

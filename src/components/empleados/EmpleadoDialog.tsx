@@ -157,6 +157,13 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     const valid = isNew ? validateStep2() : validateEdit()
     if (!valid) { toast.error('Completá los campos obligatorios'); return }
 
+    if (form.id && existingUser && form.email && form.email !== existingUser.email) {
+      const ok = window.confirm(
+        `Esto cambiará el email de acceso al portal de "${existingUser.email}" a "${form.email}". El empleado deberá iniciar sesión con el nuevo email. ¿Continuar?`
+      )
+      if (!ok) return
+    }
+
     const url = form.id ? `/api/empleados/${form.id}` : '/api/empleados'
     const method = form.id ? 'PUT' : 'POST'
     const camposPersonalizados = Object.entries(valoresCustom)

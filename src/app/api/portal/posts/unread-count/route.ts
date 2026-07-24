@@ -17,14 +17,16 @@ export async function GET() {
   const since = lastSeen?.avisosLastSeenAt ?? new Date(0)
 
   const count = await prisma.post.count({
-    where: {
-      createdAt: { gt: since },
-      autorId: { not: user.userId },
-      OR: [
-        { alcance: 'GLOBAL' },
-        ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
-      ],
-    },
+    where: user.role === 'ADMIN'
+      ? { createdAt: { gt: since }, autorId: { not: user.userId } }
+      : {
+          createdAt: { gt: since },
+          autorId: { not: user.userId },
+          OR: [
+            { alcance: 'GLOBAL' },
+            ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
+          ],
+        },
   })
 
   return NextResponse.json({ count })

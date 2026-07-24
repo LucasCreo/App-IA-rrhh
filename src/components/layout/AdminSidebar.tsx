@@ -161,7 +161,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                 className={cn(
                   'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                   collapsed && 'justify-center',
-                  active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
                 <Icon size={16} className="shrink-0" />
@@ -190,7 +190,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                   className={cn(
                     'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group',
                     collapsed && 'justify-center',
-                    active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
                   <Icon size={16} className="shrink-0" />
@@ -242,7 +242,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                     'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                     collapsed && 'justify-center',
                     active
-                      ? 'bg-green-100 text-green-700 font-medium dark:bg-green-950/40 dark:text-green-400'
+                      ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >

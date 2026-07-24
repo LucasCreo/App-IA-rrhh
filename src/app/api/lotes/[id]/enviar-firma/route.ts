@@ -42,27 +42,30 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   let sent = 0
   const errors: string[] = []
 
-  for (const doc of docs) {
-    try {
-      if (accion === 'LECTURA' || accion === 'NINGUNA' || SIGNATURE_MODE === 'password') {
-        await prisma.document.update({
-          where: { id: doc.id },
-          data: { estado: 'ENVIADO_A_FIRMA' },
-        })
-      } else {
+  if (accion === 'LECTURA' || accion === 'NINGUNA' || SIGNATURE_MODE === 'password') {
+    // Batch: todos van al mismo estado, un solo UPDATE
+    const res = await prisma.document.updateMany({
+      where: { id: { in: docs.map(d => d.id) } },
+      data: { estado: 'ENVIADO_A_FIRMA' },
+    })
+    sent = res.count
+  } else {
+    // Firma externa: cada doc requiere un roundtrip al proveedor, sí es N+1 por naturaleza
+    for (const doc of docs) {
+      try {
         const externalId = await sendToSign(doc.id, doc.filePath, doc.nombreArchivo)
         await prisma.document.update({
           where: { id: doc.id },
           data: { estado: 'ENVIADO_A_FIRMA', firmaExternalId: externalId },
         })
+        sent++
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Error'
+        const code = e instanceof SignatureError ? e.code : undefined
+        void code
+        await prisma.document.update({ where: { id: doc.id }, data: { estado: 'ERROR' } })
+        errors.push(`Doc ${doc.id}: ${msg}`)
       }
-      sent++
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error'
-      const code = e instanceof SignatureError ? e.code : undefined
-      void code
-      await prisma.document.update({ where: { id: doc.id }, data: { estado: 'ERROR' } })
-      errors.push(`Doc ${doc.id}: ${msg}`)
     }
   }
 

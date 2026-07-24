@@ -130,7 +130,7 @@ export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClos
                   onClick={() => setConforme('si')}
                   className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
                     conforme === 'si'
-                      ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                      ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                       : 'border-input hover:bg-muted'
                   }`}
                 >

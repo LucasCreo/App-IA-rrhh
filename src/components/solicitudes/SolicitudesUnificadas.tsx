@@ -73,7 +73,7 @@ export function SolicitudesUnificadas() {
   const [docs, setDocs] = useState<SolicitudDoc[]>([])
   const [ausencias, setAusencias] = useState<SolicitudAus[]>([])
   const [loading, setLoading] = useState(true)
-  const [estadoFiltro, setEstadoFiltro] = useState('PENDIENTE')
+  const [estadoFiltro, setEstadoFiltro] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState<typeof TIPO_FILTROS[number]['value']>('todos')
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
@@ -84,8 +84,18 @@ export function SolicitudesUnificadas() {
 
   const [reviewAus, setReviewAus] = useState<SolicitudAus | null>(null)
   const [comentarioAus, setComentarioAus] = useState('')
+  const [saldoReview, setSaldoReview] = useState<{ diasTotales: number; diasUsados: number } | null>(null)
 
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
+
+  useEffect(() => {
+    if (!reviewAus || !reviewAus.tipoAusencia.afectaSaldo) { setSaldoReview(null); return }
+    const anio = new Date(reviewAus.fechaInicio).getFullYear()
+    fetch(`/api/ausencias/saldo?employeeId=${reviewAus.employee.id}&anio=${anio}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => setSaldoReview(s))
+      .catch(() => setSaldoReview(null))
+  }, [reviewAus])
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
@@ -197,7 +207,7 @@ export function SolicitudesUnificadas() {
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
                 tipoFiltro === f.value
-                  ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -292,6 +302,18 @@ export function SolicitudesUnificadas() {
                 <div><p className="text-muted-foreground text-xs">Días hábiles</p><p>{reviewAus.dias}</p></div>
                 <div><p className="text-muted-foreground text-xs">Solicitado</p><p>{fmt(reviewAus.createdAt)}</p></div>
               </div>
+              {reviewAus.tipoAusencia.afectaSaldo && saldoReview && (() => {
+                const restantes = saldoReview.diasTotales - saldoReview.diasUsados
+                const despues = restantes - reviewAus.dias
+                if (despues >= 0) {
+                  return <p className="text-xs text-muted-foreground">Saldo: {restantes} disponibles · quedarían {despues} tras aprobar</p>
+                }
+                return (
+                  <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
+                    ⚠ Al aprobar, el saldo quedaría en <strong>{despues}</strong> (solicita {reviewAus.dias} y le quedan {restantes}).
+                  </div>
+                )
+              })()}
               {reviewAus.motivo && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-muted-foreground text-xs mb-0.5">Motivo</p>

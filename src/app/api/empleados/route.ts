@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
         categoria: { select: { id: true, nombre: true } },
       },
       orderBy: { apellido: 'asc' },
+      take: 5000,
     })
     return NextResponse.json({ employees, total: employees.length, page: 1, pages: 1 })
   }

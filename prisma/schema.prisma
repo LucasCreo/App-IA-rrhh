@@ -198,14 +198,15 @@ model LoteEmpleado {
 }
 
 model GeneralConfig {
-  id             Int      @id @default(autoincrement())
-  appName        String   @default("RRHH")
-  logoUrl        String?
-  editWindowMin  Int      @default(1440)
-  firmaMinSec    Int      @default(10)
-  soporteEmail   String?
-  soporteTel     String?
-  updatedAt      DateTime @updatedAt
+  id                          Int      @id @default(autoincrement())
+  appName                     String   @default("RRHH")
+  logoUrl                     String?
+  editWindowMin               Int      @default(1440)
+  firmaMinSec                 Int      @default(10)
+  soporteEmail                String?
+  soporteTel                  String?
+  avisosEmpleadosHabilitados  Boolean  @default(true)
+  updatedAt                   DateTime @updatedAt
 }
 
 model EmployeeFieldConfig {
@@ -438,6 +439,7 @@ model TipoAusencia {
   requiereAprobacion Boolean  @default(true)
   afectaSaldo        Boolean  @default(false)
   activo             Boolean  @default(true)
+  protegido          Boolean  @default(false)
   createdAt          DateTime @default(now())
 
   solicitudes SolicitudAusencia[]

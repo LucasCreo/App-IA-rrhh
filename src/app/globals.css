@@ -156,6 +156,17 @@
   }
 }
 
+/* En dark mode, cualquier elemento con fondo verde sólido usa texto blanco
+   (arregla el contraste de botones/badges que sobrescriben el bg pero heredan
+   text-primary-foreground, que en oscuro es oscuro). */
+.dark .bg-green-500,
+.dark .bg-green-600,
+.dark .bg-green-700,
+.dark .bg-green-800,
+.dark .bg-green-900 {
+  color: #ffffff;
+}
+
 /* Landing animations */
 @keyframes gradient-shift {
   0%   { background-position: 0% 50%; }

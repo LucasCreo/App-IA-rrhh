@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'fs/promises'
 import path from 'path'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   const filePath = path.join(process.cwd(), 'uploads', fileName)
   await writeFile(filePath, buffer)
 
-  const where: any = { estado: 'ACTIVO' }
+  const where: Prisma.EmployeeWhereInput = { estado: 'ACTIVO' }
   if (empleadoIds?.length) where.id = { in: empleadoIds }
   else if (categoriaId) where.categoriaId = categoriaId
 

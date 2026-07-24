@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
           tipo: true,
         },
         orderBy: { createdAt: 'desc' },
+        take: 500,
       })
       return NextResponse.json(raw.map(s => ({
         ...s,
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
       where: { employeeId: user.employeeId },
       include: { tipo: true },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     })
     return NextResponse.json(raw.map(s => ({
       ...s,

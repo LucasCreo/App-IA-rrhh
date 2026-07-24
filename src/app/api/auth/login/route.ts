@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { signToken, comparePassword, COOKIE_NAME } from '@/lib/auth'
 
+const loginSchema = z.object({
+  identifier: z.string().trim().min(1).max(200),
+  password: z.string().min(1).max(200),
+})
+
 export async function POST(req: NextRequest) {
-  const { identifier, password } = await req.json()
-  if (!identifier || !password) {
+  const raw = await req.json().catch(() => null)
+  const parsed = loginSchema.safeParse(raw)
+  if (!parsed.success) {
     return NextResponse.json({ error: 'Usuario/email y contraseña requeridos' }, { status: 400 })
   }
+  const { identifier, password } = parsed.data
 
   let user = null
   if (identifier.includes('@')) {

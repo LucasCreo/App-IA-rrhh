@@ -59,8 +59,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('[detectar-legajo] legajo:', legajo, 'cuil:', cuil, 'nombre:', nombre, 'apellido:', apellido)
-
     return NextResponse.json({ legajo, cuil, nombre, apellido })
   } catch (e: any) {
     return NextResponse.json({ legajo: null, error: e?.message ?? 'Error al leer el PDF' })

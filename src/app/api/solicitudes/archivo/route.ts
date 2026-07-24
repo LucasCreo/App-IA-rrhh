@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { writeFile, mkdir, readFile } from 'fs/promises'
 import { join, extname } from 'path'
+import { validateFile } from '@/lib/fileValidation'
 
 const UPLOADS_DIR = join(process.cwd(), 'uploads', 'solicitudes')
 const MAX_SIZE = 10 * 1024 * 1024
@@ -16,6 +17,8 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer())
   if (buffer.length > MAX_SIZE) return NextResponse.json({ error: 'El archivo supera los 10 MB' }, { status: 400 })
+  const check = validateFile(buffer, 'pdf-or-image')
+  if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
   await mkdir(UPLOADS_DIR, { recursive: true })
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')

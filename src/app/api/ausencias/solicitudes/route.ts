@@ -19,6 +19,7 @@ export async function GET() {
       employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
       tipoAusencia: { select: { id: true, nombre: true, color: true, afectaSaldo: true } },
     },
+    take: 500,
   })
   return NextResponse.json(solicitudes.map(s => ({
     ...s,

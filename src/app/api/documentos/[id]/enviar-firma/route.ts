@@ -17,11 +17,7 @@ async function notificarEmpleado(docId: number, accion: string) {
         tipoDocumento: { select: { nombre: true } },
       },
     })
-    console.log('[email/documento] docId=', docId, 'employee.email=', doc?.employee?.email)
-    if (!doc?.employee?.email) {
-      console.warn('[email/documento] empleado sin email, skip')
-      return
-    }
+    if (!doc?.employee?.email) return
     const tipo = doc.tipoDocumento?.nombre ?? 'Documento'
     const requiereFirma = accion === 'FIRMA'
     await sendMail({
@@ -36,7 +32,6 @@ async function notificarEmpleado(docId: number, accion: string) {
       ctaLabel: 'Ver en el portal',
       ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos`,
     })
-    console.log('[email/documento] enviado a', doc.employee.email)
   } catch (e) {
     console.error('[email/documento] fallo:', e)
   }

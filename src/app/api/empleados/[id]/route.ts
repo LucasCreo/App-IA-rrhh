@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getEmployeeDependencies, getUserDependencies, deletePersona, deletePersonaCascade } from '@/lib/personDependencies'
 import { validarCuil } from '@/lib/cuil'
+import { sendMail } from '@/lib/email'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -38,6 +39,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (body.cuil && !validarCuil(body.cuil)) {
     return NextResponse.json({ error: 'CUIL inválido' }, { status: 400 })
+  }
+
+  // Solo ADMIN puede modificar el email (impacta el login del usuario)
+  if (body.email) {
+    const empActual = await prisma.employee.findUnique({ where: { id: empId }, select: { email: true } })
+    if (empActual && empActual.email !== body.email && user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Solo un administrador puede modificar el email', field: 'email' }, { status: 403 })
+    }
   }
 
   // Chequeo de unicidad (excluyendo al propio empleado)
@@ -86,10 +95,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         )
       }
       const existingUser = await tx.user.findUnique({ where: { employeeId: updated.id } })
+      let emailChangedFrom: string | null = null
       if (existingUser) {
         const userUpdate: Record<string, unknown> = {}
         if (body.username !== undefined) userUpdate.username = body.username || null
-        if (body.email && body.email !== existingUser.email) userUpdate.email = body.email
+        if (body.email && body.email !== existingUser.email) {
+          userUpdate.email = body.email
+          emailChangedFrom = existingUser.email
+        }
         if (Object.keys(userUpdate).length > 0) {
           await tx.user.update({ where: { id: existingUser.id }, data: userUpdate })
         }
@@ -104,10 +117,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         })
       }
-      return updated
+      return { updated, emailChangedFrom }
     })
-    await logAction(user.userId, 'MODIFICAR', 'Empleado', `Legajo: ${emp.legajo}`)
-    return NextResponse.json(emp)
+    await logAction(user.userId, 'MODIFICAR', 'Empleado', `Legajo: ${emp.updated.legajo}`)
+    if (emp.emailChangedFrom) {
+      const nuevoEmail = body.email as string
+      await logAction(
+        user.userId,
+        'CAMBIAR_EMAIL',
+        'Empleado',
+        `Legajo: ${emp.updated.legajo} — de ${emp.emailChangedFrom} a ${nuevoEmail}`
+      )
+      const subject = 'Tu email de acceso fue modificado'
+      const body1 = `Se modificó el email de acceso al portal de RRHH asociado a tu cuenta.<br/><br/>Nuevo email de acceso: <strong>${nuevoEmail}</strong><br/>Email anterior: ${emp.emailChangedFrom}<br/><br/>Si vos no realizaste este cambio, contactá inmediatamente al administrador del sistema.`
+      Promise.all([
+        sendMail({ to: emp.emailChangedFrom, subject, title: 'Cambio de email de acceso', bodyHtml: body1 }),
+        sendMail({ to: nuevoEmail, subject, title: 'Cambio de email de acceso', bodyHtml: body1 }),
+      ]).catch(() => {})
+    }
+    return NextResponse.json(emp.updated)
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === 'P2025') return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })

@@ -1,221 +1,22 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { handleApiError } from '@/lib/apiErrors'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { CheckCircle2, XCircle, Clock, Pencil, Trash2, Plus, Save } from 'lucide-react'
+import { Pencil, Trash2, Plus, Save, Lock } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface TipoAusencia {
-  id: number; nombre: string; color: string; requiereAprobacion: boolean; afectaSaldo: boolean; activo: boolean
-}
-interface Solicitud {
-  id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
-  fechaInicio: string; fechaFin: string; createdAt: string
-  canApprove: boolean
-  employee: { id: number; nombre: string; apellido: string; legajo: string }
-  tipoAusencia: { id: number; nombre: string; color: string; afectaSaldo: boolean }
+  id: number; nombre: string; color: string; requiereAprobacion: boolean; afectaSaldo: boolean; activo: boolean; protegido?: boolean
 }
 interface SaldoRow {
   id: number; nombre: string; apellido: string; legajo: string
   anio: number; diasTotales: number; diasUsados: number; saldoId: number | null
-}
-
-const ESTADO_BADGE: Record<string, React.ReactElement> = {
-  PENDIENTE: <Badge variant="outline" className="gap-1 text-yellow-600 border-yellow-400"><Clock size={11} /> Pendiente</Badge>,
-  APROBADA: <Badge className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"><CheckCircle2 size={11} /> Aprobada</Badge>,
-  RECHAZADA: <Badge variant="outline" className="gap-1 text-red-500 border-red-400"><XCircle size={11} /> Rechazada</Badge>,
-}
-
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
-}
-
-// ── Tab Solicitudes ──────────────────────────────────────────────────────────
-function TabSolicitudes() {
-  const router = useRouter()
-  const [data, setData] = useState<Solicitud[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState<'TODAS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('TODAS')
-  const [reviewing, setReviewing] = useState<Solicitud | null>(null)
-  const [comentario, setComentario] = useState('')
-
-  const load = useCallback(() => {
-    setLoading(true)
-    fetch('/api/ausencias/solicitudes').then(r => r.json()).then(setData).finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  async function resolver(estado: 'APROBADA' | 'RECHAZADA') {
-    if (!reviewing) return
-    const target = reviewing
-    const prevSnapshot = data
-    // Optimista: actualizar UI y cerrar diálogo
-    setData(prev => prev.map(s => s.id === target.id ? { ...s, estado, comentarioAdmin: comentario } : s))
-    setReviewing(null)
-    setComentario('')
-    toast.success(estado === 'APROBADA' ? 'Solicitud aprobada' : 'Solicitud rechazada')
-
-    const res = await fetch(`/api/ausencias/solicitudes/${target.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado, comentarioAdmin: comentario }),
-    })
-    if (!res.ok) {
-      setData(prevSnapshot)
-      await handleApiError(res, href => router.push(href))
-      return
-    }
-    load()
-  }
-
-  const visible = filtro === 'TODAS' ? data : data.filter(s => s.estado === filtro)
-
-  return (
-    <>
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {(['TODAS', 'PENDIENTE', 'APROBADA', 'RECHAZADA'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${filtro === f ? 'bg-green-600 text-white border-green-600' : 'border-input text-muted-foreground hover:bg-muted'}`}
-          >
-            {f === 'TODAS' ? 'Todas' : f.charAt(0) + f.slice(1).toLowerCase()}
-            {f !== 'TODAS' && <span className="ml-1 opacity-70">({data.filter(s => s.estado === f).length})</span>}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}</div>
-      ) : visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-12">Sin solicitudes</p>
-      ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Empleado</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipo</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">Período</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">Días</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
-                <th className="text-right px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map(s => (
-                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{s.employee.apellido}, {s.employee.nombre}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: s.tipoAusencia.color }} />
-                      {s.tipoAusencia.nombre}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">
-                    {fmt(s.fechaInicio)} – {fmt(s.fechaFin)}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{s.dias}</td>
-                  <td className="px-4 py-3">{ESTADO_BADGE[s.estado]}</td>
-                  <td className="px-4 py-3 text-right">
-                    {s.estado === 'PENDIENTE' && (
-                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setReviewing(s); setComentario('') }}>
-                        Revisar
-                      </Button>
-                    )}
-                    {s.estado !== 'PENDIENTE' && s.comentarioAdmin && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setReviewing(s); setComentario(s.comentarioAdmin ?? '') }}>
-                        Ver
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <Dialog open={!!reviewing} onOpenChange={v => !v && setReviewing(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {reviewing?.estado === 'PENDIENTE' ? 'Revisar solicitud' : 'Detalle de solicitud'}
-            </DialogTitle>
-          </DialogHeader>
-          {reviewing && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div><p className="text-muted-foreground text-xs">Empleado</p><p className="font-medium">{reviewing.employee.apellido}, {reviewing.employee.nombre}</p></div>
-                <div><p className="text-muted-foreground text-xs">Tipo</p><p className="font-medium">{reviewing.tipoAusencia.nombre}</p></div>
-                <div><p className="text-muted-foreground text-xs">Desde</p><p>{fmt(reviewing.fechaInicio)}</p></div>
-                <div><p className="text-muted-foreground text-xs">Hasta</p><p>{fmt(reviewing.fechaFin)}</p></div>
-                <div><p className="text-muted-foreground text-xs">Días hábiles</p><p>{reviewing.dias}</p></div>
-                <div><p className="text-muted-foreground text-xs">Solicitado</p><p>{fmt(reviewing.createdAt)}</p></div>
-              </div>
-              {reviewing.motivo && (
-                <div className="rounded-md bg-muted/50 px-3 py-2">
-                  <p className="text-muted-foreground text-xs mb-0.5">Motivo</p>
-                  <p>{reviewing.motivo}</p>
-                </div>
-              )}
-              {reviewing.archivoUrl && (
-                <a
-                  href={reviewing.archivoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
-                >
-                  Ver adjunto
-                </a>
-              )}
-              {reviewing.estado === 'PENDIENTE' && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Comentario (opcional)</label>
-                  <Input
-                    className="mt-1"
-                    value={comentario}
-                    onChange={e => setComentario(e.target.value)}
-                    placeholder="Ej: aprobado para la semana del 14/7"
-                  />
-                </div>
-              )}
-              {reviewing.estado !== 'PENDIENTE' && reviewing.comentarioAdmin && (
-                <div className="rounded-md bg-muted/50 px-3 py-2">
-                  <p className="text-muted-foreground text-xs mb-0.5">Comentario admin</p>
-                  <p>{reviewing.comentarioAdmin}</p>
-                </div>
-              )}
-            </div>
-          )}
-          {reviewing?.estado === 'PENDIENTE' && (
-            reviewing.canApprove ? (
-              <DialogFooter className="gap-2">
-                <Button variant="destructive" size="sm" onClick={() => resolver('RECHAZADA')}>
-                  <XCircle size={14} className="mr-1" /> Rechazar
-                </Button>
-                <Button className="bg-green-600 hover:bg-green-700" size="sm" onClick={() => resolver('APROBADA')}>
-                  <CheckCircle2 size={14} className="mr-1" /> Aprobar
-                </Button>
-              </DialogFooter>
-            ) : (
-              <p className="text-xs text-muted-foreground italic px-1 pt-2">
-                Solo el superior directo (o alguien más arriba) puede resolver esta solicitud.
-              </p>
-            )
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
-  )
 }
 
 // ── Tab Saldos ───────────────────────────────────────────────────────────────
@@ -393,7 +194,7 @@ export function TabTipos() {
           </thead>
           <tbody>
             {tipos.map(t => (
-              <tr key={t.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+              <tr key={t.id} className={`border-b last:border-0 hover:bg-muted/20 transition-colors${t.protegido ? ' bg-muted/50' : ''}`}>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full shrink-0" style={{ background: t.color }} />
@@ -407,13 +208,19 @@ export function TabTipos() {
                     {t.activo ? 'Activo' : 'Inactivo'}
                   </button>
                 </td>
-                <td className="px-4 py-3 text-right flex items-center justify-end gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditTarget(t); setEditForm({ nombre: t.nombre, color: t.color, requiereAprobacion: t.requiereAprobacion, afectaSaldo: t.afectaSaldo }) }}>
-                    <Pencil size={13} />
-                  </Button>
-                  <Button size="sm" variant="destructive" className="h-7 px-2" onClick={() => setDeleteTarget(t)}>
-                    <Trash2 size={13} />
-                  </Button>
+                <td className="px-4 py-3 text-right space-x-1">
+                  {t.protegido ? (
+                    <span title="Tipo protegido" className="inline-flex items-center px-2 text-muted-foreground/50"><Lock size={13} /></span>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditTarget(t); setEditForm({ nombre: t.nombre, color: t.color, requiereAprobacion: t.requiereAprobacion, afectaSaldo: t.afectaSaldo }) }}>
+                        <Pencil size={13} />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-600 hover:text-red-700" onClick={() => setDeleteTarget(t)}>
+                        <Trash2 size={13} />
+                      </Button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -469,8 +276,15 @@ export function TabTipos() {
               <input type="checkbox" checked={editForm.requiereAprobacion} onChange={e => setEditForm(f => ({ ...f, requiereAprobacion: e.target.checked }))} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-sm">Afecta saldo de vacaciones</label>
-              <input type="checkbox" checked={editForm.afectaSaldo} onChange={e => setEditForm(f => ({ ...f, afectaSaldo: e.target.checked }))} />
+              <label className={`text-sm ${editTarget?.protegido ? 'text-muted-foreground' : ''}`}>
+                Afecta saldo de vacaciones {editTarget?.protegido && <span className="text-xs">(protegido)</span>}
+              </label>
+              <input
+                type="checkbox"
+                checked={editForm.afectaSaldo}
+                disabled={editTarget?.protegido}
+                onChange={e => setEditForm(f => ({ ...f, afectaSaldo: e.target.checked }))}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -488,35 +302,5 @@ export function TabTipos() {
         onCancel={() => setDeleteTarget(null)}
       />
     </>
-  )
-}
-
-// ── Main export ──────────────────────────────────────────────────────────────
-export function AusenciasAdmin() {
-  const [tab, setTab] = useState<'solicitudes' | 'saldos' | 'tipos'>('solicitudes')
-
-  const tabs = [
-    { key: 'solicitudes', label: 'Solicitudes' },
-    { key: 'saldos', label: 'Saldos de vacaciones' },
-    { key: 'tipos', label: 'Tipos' },
-  ] as const
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-1 border-b border-border">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? 'border-green-600 text-green-700 dark:text-green-400' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {tab === 'solicitudes' && <TabSolicitudes />}
-      {tab === 'saldos' && <TabSaldos />}
-      {tab === 'tipos' && <TabTipos />}
-    </div>
   )
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { FileText, ClipboardList, BookOpen, Pen, Download, CheckCircle2, Circle } from 'lucide-react'
+import { FileText, ClipboardList, BookOpen, Pen, Download, CheckCircle2, Circle, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/FormularioDialog'
@@ -39,6 +40,8 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
   const [forms, setForms] = useState<FormularioRespuesta[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [busqueda, setBusqueda] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'firmado' | 'rechazado'>('')
   const [acting, setActing] = useState<number | null>(null)
 
   const [firmaDoc, setFirmaDoc] = useState<DocApi | null>(null)
@@ -86,10 +89,31 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
     })),
   ]
 
+  function estadoMatch(item: Item, target: typeof estadoFiltro): boolean {
+    if (!target) return true
+    if (target === 'pendiente') return item.pendiente
+    if (target === 'firmado') {
+      return item.kind === 'doc'
+        ? item.doc.estado === 'FIRMADO'
+        : item.resp.estado === 'ENVIADO'
+    }
+    if (target === 'rechazado') {
+      return item.kind === 'doc' && item.doc.estado === 'RECHAZADO'
+    }
+    return true
+  }
+
+  const q = busqueda.trim().toLowerCase()
+
   const filtered = items.filter(i => {
-    if (filtro === 'documentos') return i.kind === 'doc'
-    if (filtro === 'formularios') return i.kind === 'form'
-    if (filtro === 'pendientes') return i.pendiente
+    if (filtro === 'documentos' && i.kind !== 'doc') return false
+    if (filtro === 'formularios' && i.kind !== 'form') return false
+    if (filtro === 'pendientes' && !i.pendiente) return false
+    if (!estadoMatch(i, estadoFiltro)) return false
+    if (q) {
+      const hay = `${i.titulo} ${i.subtitulo ?? ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
     return true
   }).sort((a, b) => {
     // Pendientes primero, luego por fecha desc
@@ -112,7 +136,7 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
             key={f.value}
             onClick={() => setFiltro(f.value)}
             className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500/50',
               filtro === f.value
                 ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -123,6 +147,30 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
           </button>
         ))}
       </div>
+
+      {filtro === 'todos' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-xs"
+              placeholder="Buscar por título…"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+            />
+          </div>
+          <select
+            value={estadoFiltro}
+            onChange={e => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
+          >
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="firmado">Firmado / Completado</option>
+            <option value="rechazado">Rechazado</option>
+          </select>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground text-center py-12">Cargando…</p>

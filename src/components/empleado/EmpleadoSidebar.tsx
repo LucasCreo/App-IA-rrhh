@@ -4,12 +4,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
-const nav = [
-  { href: '/empleado', label: 'Inicio', icon: LayoutDashboard },
+const NAV_INICIO = { href: '/empleado', label: 'Inicio', icon: LayoutDashboard }
+const NAV_DRAGGABLE = [
   { href: '/empleado/portal', label: 'Avisos', icon: Newspaper },
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
@@ -34,6 +34,33 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
   const { theme, toggle } = useTheme()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [navOrder, setNavOrder] = useState<string[]>(() => NAV_DRAGGABLE.map(n => n.href))
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('empleado-nav-order')
+      if (!saved) return
+      const parsed = JSON.parse(saved) as string[]
+      const current = NAV_DRAGGABLE.map(n => n.href)
+      setNavOrder([...parsed.filter(h => current.includes(h)), ...current.filter(h => !parsed.includes(h))])
+    } catch {}
+  }, [])
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+
+  const orderedDraggable = navOrder.map(href => NAV_DRAGGABLE.find(n => n.href === href)!).filter(Boolean)
+
+  function handleDrop() {
+    if (dragIdx === null || dragOverIdx === null || dragIdx === dragOverIdx) {
+      setDragIdx(null); setDragOverIdx(null); return
+    }
+    const reordered = [...orderedDraggable]
+    const [moved] = reordered.splice(dragIdx, 1)
+    reordered.splice(dragOverIdx, 0, moved)
+    const newOrder = reordered.map(n => n.href)
+    setNavOrder(newOrder)
+    localStorage.setItem('empleado-nav-order', JSON.stringify(newOrder))
+    setDragIdx(null); setDragOverIdx(null)
+  }
 
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
@@ -120,21 +147,16 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-1">
-        {nav.map(({ href, label, icon: Icon }) => {
-          const active = href === '/empleado' ? pathname === '/empleado' : pathname.startsWith(href)
-          const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
-          let badge = 0
-          let badgeColor = 'bg-blue-500'
-          if (href === '/empleado/portal') badge = avisosUnread
-          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-yellow-500' }
-          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-yellow-500' }
-          else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
+        {/* Inicio — fijo, no draggable */}
+        {(() => {
+          const { href, label, icon: Icon } = NAV_INICIO
+          const active = pathname === '/empleado'
           return (
             <Link
               key={href}
               href={href}
-              data-tour={tourKey}
-              title={collapsed ? `${label}${badge ? ` (${badge})` : ''}` : undefined}
+              data-tour="inicio"
+              title={collapsed ? label : undefined}
               className={cn(
                 'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 collapsed && 'justify-center',
@@ -144,19 +166,62 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
               )}
             >
               <Icon size={16} className="shrink-0" />
-              {!collapsed && <span className="flex-1">{label}</span>}
-              {badge > 0 && (
-                collapsed ? (
-                  <span className={cn('absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
-                    {badge > 9 ? '9+' : badge}
-                  </span>
-                ) : (
-                  <span className={cn('min-w-5 h-5 px-1.5 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                )
-              )}
+              {!collapsed && label}
             </Link>
+          )
+        })()}
+        {/* Draggable */}
+        {orderedDraggable.map(({ href, label, icon: Icon }, idx) => {
+          const active = pathname.startsWith(href)
+          const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
+          let badge = 0
+          let badgeColor = 'bg-blue-500'
+          if (href === '/empleado/portal') badge = avisosUnread
+          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-yellow-500' }
+          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-yellow-500' }
+          else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
+          return (
+            <div
+              key={href}
+              draggable={!collapsed}
+              onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragIdx(idx) }}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverIdx !== idx) setDragOverIdx(idx) }}
+              onDrop={e => { e.preventDefault(); handleDrop() }}
+              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null) }}
+              className={cn('rounded-md transition-all', dragOverIdx === idx && dragIdx !== idx && 'ring-1 ring-green-400')}
+              style={{ opacity: dragIdx === idx ? 0.4 : 1 }}
+            >
+              <Link
+                href={href}
+                draggable={false}
+                data-tour={tourKey}
+                title={collapsed ? `${label}${badge ? ` (${badge})` : ''}` : undefined}
+                className={cn(
+                  'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group',
+                  collapsed && 'justify-center',
+                  active
+                    ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <Icon size={16} className="shrink-0" />
+                {!collapsed && <span className="flex-1">{label}</span>}
+                {badge > 0 && (
+                  collapsed ? (
+                    <span className={cn('absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  ) : (
+                    <span className={cn('min-w-5 h-5 px-1.5 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  )
+                )}
+                {!collapsed && (
+                  <GripVertical size={14} className="opacity-0 group-hover:opacity-30 shrink-0 cursor-grab active:cursor-grabbing" />
+                )}
+              </Link>
+            </div>
           )
         })}
       </nav>

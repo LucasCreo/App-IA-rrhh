@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Paperclip, FileText, CalendarOff, Plus, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Upload, Paperclip, FileText, CalendarOff, Plus, CheckCircle2, XCircle, Clock, Search } from 'lucide-react'
 import { handleApiError } from '@/lib/apiErrors'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -79,6 +79,8 @@ export function MisSolicitudes() {
   const [tiposAus, setTiposAus] = useState<TipoAusencia[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [busqueda, setBusqueda] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'aprobada' | 'rechazada'>('')
   const [detalle, setDetalle] = useState<Item | null>(null)
 
   const [nuevaOpen, setNuevaOpen] = useState(false)
@@ -138,10 +140,26 @@ export function MisSolicitudes() {
     ...ausencias.map<ItemAus>(a => ({ kind: 'ausencia', key: `a-${a.id}`, fecha: a.createdAt, estado: a.estado, pendiente: a.estado === 'PENDIENTE', data: a })),
   ]
 
+  function estadoMatch(estado: string, target: typeof estadoFiltro): boolean {
+    if (!target) return true
+    if (target === 'pendiente') return estado === 'PENDIENTE'
+    if (target === 'aprobada') return estado === 'APROBADO' || estado === 'APROBADA'
+    if (target === 'rechazada') return estado === 'RECHAZADO' || estado === 'RECHAZADA'
+    return true
+  }
+
+  const q = busqueda.trim().toLowerCase()
+
   const filtered = items.filter(i => {
-    if (filtro === 'documentos') return i.kind === 'doc'
-    if (filtro === 'ausencias') return i.kind === 'ausencia'
-    if (filtro === 'pendientes') return i.pendiente
+    if (filtro === 'documentos' && i.kind !== 'doc') return false
+    if (filtro === 'ausencias' && i.kind !== 'ausencia') return false
+    if (filtro === 'pendientes' && !i.pendiente) return false
+    if (!estadoMatch(i.estado, estadoFiltro)) return false
+    if (q) {
+      const nombre = i.kind === 'doc' ? i.data.tipo.nombre : i.data.tipoAusencia.nombre
+      const desc = i.kind === 'doc' ? (i.data.descripcion ?? '') : (i.data.motivo ?? '')
+      if (!nombre.toLowerCase().includes(q) && !desc.toLowerCase().includes(q)) return false
+    }
     return true
   }).sort((a, b) => {
     if (a.pendiente !== b.pendiente) return a.pendiente ? -1 : 1
@@ -248,6 +266,30 @@ export function MisSolicitudes() {
         </Button>
       </div>
 
+      {filtro === 'todos' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-xs"
+              placeholder="Buscar por tipo o descripción…"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+            />
+          </div>
+          <select
+            value={estadoFiltro}
+            onChange={e => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
+            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
+          >
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="aprobada">Aprobada</option>
+            <option value="rechazada">Rechazada</option>
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-muted-foreground text-center py-12">Cargando…</p>
       ) : filtered.length === 0 ? (
@@ -263,14 +305,9 @@ export function MisSolicitudes() {
                 ? <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
                 : <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium">
-                    {item.kind === 'doc' ? item.data.tipo.nombre : item.data.tipoAusencia.nombre}
-                  </p>
-                  <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                    {item.kind === 'doc' ? 'Documento' : 'Ausencia'}
-                  </span>
-                </div>
+                <p className="text-sm font-medium">
+                  {item.kind === 'doc' ? item.data.tipo.nombre : item.data.tipoAusencia.nombre}
+                </p>
                 {item.kind === 'ausencia' && (
                   <p className="text-xs text-muted-foreground">{fmt(item.data.fechaInicio)} – {fmt(item.data.fechaFin)} · {item.data.dias} día{item.data.dias !== 1 ? 's' : ''}</p>
                 )}

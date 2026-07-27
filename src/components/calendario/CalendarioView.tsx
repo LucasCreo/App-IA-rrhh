@@ -60,6 +60,7 @@ function toLocalDateStr(d: Date) {
 }
 
 function formatTipoLabel(nombre: string) {
+  if (nombre.startsWith('__ausencia__')) return 'Ausencia'
   return nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase()
 }
 

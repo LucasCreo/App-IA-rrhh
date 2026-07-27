@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Layers, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
+import { Plus, Layers, ChevronRight, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { CrearLoteDialog } from './CrearLoteDialog'
 
 interface LoteStats {
@@ -39,6 +42,9 @@ export function LotesTable() {
   const [lotes, setLotes] = useState<Lote[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   async function fetchLotes() {
     setLoading(true)
@@ -52,13 +58,55 @@ export function LotesTable() {
 
   useEffect(() => { fetchLotes() }, [])
 
+  const allSelected = lotes.length > 0 && lotes.every(l => selected.has(l.id))
+  const someSelected = selected.size > 0 && !allSelected
+  function toggleOne(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  function toggleAll() {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(lotes.map(l => l.id)))
+  }
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    setBulkDeleting(true)
+    let ok = 0, fail = 0
+    for (const id of selected) {
+      const res = await fetch(`/api/lotes/${id}`, { method: 'DELETE' })
+      if (res.ok) ok++
+      else fail++
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+    setSelected(new Set())
+    if (ok > 0) toast.success(`${ok} lote(s) eliminado(s)`)
+    if (fail > 0) toast.error(`${fail} no se pudo(ieron) eliminar`)
+    fetchLotes()
+  }
+
   return (
     <div className="flex flex-col h-full">
       <header className="h-14 border-b border-border bg-background flex items-center justify-between px-6 shrink-0">
         <h1 className="font-semibold text-foreground">Lotes de Recibos</h1>
-        <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
-          <Plus size={16} className="mr-1.5" />Nuevo Lote
-        </Button>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}
+            </Button>
+          )}
+          <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
+            <Plus size={16} className="mr-1.5" />Nuevo Lote
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-6">
@@ -76,18 +124,37 @@ export function LotesTable() {
           </div>
         ) : (
           <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+              <Checkbox
+                checked={allSelected}
+                indeterminate={someSelected}
+                onCheckedChange={toggleAll}
+                aria-label="Seleccionar todos"
+              />
+              <span>
+                {selected.size > 0 ? `${selected.size} seleccionado${selected.size === 1 ? '' : 's'}` : 'Seleccionar todos'}
+              </span>
+            </div>
             {lotes.map(lote => {
               const pct = lote.stats.total > 0
                 ? Math.round(lote.stats.firmados / lote.stats.total * 100)
                 : 0
               const errTotal = lote.stats.errores + lote.stats.rechazados
+              const isSelected = selected.has(lote.id)
               return (
                 <div
                   key={lote.id}
                   onClick={() => router.push(`/admin/lotes/${lote.id}`)}
-                  className="bg-card border border-border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group"
+                  className={`bg-card border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group ${isSelected ? 'border-green-500' : 'border-border'}`}
                 >
                   <div className="flex items-center justify-between gap-4">
+                    <div onClick={e => e.stopPropagation()} className="shrink-0">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleOne(lote.id)}
+                        aria-label={`Seleccionar ${lote.nombre}`}
+                      />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-semibold text-foreground">{lote.nombre}</p>
@@ -145,6 +212,23 @@ export function LotesTable() {
         onClose={() => setDialogOpen(false)}
         onSaved={() => { setDialogOpen(false); fetchLotes() }}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={open => { if (!open && !bulkDeleting) setBulkDeleteOpen(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.size} lote{selected.size === 1 ? '' : 's'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán los lotes seleccionados. Los recibos ya firmados que estén dentro quedarán sin lote asociado. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleBulkDelete} disabled={bulkDeleting}>
+              {bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

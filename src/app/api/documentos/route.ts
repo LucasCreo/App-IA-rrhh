@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
   const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
   const q = searchParams.get('q')?.trim() ?? ''
+  const conformidadParam = searchParams.get('conformidad')
+  const conformidadFilter = conformidadParam === 'true' ? { firmaConforme: true }
+    : conformidadParam === 'false' ? { firmaConforme: false }
+    : {}
   const RECIBO_TIPO = 'Recibo de Sueldo'
 
   const VALID_ESTADOS = ['BORRADOR', 'ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO', 'ERROR']
@@ -62,9 +66,17 @@ export async function GET(req: NextRequest) {
     ...(periodo ? { periodo: { contains: periodo } } : {}),
     ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
     ...(categoriaId ? { employee: { categoriaId } } : {}),
-    ...(q ? { nombreArchivo: { contains: q } } : {}),
+    ...(q ? {
+      OR: [
+        { nombreArchivo: { contains: q } },
+        { employee: { legajo: { contains: q } } },
+        { employee: { nombre: { contains: q } } },
+        { employee: { apellido: { contains: q } } },
+      ],
+    } : {}),
     ...reciboFilter,
     ...(sinLote ? { loteId: null } : {}),
+    ...conformidadFilter,
   }
 
   const [total, docs] = await Promise.all([

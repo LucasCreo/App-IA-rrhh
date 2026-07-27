@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, UsersRound, Eye, Upload } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, UsersRound, Eye, Upload, Search } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,14 +62,14 @@ type EstadoKey = 'FIRMADO' | 'ENVIADO_A_FIRMA' | 'BORRADOR' | 'ERROR' | 'RECHAZA
 
 const ESTADO_CONFIG: Record<EstadoKey, { label: string; classes: string; Icon: React.ElementType }> = {
   FIRMADO:         { label: 'Firmado',    classes: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',       Icon: CheckCircle2 },
-  ENVIADO_A_FIRMA: { label: 'En firma',   classes: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',          Icon: Clock },
+  ENVIADO_A_FIRMA: { label: 'Pendiente de firma',   classes: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',          Icon: Clock },
   BORRADOR:        { label: 'Borrador',   classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',             Icon: FileX },
   ERROR:           { label: 'Error',      classes: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400',              Icon: AlertCircle },
   RECHAZADO:       { label: 'Rechazado',  classes: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400',  Icon: AlertCircle },
   SIN_RECIBO:      { label: 'Sin recibo', classes: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-500',   Icon: FileQuestion },
 }
 
-type Filtro = 'todos' | 'firmados' | 'enFirma' | 'borradores' | 'errores' | 'sinRecibo'
+type Filtro = 'todos' | 'firmados' | 'enFirma' | 'conformes' | 'noConformes' | 'borradores' | 'errores' | 'sinRecibo'
 
 export function LoteDetalle({ loteId }: { loteId: number }) {
   const router = useRouter()
@@ -78,6 +78,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [busqueda, setBusqueda] = useState('')
   const [sending, setSending] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
@@ -237,23 +238,35 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const pct = stats.total > 0 ? Math.round(stats.firmados / stats.total * 100) : 0
   const canEnviarTodos = accion !== 'NINGUNA' && (stats.borradores + stats.errores) > 0
 
+  const conformesCount = empleados.filter(e => e.documento?.estado === 'FIRMADO' && e.documento.firmaConforme === true).length
+  const noConformesCount = empleados.filter(e => e.documento?.estado === 'FIRMADO' && e.documento.firmaConforme === false).length
+
   const filtroTabs = ([
-    { key: 'todos' as Filtro,     label: 'Todos',     count: empleados.length },
-    { key: 'firmados',  label: 'Firmados',  count: stats.firmados },
-    { key: 'enFirma',   label: 'En Firma',  count: stats.enFirma },
-    { key: 'borradores',label: 'Borrador',  count: stats.borradores },
-    { key: 'sinRecibo', label: 'Sin Recibo',count: stats.sinRecibo },
-    { key: 'errores',   label: 'Errores',   count: stats.errores + stats.rechazados },
+    { key: 'todos' as Filtro,     label: 'Todos',              count: empleados.length },
+    { key: 'firmados',   label: 'Firmados',            count: stats.firmados },
+    { key: 'conformes',  label: 'Conformes',           count: conformesCount },
+    { key: 'noConformes',label: 'No conformes',        count: noConformesCount },
+    { key: 'enFirma',    label: 'Pendientes de firma', count: stats.enFirma },
+    { key: 'borradores', label: 'Borrador',            count: stats.borradores },
+    { key: 'sinRecibo',  label: 'Sin Recibo',          count: stats.sinRecibo },
+    { key: 'errores',    label: 'Errores',             count: stats.errores + stats.rechazados },
   ] as { key: Filtro; label: string; count: number }[]).filter(t => t.key === 'todos' || t.count > 0)
 
+  const q = busqueda.trim().toLowerCase()
   const filteredEmpleados = empleados.filter(e => {
+    if (q) {
+      const hay = `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
     if (filtro === 'todos') return true
     const estado = e.documento?.estado ?? 'SIN_RECIBO'
-    if (filtro === 'firmados')   return estado === 'FIRMADO'
-    if (filtro === 'enFirma')    return estado === 'ENVIADO_A_FIRMA'
-    if (filtro === 'borradores') return estado === 'BORRADOR'
-    if (filtro === 'sinRecibo')  return !e.documento
-    if (filtro === 'errores')    return estado === 'ERROR' || estado === 'RECHAZADO'
+    if (filtro === 'firmados')    return estado === 'FIRMADO'
+    if (filtro === 'conformes')   return estado === 'FIRMADO' && e.documento?.firmaConforme === true
+    if (filtro === 'noConformes') return estado === 'FIRMADO' && e.documento?.firmaConforme === false
+    if (filtro === 'enFirma')     return estado === 'ENVIADO_A_FIRMA'
+    if (filtro === 'borradores')  return estado === 'BORRADOR'
+    if (filtro === 'sinRecibo')   return !e.documento
+    if (filtro === 'errores')     return estado === 'ERROR' || estado === 'RECHAZADO'
     return true
   })
 
@@ -378,6 +391,17 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
               Eliminar lote
             </Button>
           </div>
+        </div>
+
+        {/* Búsqueda */}
+        <div className="relative max-w-md">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por empleado o legajo…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
         </div>
 
         {/* Filter tabs */}

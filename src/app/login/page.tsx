@@ -120,14 +120,14 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel - form */}
-      <div className="flex-1 flex items-center justify-center bg-white dark:bg-gray-950 p-8">
+      <div className="flex-1 flex items-center justify-center bg-background p-8">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <div className="md:hidden flex items-center justify-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-green-700 flex items-center justify-center text-white font-bold text-sm">L</div>
               <span className="text-lg font-bold text-green-800 dark:text-green-400">LPA</span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Bienvenido</h2>
+            <h2 className="text-2xl font-bold text-foreground">Bienvenido</h2>
             <p className="mt-1 text-sm text-muted-foreground">Ingresá tus credenciales para continuar</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">

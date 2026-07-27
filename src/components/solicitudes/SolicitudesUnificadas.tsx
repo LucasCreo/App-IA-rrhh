@@ -88,6 +88,11 @@ export function SolicitudesUnificadas() {
 
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
 
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkReview, setBulkReview] = useState<'APROBADO' | 'RECHAZADO' | null>(null)
+  const [bulkComentario, setBulkComentario] = useState('')
+  const [bulkProcessing, setBulkProcessing] = useState(false)
+
   useEffect(() => {
     if (!reviewAus || !reviewAus.tipoAusencia.afectaSaldo) { setSaldoReview(null); return }
     const anio = new Date(reviewAus.fechaInicio).getFullYear()
@@ -168,6 +173,54 @@ export function SolicitudesUnificadas() {
     aus: items.filter(i => i.kind === 'aus').length,
   }
 
+  // Solo se pueden aprobar/rechazar los pendientes que además canApprove
+  const resolvables = filtered.filter(i => i.pendiente && i.data.canApprove)
+  const selectedResolvables = resolvables.filter(i => selected.has(i.key))
+  const allResolvablesSelected = resolvables.length > 0 && resolvables.every(i => selected.has(i.key))
+  const someSelected = selectedResolvables.length > 0 && !allResolvablesSelected
+
+  function toggleOne(key: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+  function toggleAllResolvables() {
+    if (allResolvablesSelected) setSelected(new Set())
+    else setSelected(new Set(resolvables.map(i => i.key)))
+  }
+
+  async function handleBulkReview() {
+    if (!bulkReview || selectedResolvables.length === 0) return
+    setBulkProcessing(true)
+    const coment = bulkComentario.trim()
+    let ok = 0, fail = 0
+    for (const item of selectedResolvables) {
+      let res: Response
+      if (item.kind === 'doc') {
+        res = await fetch(`/api/solicitudes/${item.data.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: bulkReview, comentario: coment, comentarioVisible: !!coment }),
+        })
+      } else {
+        const estadoAus = bulkReview === 'APROBADO' ? 'APROBADA' : 'RECHAZADA'
+        res = await fetch(`/api/ausencias/solicitudes/${item.data.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: estadoAus, comentarioAdmin: coment }),
+        })
+      }
+      if (res.ok) ok++
+      else fail++
+    }
+    setBulkProcessing(false)
+    setBulkReview(null); setBulkComentario(''); setSelected(new Set())
+    if (ok > 0) toast.success(`${ok} ${bulkReview === 'APROBADO' ? 'aprobada(s)' : 'rechazada(s)'}`)
+    if (fail > 0) toast.error(`${fail} no se pudo(ieron) resolver`)
+    load()
+    router.refresh()
+  }
+
   const esAprobacionDoc = reviewDoc?.estado === 'APROBADO'
 
   return (
@@ -223,6 +276,44 @@ export function SolicitudesUnificadas() {
         </span>
       </div>
 
+      {selectedResolvables.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm">{selectedResolvables.length} pendiente{selectedResolvables.length === 1 ? '' : 's'} seleccionado{selectedResolvables.length === 1 ? '' : 's'}</span>
+          <div className="ml-auto flex gap-2">
+            <Button
+              size="sm"
+              className="bg-green-700 hover:bg-green-800 text-white h-8"
+              onClick={() => { setBulkReview('APROBADO'); setBulkComentario('') }}
+            >
+              <Check size={14} className="mr-1" /> Aprobar {selectedResolvables.length}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30 h-8"
+              onClick={() => { setBulkReview('RECHAZADO'); setBulkComentario('') }}
+            >
+              <X size={14} className="mr-1" /> Rechazar {selectedResolvables.length}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => setSelected(new Set())}>
+              Limpiar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {resolvables.length > 0 && !loading && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+          <Checkbox
+            checked={allResolvablesSelected}
+            indeterminate={someSelected}
+            onCheckedChange={toggleAllResolvables}
+            aria-label="Seleccionar todos los pendientes"
+          />
+          <span>Seleccionar todos los pendientes que podés resolver ({resolvables.length})</span>
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
@@ -233,16 +324,30 @@ export function SolicitudesUnificadas() {
         </p>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(item => item.kind === 'doc' ? (
-            <RowDoc
-              key={item.key}
-              s={item.data}
-              onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
-              onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
-            />
-          ) : (
-            <RowAus key={item.key} s={item.data} onReview={() => { setReviewAus(item.data); setComentarioAus(item.data.comentarioAdmin ?? '') }} />
-          ))}
+          {filtered.map(item => {
+            const selectable = item.pendiente && item.data.canApprove
+            const isSelected = selected.has(item.key)
+            return item.kind === 'doc' ? (
+              <RowDoc
+                key={item.key}
+                s={item.data}
+                selectable={selectable}
+                selected={isSelected}
+                onToggleSelect={() => toggleOne(item.key)}
+                onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
+                onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
+              />
+            ) : (
+              <RowAus
+                key={item.key}
+                s={item.data}
+                selectable={selectable}
+                selected={isSelected}
+                onToggleSelect={() => toggleOne(item.key)}
+                onReview={() => { setReviewAus(item.data); setComentarioAus(item.data.comentarioAdmin ?? '') }}
+              />
+            )
+          })}
         </div>
       )}
 
@@ -367,15 +472,63 @@ export function SolicitudesUnificadas() {
         url={preview?.url ?? null}
         filename={preview?.filename ?? null}
       />
+
+      {/* Bulk review dialog */}
+      <Dialog open={bulkReview !== null} onOpenChange={v => { if (!v && !bulkProcessing) setBulkReview(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {bulkReview === 'APROBADO'
+                ? `Aprobar ${selectedResolvables.length} solicitud${selectedResolvables.length === 1 ? '' : 'es'}`
+                : `Rechazar ${selectedResolvables.length} solicitud${selectedResolvables.length === 1 ? '' : 'es'}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-muted-foreground">
+              Vas a resolver {selectedResolvables.length} solicitud{selectedResolvables.length === 1 ? '' : 'es'} a la vez.
+              Podés agregar un comentario opcional (será visible al empleado).
+            </p>
+            <Textarea
+              placeholder="Comentario opcional…"
+              value={bulkComentario}
+              onChange={e => setBulkComentario(e.target.value)}
+              rows={3}
+              disabled={bulkProcessing}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReview(null)} disabled={bulkProcessing}>Cancelar</Button>
+            <Button
+              className={bulkReview === 'APROBADO' ? 'bg-green-700 hover:bg-green-800 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
+              onClick={handleBulkReview}
+              disabled={bulkProcessing}
+            >
+              {bulkProcessing ? 'Procesando…' : bulkReview === 'APROBADO' ? 'Aprobar' : 'Rechazar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function RowDoc({ s, onReview, onPreview }: { s: SolicitudDoc; onReview: (estado: 'APROBADO' | 'RECHAZADO') => void; onPreview?: (nombreArchivo: string) => void }) {
+function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onPreview }: {
+  s: SolicitudDoc
+  selectable: boolean
+  selected: boolean
+  onToggleSelect: () => void
+  onReview: (estado: 'APROBADO' | 'RECHAZADO') => void
+  onPreview?: (nombreArchivo: string) => void
+}) {
   const meta = (() => { try { return JSON.parse(s.metadata ?? '{}') as Record<string, string> } catch { return {} } })()
   const entries = Object.entries(meta).filter(([, v]) => v)
   return (
-    <div className="flex items-start gap-4 px-4 py-3 bg-card">
+    <div className="flex items-start gap-3 px-4 py-3 bg-card">
+      <div className="w-4 mt-1 shrink-0">
+        {selectable && (
+          <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label="Seleccionar solicitud" />
+        )}
+      </div>
       <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -436,10 +589,21 @@ function RowDoc({ s, onReview, onPreview }: { s: SolicitudDoc; onReview: (estado
   )
 }
 
-function RowAus({ s, onReview }: { s: SolicitudAus; onReview: () => void }) {
+function RowAus({ s, selectable, selected, onToggleSelect, onReview }: {
+  s: SolicitudAus
+  selectable: boolean
+  selected: boolean
+  onToggleSelect: () => void
+  onReview: () => void
+}) {
   const estadoInfo = ESTADO_AUS[s.estado]
   return (
-    <div className="flex items-start gap-4 px-4 py-3 bg-card">
+    <div className="flex items-start gap-3 px-4 py-3 bg-card">
+      <div className="w-4 mt-1 shrink-0">
+        {selectable && (
+          <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label="Seleccionar solicitud" />
+        )}
+      </div>
       <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Download, BookOpen, Pen, Search, X } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
@@ -13,10 +14,12 @@ import { cn } from '@/lib/utils'
 interface Doc {
   id: number; nombreArchivo: string; periodo: string | null; estado: string
   fechaCarga: string; fechaFirma?: string
+  firmaConforme?: boolean | null
+  firmaComentario?: string | null
   tipoDocumento?: { accion: string } | null
 }
 
-type Filtro = 'TODOS' | 'PENDIENTES' | 'FIRMADOS'
+type Filtro = 'TODOS' | 'PENDIENTES' | 'CONFORMES' | 'NO_CONFORMES'
 type Orden = 'DESC' | 'ASC'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -33,6 +36,7 @@ interface Props { employeeId: number }
 
 export function MisRecibos({ employeeId }: Props) {
   const [docs, setDocs] = useState<Doc[]>([])
+  const [loading, setLoading] = useState(true)
   const [marking, setMarking] = useState<number | null>(null)
   const [firmaDoc, setFirmaDoc] = useState<Doc | null>(null)
   const [filtro, setFiltro] = useState<Filtro>('TODOS')
@@ -42,9 +46,11 @@ export function MisRecibos({ employeeId }: Props) {
   const [orden, setOrden] = useState<Orden>('DESC')
 
   function load() {
+    setLoading(true)
     fetch(`/api/documentos?employeeId=${employeeId}&recibo=true`)
       .then(r => r.json())
       .then(data => setDocs(data.docs ?? []))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [employeeId])
@@ -52,7 +58,8 @@ export function MisRecibos({ employeeId }: Props) {
   const counts = useMemo(() => ({
     TODOS: docs.length,
     PENDIENTES: docs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length,
-    FIRMADOS: docs.filter(d => d.estado === 'FIRMADO').length,
+    CONFORMES: docs.filter(d => d.estado === 'FIRMADO' && d.firmaConforme === true).length,
+    NO_CONFORMES: docs.filter(d => d.estado === 'FIRMADO' && d.firmaConforme === false).length,
   }), [docs])
 
   const aniosDisponibles = useMemo(() => {
@@ -69,7 +76,8 @@ export function MisRecibos({ employeeId }: Props) {
   const filteredDocs = useMemo(() => {
     let out = docs
     if (filtro === 'PENDIENTES') out = out.filter(d => d.estado === 'ENVIADO_A_FIRMA')
-    else if (filtro === 'FIRMADOS') out = out.filter(d => d.estado === 'FIRMADO')
+    else if (filtro === 'CONFORMES') out = out.filter(d => d.estado === 'FIRMADO' && d.firmaConforme === true)
+    else if (filtro === 'NO_CONFORMES') out = out.filter(d => d.estado === 'FIRMADO' && d.firmaConforme === false)
 
     const q = busqueda.trim().toLowerCase()
     if (q) out = out.filter(d => {
@@ -93,8 +101,9 @@ export function MisRecibos({ employeeId }: Props) {
 
   const chips: { key: Filtro; label: string }[] = [
     { key: 'TODOS', label: 'Todos' },
-    { key: 'PENDIENTES', label: 'Pendientes' },
-    { key: 'FIRMADOS', label: 'Firmados' },
+    { key: 'PENDIENTES', label: 'Pendientes de firma' },
+    { key: 'CONFORMES', label: 'Conformes' },
+    { key: 'NO_CONFORMES', label: 'No conformes' },
   ]
 
   async function marcarLeido(id: number) {
@@ -173,69 +182,140 @@ export function MisRecibos({ employeeId }: Props) {
         </div>
       )}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Período</TableHead>
-            <TableHead>Archivo</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Cargado</TableHead>
-            <TableHead>Firmado el</TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredDocs.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                {docs.length === 0
-                  ? 'No tenés recibos cargados aún.'
-                  : filtro === 'PENDIENTES' ? 'No tenés recibos pendientes.'
-                  : filtro === 'FIRMADOS' ? 'No tenés recibos firmados aún.'
-                  : 'Sin resultados para los filtros aplicados.'}
-              </TableCell>
-            </TableRow>
-          )}
-          {filteredDocs.map(doc => {
-            const accion = doc.tipoDocumento?.accion
-            const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
-            const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
-            return (
-              <TableRow key={doc.id}>
-                <TableCell>{formatPeriodo(doc.periodo)}</TableCell>
-                <TableCell>{doc.nombreArchivo}</TableCell>
-                <TableCell>
-                  <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {doc.fechaFirma ? new Date(doc.fechaFirma).toLocaleDateString('es-AR') : '—'}
-                </TableCell>
-                <TableCell className="text-right space-x-1">
-                  {pendienteLectura && (
-                    <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => marcarLeido(doc.id)} disabled={marking === doc.id}>
-                      <BookOpen size={14} className="mr-1" />{marking === doc.id ? '...' : 'Marcar como leído'}
-                    </Button>
-                  )}
-                  {pendienteFirma && (
-                    <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => setFirmaDoc(doc)}>
-                      <Pen size={14} className="mr-1" /> Firmar
-                    </Button>
-                  )}
-                  <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
-                    <Button size="sm" variant="outline"><FileText size={14} /></Button>
-                  </a>
-                  <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
-                    <Button size="sm" variant="outline"><Download size={14} /></Button>
-                  </a>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
+        </div>
+      ) : filteredDocs.length === 0 ? (
+        <div className="text-center text-sm text-muted-foreground py-12">
+          {docs.length === 0
+            ? 'No tenés recibos cargados aún.'
+            : filtro === 'PENDIENTES' ? 'No tenés recibos pendientes de firma.'
+            : filtro === 'CONFORMES' ? 'No firmaste ningún recibo como conforme aún.'
+            : filtro === 'NO_CONFORMES' ? 'No hay recibos firmados como no conformes.'
+            : 'Sin resultados para los filtros aplicados.'}
+        </div>
+      ) : (
+        <>
+          {/* Desktop: tabla */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Archivo</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Cargado</TableHead>
+                  <TableHead>Firmado el</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDocs.map(doc => {
+                  const accion = doc.tipoDocumento?.accion
+                  const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
+                  const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
+                  return (
+                    <TableRow key={doc.id}>
+                      <TableCell>{formatPeriodo(doc.periodo)}</TableCell>
+                      <TableCell>{doc.nombreArchivo}</TableCell>
+                      <TableCell>
+                        <div className="inline-flex items-center gap-1.5">
+                          <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
+                          {doc.estado === 'FIRMADO' && doc.firmaConforme === true && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300" title="Firmado conforme">
+                              Conforme
+                            </span>
+                          )}
+                          {doc.estado === 'FIRMADO' && doc.firmaConforme === false && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" title="Firmado no conforme">
+                              No conforme
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {doc.fechaFirma ? new Date(doc.fechaFirma).toLocaleDateString('es-AR') : '—'}
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
+                        {pendienteLectura && (
+                          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => marcarLeido(doc.id)} disabled={marking === doc.id}>
+                            <BookOpen size={14} className="mr-1" />{marking === doc.id ? '...' : 'Marcar como leído'}
+                          </Button>
+                        )}
+                        {pendienteFirma && (
+                          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => setFirmaDoc(doc)}>
+                            <Pen size={14} className="mr-1" /> Firmar
+                          </Button>
+                        )}
+                        <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
+                          <Button size="sm" variant="outline"><FileText size={14} /></Button>
+                        </a>
+                        <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
+                          <Button size="sm" variant="outline"><Download size={14} /></Button>
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Móvil: cards */}
+          <div className="md:hidden space-y-2">
+            {filteredDocs.map(doc => {
+              const accion = doc.tipoDocumento?.accion
+              const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
+              const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
+              return (
+                <div key={doc.id} className="rounded-lg border p-3 bg-card">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm">{formatPeriodo(doc.periodo)}</p>
+                      <p className="text-xs text-muted-foreground truncate">{doc.nombreArchivo}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
+                      {doc.estado === 'FIRMADO' && doc.firmaConforme === true && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300">Conforme</span>
+                      )}
+                      {doc.estado === 'FIRMADO' && doc.firmaConforme === false && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400">No conforme</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5 mb-3">
+                    <p>Cargado: {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}</p>
+                    <p>Firmado el: {doc.fechaFirma ? new Date(doc.fechaFirma).toLocaleDateString('es-AR') : '—'}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {pendienteLectura && (
+                      <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white flex-1" onClick={() => marcarLeido(doc.id)} disabled={marking === doc.id}>
+                        <BookOpen size={14} className="mr-1" />{marking === doc.id ? '...' : 'Marcar como leído'}
+                      </Button>
+                    )}
+                    {pendienteFirma && (
+                      <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white flex-1" onClick={() => setFirmaDoc(doc)}>
+                        <Pen size={14} className="mr-1" /> Firmar
+                      </Button>
+                    )}
+                    <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex-1">
+                      <Button size="sm" variant="outline" className="w-full"><FileText size={14} className="mr-1" /> Ver</Button>
+                    </a>
+                    <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo} className="flex-1">
+                      <Button size="sm" variant="outline" className="w-full"><Download size={14} className="mr-1" /> Bajar</Button>
+                    </a>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       <FirmarDocumentoDialog
         open={firmaDoc !== null}

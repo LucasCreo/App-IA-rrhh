@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Upload, Paperclip, FileText, CalendarOff, Plus, CheckCircle2, XCircle, Clock, Search } from 'lucide-react'
@@ -291,7 +292,9 @@ export function MisSolicitudes() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground text-center py-12">Cargando…</p>
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <FileText size={32} strokeWidth={1.2} />

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { FileText, ClipboardList, BookOpen, Pen, Download, CheckCircle2, Circle, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/FormularioDialog'
@@ -173,7 +174,9 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground text-center py-12">Cargando…</p>
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <FileText size={32} strokeWidth={1.2} />
@@ -182,28 +185,32 @@ export function MisDocumentosYFormularios({ employeeId }: Props) {
       ) : (
         <div className="divide-y">
           {filtered.map(item => (
-            <div key={item.key} className="flex items-center gap-3 px-5 py-4">
-              {item.kind === 'doc'
-                ? <FileText size={16} className="text-muted-foreground shrink-0" />
-                : <ClipboardList size={16} className="text-blue-500 shrink-0" />}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium truncate">{item.titulo}</p>
-                  <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                    {item.kind === 'doc' ? 'PDF' : 'Formulario'}
-                  </span>
+            <div key={item.key} className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 sm:px-5 py-4">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                {item.kind === 'doc'
+                  ? <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+                  : <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium truncate">{item.titulo}</p>
+                    <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                      {item.kind === 'doc' ? 'PDF' : 'Formulario'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {item.subtitulo ? `${item.subtitulo} · ` : ''}
+                    {new Date(item.fecha).toLocaleDateString('es-AR')}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {item.subtitulo ? `${item.subtitulo} · ` : ''}
-                  {new Date(item.fecha).toLocaleDateString('es-AR')}
-                </p>
               </div>
 
-              {item.kind === 'doc' ? (
-                <DocActions doc={item.doc} acting={acting} onFirmar={setFirmaDoc} onMarcarLeido={marcarLeido} />
-              ) : (
-                <FormActions resp={item.resp} onFill={setEditForm} onView={setViewForm} />
-              )}
+              <div className="sm:shrink-0">
+                {item.kind === 'doc' ? (
+                  <DocActions doc={item.doc} acting={acting} onFirmar={setFirmaDoc} onMarcarLeido={marcarLeido} />
+                ) : (
+                  <FormActions resp={item.resp} onFill={setEditForm} onView={setViewForm} />
+                )}
+              </div>
             </div>
           ))}
         </div>

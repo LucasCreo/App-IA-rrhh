@@ -12,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmpleadoDialog } from './EmpleadoDialog'
 import { ImportEmpleadosDialog } from './ImportEmpleadosDialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X, Download, Upload } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
@@ -42,6 +44,9 @@ export function EmpleadosTable() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; legajo: string } | null>(null)
   const [blockedDelete, setBlockedDelete] = useState<{ id: number; legajo: string; dependencias: { label: string; count: number; href: string }[] } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetch('/api/categorias').then(r => r.json()).then(setCats)
@@ -76,6 +81,54 @@ export function EmpleadosTable() {
   }, [qDebounced, estado, categoriaId, page])
 
   useEffect(() => { load() }, [load])
+
+  // Al cambiar de página o filtros, limpiar selección
+  useEffect(() => { setSelected(new Set()) }, [qDebounced, estado, categoriaId, page])
+
+  const allSelected = data.employees.length > 0 && data.employees.every(e => selected.has(e.id))
+  const someSelected = selected.size > 0 && !allSelected
+  function toggleOne(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  function toggleAll() {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(data.employees.map(e => e.id)))
+  }
+
+  async function handleBulkExport() {
+    if (selected.size === 0) return
+    const empsSel = data.employees.filter(e => selected.has(e.id))
+    const ws = XLSX.utils.json_to_sheet(empsSel.map(e => ({
+      'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
+      'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono ?? '',
+      'Categoría': e.categoria.nombre, 'Estado': e.estado,
+      'Fecha Ingreso': e.fechaIngreso,
+    })))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Empleados')
+    XLSX.writeFile(wb, `empleados_seleccionados.xlsx`)
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    setBulkDeleting(true)
+    let ok = 0, fail = 0
+    for (const id of selected) {
+      const res = await fetch(`/api/empleados/${id}`, { method: 'DELETE' })
+      if (res.ok) ok++
+      else fail++
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+    setSelected(new Set())
+    if (ok > 0) toast.success(`${ok} empleado(s) eliminado(s)`)
+    if (fail > 0) toast.error(`${fail} no se pudo(ieron) eliminar (tienen datos asociados)`)
+    load()
+  }
 
   async function doDelete() {
     if (!deleteTarget) return
@@ -202,6 +255,21 @@ export function EmpleadosTable() {
           </Popover.Portal>
         </Popover.Root>
 
+        {selected.size > 0 && (
+          <>
+            <Button size="sm" variant="outline" onClick={handleBulkExport}>
+              <Download size={14} className="mr-1" /> Exportar {selected.size}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}
+            </Button>
+          </>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -263,6 +331,14 @@ export function EmpleadosTable() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label="Seleccionar todos"
+                  />
+                </TableHead>
                 <TableHead>Legajo</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>CUIL</TableHead>
@@ -275,7 +351,7 @@ export function EmpleadosTable() {
             <TableBody>
               {data.employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-sm">
                     No se encontraron empleados
                   </TableCell>
                 </TableRow>
@@ -285,6 +361,13 @@ export function EmpleadosTable() {
                   className="cursor-pointer"
                   onClick={() => router.push(`/admin/empleados/${emp.id}`)}
                 >
+                  <TableCell className="w-10" onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selected.has(emp.id)}
+                      onCheckedChange={() => toggleOne(emp.id)}
+                      aria-label={`Seleccionar ${emp.apellido}, ${emp.nombre}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono">{emp.legajo}</TableCell>
                   <TableCell>
                     <span className="flex items-center gap-2">
@@ -362,6 +445,23 @@ export function EmpleadosTable() {
         confirmToken={blockedDelete?.legajo}
         onDeleted={load}
       />
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={open => { if (!open && !bulkDeleting) setBulkDeleteOpen(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.size} empleado{selected.size === 1 ? '' : 's'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Los que tengan datos asociados (documentos, solicitudes, etc.) no se podrán eliminar.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleBulkDelete} disabled={bulkDeleting}>
+              {bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

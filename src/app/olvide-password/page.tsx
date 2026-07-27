@@ -25,7 +25,7 @@ export default function OlvidePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-8">
       <div className="w-full max-w-sm">
         <Link href="/login" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-6">
           <ArrowLeft size={13} /> Volver al login

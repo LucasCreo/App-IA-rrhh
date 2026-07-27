@@ -9,7 +9,7 @@ const slides = [
   {
     icon: LayoutDashboard,
     title: 'Bienvenido al Portal del Empleado',
-    description: 'Este es un recorrido rápido por los módulos disponibles. Puede cerrarlo en cualquier momento y volver al Manual de uso desde su perfil.',
+    description: 'Este es un recorrido rápido por los módulos disponibles. Puede cerrarlo en cualquier momento y volver al Manual de uso desde su perfil. En el menú lateral verá avisos de novedades y podrá reordenar los módulos arrastrándolos a su gusto.',
   },
   {
     icon: LayoutDashboard,
@@ -19,12 +19,12 @@ const slides = [
   {
     icon: FileText,
     title: 'Recibos de sueldo',
-    description: 'Visualice y descargue sus recibos de haberes. Si un recibo requiere confirmación de recepción, podrá firmarlo digitalmente desde esta sección.',
+    description: 'Visualice y descargue sus recibos de haberes. Cuando un recibo requiera confirmación, podrá firmarlo digitalmente indicando si está conforme o no conforme, con la opción de dejar un comentario.',
   },
   {
     icon: FolderOpen,
     title: 'Documentos',
-    description: 'Acceda a los documentos que Recursos Humanos ha puesto a su disposición, realice solicitudes de nuevos documentos y complete los formularios asignados.',
+    description: 'Acceda a los documentos y formularios que Recursos Humanos puso a su disposición. Para pedir un documento nuevo o completar un formulario asignado, use el módulo Solicitudes.',
   },
   {
     icon: CalendarDays,
@@ -34,7 +34,7 @@ const slides = [
   {
     icon: ClipboardList,
     title: 'Solicitudes',
-    description: 'Gestione desde un mismo lugar sus solicitudes de ausencias, licencias, vacaciones y documentos. Consulte su saldo de días disponibles y el estado de cada solicitud.',
+    description: 'Gestione desde un mismo lugar sus pedidos de ausencias, licencias, vacaciones, documentos y formularios. Consulte su saldo de días disponibles y el estado de cada solicitud.',
   },
   {
     icon: UserCircle,

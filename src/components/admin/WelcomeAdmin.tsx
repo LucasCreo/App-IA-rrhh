@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Users, FileText, CalendarDays, Star, ClipboardCheck, CalendarOff, Settings, Rocket } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Users, FileText, Receipt, CalendarDays, Star, ClipboardList, Newspaper, Settings, Rocket } from 'lucide-react'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
 
 const STORAGE_KEY = 'rrhh-bienvenida-admin-vista'
@@ -10,17 +10,27 @@ const slides = [
   {
     icon: Rocket,
     title: 'Bienvenido al sistema de RRHH',
-    description: 'Este es un recorrido rápido por los módulos principales. Puede cerrarlo en cualquier momento y volver al manual completo desde Configuración › General.',
+    description: 'Este es un recorrido rápido por los módulos principales. Puede cerrarlo en cualquier momento y volver al manual completo desde su perfil. En el menú lateral verá avisos de novedades y podrá reordenar los módulos arrastrándolos a su gusto (el Dashboard queda fijo).',
   },
   {
     icon: Users,
     title: 'Personal',
-    description: `Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos${EVALUACIONES_ENABLED ? ', evaluaciones' : ''} y formularios desde un mismo lugar.`,
+    description: `Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos${EVALUACIONES_ENABLED ? ', evaluaciones' : ''} y formularios desde un mismo lugar. Puede seleccionar varios registros para exportar o eliminar en lote.`,
+  },
+  {
+    icon: Newspaper,
+    title: 'Avisos',
+    description: 'Publique novedades y comunicados internos que los empleados verán en su portal. Puede permitir comentarios y respuestas, y sabrá cuántos usuarios aún no lo leyeron.',
   },
   {
     icon: FileText,
-    title: 'Documentos y Recibos',
-    description: 'Cargue documentos de forma individual o en lotes masivos. Los recibos de sueldo se gestionan por separado y quedan disponibles para cada empleado en su portal.',
+    title: 'Documentos',
+    description: 'Cargue documentos de forma individual o masiva y envíelos a firma. Filtre por conformidad, año y empleado, y realice acciones en lote (descargar, enviar, eliminar) sobre múltiples registros.',
+  },
+  {
+    icon: Receipt,
+    title: 'Recibos',
+    description: 'Organice los recibos de sueldo en lotes por período. Vea el avance de firmas, quiénes están pendientes, quiénes firmaron conformes y quiénes no conformes con su comentario.',
   },
   {
     icon: CalendarDays,
@@ -33,19 +43,14 @@ const slides = [
     description: 'Diseñe plantillas con criterios personalizados y organice rondas de evaluación. Los resultados quedan registrados en la ficha de cada empleado.',
   }] : []),
   {
-    icon: ClipboardCheck,
-    title: 'Formularios',
-    description: 'Cree formularios a medida y asígnelos a empleados para que los completen desde su portal. Puede definir qué campos completa el empleado y cuáles el administrador.',
-  },
-  {
-    icon: CalendarOff,
-    title: 'Ausencias',
-    description: 'Revise y apruebe las solicitudes de ausencia. Administre los saldos de vacaciones y configure los tipos de ausencia disponibles.',
+    icon: ClipboardList,
+    title: 'Solicitudes',
+    description: 'Un solo lugar para revisar y aprobar los pedidos de los empleados: ausencias, licencias, vacaciones, documentos y formularios. Puede aprobar o rechazar varias solicitudes en lote respetando la jerarquía del organigrama.',
   },
   {
     icon: Settings,
     title: 'Configuración',
-    description: 'Personalice el nombre y logo de la aplicación, los campos de legajo, tipos de documento, roles y permisos, y mucho más desde el menú de Configuración.',
+    description: 'Personalice el nombre y logo de la aplicación, los campos de legajo, tipos de documento y ausencia, roles y permisos, saldos de vacaciones y mucho más desde el menú de Configuración.',
   },
 ]
 

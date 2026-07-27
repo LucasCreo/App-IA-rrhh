@@ -179,14 +179,15 @@ export function MisRecibos({ employeeId }: Props) {
             <TableHead>Período</TableHead>
             <TableHead>Archivo</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>Fecha</TableHead>
+            <TableHead>Cargado</TableHead>
+            <TableHead>Firmado el</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filteredDocs.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 {docs.length === 0
                   ? 'No tenés recibos cargados aún.'
                   : filtro === 'PENDIENTES' ? 'No tenés recibos pendientes.'
@@ -205,6 +206,9 @@ export function MisRecibos({ employeeId }: Props) {
                 <TableCell>{doc.nombreArchivo}</TableCell>
                 <TableCell>
                   <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {doc.fechaFirma ? new Date(doc.fechaFirma).toLocaleDateString('es-AR') : '—'}

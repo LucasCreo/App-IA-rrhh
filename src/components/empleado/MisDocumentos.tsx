@@ -71,8 +71,7 @@ export function MisDocumentos({ employeeId }: Props) {
               {pendienteLectura && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="text-green-700 border-green-300"
+                  className="bg-green-700 hover:bg-green-800 text-white"
                   disabled={acting === doc.id}
                   onClick={() => marcarLeido(doc.id)}
                 >
@@ -83,8 +82,7 @@ export function MisDocumentos({ employeeId }: Props) {
               {pendienteFirma && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="text-green-700 border-green-300"
+                  className="bg-green-700 hover:bg-green-800 text-white"
                   onClick={() => setFirmaDoc(doc)}
                 >
                   <Pen size={13} className="mr-1" /> Firmar

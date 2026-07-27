@@ -9,7 +9,7 @@ const slides = [
   {
     icon: LayoutDashboard,
     title: 'Bienvenido al Portal del Empleado',
-    description: 'Este es un recorrido rápido por los módulos disponibles. Puede cerrarlo en cualquier momento y volver al Manual de uso desde el menú lateral.',
+    description: 'Este es un recorrido rápido por los módulos disponibles. Puede cerrarlo en cualquier momento y volver al Manual de uso desde su perfil.',
   },
   {
     icon: LayoutDashboard,
@@ -44,7 +44,7 @@ const slides = [
   {
     icon: BookOpen,
     title: 'Manual de uso',
-    description: 'Acceda al manual completo del portal desde el enlace en la parte inferior del menú lateral. Contiene instrucciones detalladas de cada módulo.',
+    description: 'Acceda al manual completo del portal desde su perfil. Contiene instrucciones detalladas de cada módulo.',
   },
 ]
 

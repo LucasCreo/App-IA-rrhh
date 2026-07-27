@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, BookOpen, Shield, Newspaper, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -38,12 +38,19 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const [avisosUnread, setAvisosUnread] = useState(0)
+  const [badges, setBadges] = useState<{ recibos?: number; documentos?: number; solicitudes?: number }>({})
   useEffect(() => {
     let cancel = false
-    const load = () => fetch('/api/portal/posts/unread-count')
-      .then(r => r.ok ? r.json() : { count: 0 })
-      .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
-      .catch(() => {})
+    const load = () => {
+      fetch('/api/portal/posts/unread-count')
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
+        .catch(() => {})
+      fetch('/api/badges')
+        .then(r => r.ok ? r.json() : {})
+        .then(d => { if (!cancel) setBadges(d ?? {}) })
+        .catch(() => {})
+    }
     load()
     const int = setInterval(load, 60_000)
     const onFocus = () => load()
@@ -116,7 +123,12 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
         {nav.map(({ href, label, icon: Icon }) => {
           const active = href === '/empleado' ? pathname === '/empleado' : pathname.startsWith(href)
           const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
-          const badge = href === '/empleado/portal' && avisosUnread > 0 ? avisosUnread : 0
+          let badge = 0
+          let badgeColor = 'bg-blue-500'
+          if (href === '/empleado/portal') badge = avisosUnread
+          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-yellow-500' }
+          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-yellow-500' }
+          else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
           return (
             <Link
               key={href}
@@ -135,11 +147,11 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
               {!collapsed && <span className="flex-1">{label}</span>}
               {badge > 0 && (
                 collapsed ? (
-                  <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className={cn('absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
                     {badge > 9 ? '9+' : badge}
                   </span>
                 ) : (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className={cn('min-w-5 h-5 px-1.5 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
                     {badge > 99 ? '99+' : badge}
                   </span>
                 )
@@ -148,23 +160,6 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           )
         })}
       </nav>
-
-      <div className="px-2 pb-1">
-        <Link
-          href="/manual/empleado"
-          title={collapsed ? 'Manual de uso' : undefined}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
-            collapsed && 'justify-center',
-            pathname.startsWith('/manual/empleado')
-              ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <BookOpen size={16} className="shrink-0" />
-          {!collapsed && 'Manual de uso'}
-        </Link>
-      </div>
 
       <div className={cn(
         'border-t border-border py-3 mt-auto',

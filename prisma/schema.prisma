@@ -21,6 +21,7 @@ model User {
   googleRefreshToken  String?
   googleLastSync      DateTime?
   avisosLastSeenAt    DateTime?
+  solicitudesLastSeenAt DateTime?
   createdAt    DateTime  @default(now())
 
   employee  Employee?  @relation(fields: [employeeId], references: [id])

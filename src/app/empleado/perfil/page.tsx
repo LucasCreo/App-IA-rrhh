@@ -2,7 +2,8 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { CalendarDays, Tag, Hash } from 'lucide-react'
+import Link from 'next/link'
+import { CalendarDays, Tag, Hash, BookOpen, ArrowRight } from 'lucide-react'
 import { CambiarPasswordButton } from '@/components/empleado/CambiarPasswordButton'
 import { SolicitarModificacion } from '@/components/empleado/SolicitarModificacion'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
@@ -122,6 +123,21 @@ export default async function PerfilPage() {
 
         {/* Solicitar modificación */}
         <SolicitarModificacion />
+
+        {/* Manual de uso */}
+        <Link
+          href="/manual/empleado"
+          className="rounded-xl border bg-card shadow-sm p-5 flex items-center justify-between hover:bg-muted/40 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <BookOpen size={20} className="text-muted-foreground" />
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Manual de uso</p>
+              <p className="text-sm text-muted-foreground mt-1">Guía para usar el portal del empleado</p>
+            </div>
+          </div>
+          <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+        </Link>
       </div>
     </div>
   )

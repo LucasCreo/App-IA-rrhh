@@ -197,13 +197,13 @@ function DocActions({ doc, acting, onFirmar, onMarcarLeido }: {
     <div className="flex items-center gap-2 shrink-0">
       <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
       {pendienteLectura && (
-        <Button size="sm" variant="outline" className="text-green-700 border-green-300 h-8 text-xs" disabled={acting === doc.id} onClick={() => onMarcarLeido(doc.id)}>
+        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" disabled={acting === doc.id} onClick={() => onMarcarLeido(doc.id)}>
           <BookOpen size={13} className="mr-1" />
           {acting === doc.id ? '...' : 'Marcar leído'}
         </Button>
       )}
       {pendienteFirma && (
-        <Button size="sm" variant="outline" className="text-green-700 border-green-300 h-8 text-xs" onClick={() => onFirmar(doc)}>
+        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" onClick={() => onFirmar(doc)}>
           <Pen size={13} className="mr-1" /> Firmar
         </Button>
       )}

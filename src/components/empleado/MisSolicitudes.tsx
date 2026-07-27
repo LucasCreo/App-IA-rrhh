@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Upload, Paperclip, FileText, CalendarOff, Plus, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { handleApiError } from '@/lib/apiErrors'
@@ -109,6 +108,8 @@ export function MisSolicitudes() {
     fetch('/api/solicitudes/tipos').then(r => r.json()).then(t => setTiposSol(Array.isArray(t) ? t : [])).catch(() => {})
     fetch('/api/ausencias/tipos').then(r => r.json()).then(t => setTiposAus(Array.isArray(t) ? t.filter((x: TipoAusencia) => x.activo) : [])).catch(() => {})
     load()
+    // Marca las solicitudes como vistas para limpiar el badge del sidebar
+    fetch('/api/badges/solicitudes-seen', { method: 'POST' }).catch(() => {})
   }, [])
 
   const parsed = (() => {
@@ -298,27 +299,65 @@ export function MisSolicitudes() {
       <Dialog open={nuevaOpen} onOpenChange={v => { if (!v) { setNuevaOpen(false); setTipoSel('') } }}>
         <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle>Nueva solicitud</DialogTitle></DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-3 py-2">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Tipo de solicitud</p>
-              <Select value={tipoSel} onValueChange={v => v && setTipoSel(v)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Elegí un tipo…" /></SelectTrigger>
-                <SelectContent>
-                  {tiposAus.length > 0 && (
-                    <>
-                      <div className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Ausencias</div>
-                      {tiposAus.map(t => <SelectItem key={`a${t.id}`} value={`aus:${t.id}`}>{t.nombre}</SelectItem>)}
-                    </>
-                  )}
-                  {tiposSol.length > 0 && (
-                    <>
-                      <div className="px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">Documentos</div>
-                      {tiposSol.map(t => <SelectItem key={`d${t.id}`} value={`doc:${t.id}`}>{t.nombre}</SelectItem>)}
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex-1 overflow-y-auto space-y-4 py-2">
+            {tiposAus.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <CalendarOff size={11} /> Ausencias
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {tiposAus.map(t => {
+                    const val = `aus:${t.id}`
+                    const sel = tipoSel === val
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTipoSel(val)}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                          sel
+                            ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                            : 'border-border hover:border-green-400 hover:bg-muted/50'
+                        )}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: t.color }} />
+                        <span className="truncate">{t.nombre}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {tiposSol.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <FileText size={11} /> Documentos
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {tiposSol.map(t => {
+                    const val = `doc:${t.id}`
+                    const sel = tipoSel === val
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTipoSel(val)}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                          sel
+                            ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                            : 'border-border hover:border-green-400 hover:bg-muted/50'
+                        )}
+                      >
+                        <FileText size={13} className="shrink-0 text-muted-foreground" />
+                        <span className="truncate">{t.nombre}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {parsed?.kind === 'doc' && parsed.tipo && (
               <>

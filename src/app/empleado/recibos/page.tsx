@@ -22,7 +22,7 @@ export default async function RecibosPage() {
         <h1 className="font-semibold text-green-900 dark:text-green-400">Recibos de sueldo</h1>
       </header>
       <div className="flex-1 overflow-auto p-6">
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden p-4">
           <MisRecibos employeeId={decoded.employeeId} />
         </div>
       </div>

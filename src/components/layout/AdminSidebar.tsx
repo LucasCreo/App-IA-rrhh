@@ -83,12 +83,19 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const [avisosUnread, setAvisosUnread] = useState(0)
+  const [badges, setBadges] = useState<{ recibos?: number; documentos?: number }>({})
   useEffect(() => {
     let cancel = false
-    const load = () => fetch('/api/portal/posts/unread-count')
-      .then(r => r.ok ? r.json() : { count: 0 })
-      .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
-      .catch(() => {})
+    const load = () => {
+      fetch('/api/portal/posts/unread-count')
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .then(d => { if (!cancel) setAvisosUnread(d.count ?? 0) })
+        .catch(() => {})
+      fetch('/api/badges')
+        .then(r => r.ok ? r.json() : {})
+        .then(d => { if (!cancel) setBadges(d ?? {}) })
+        .catch(() => {})
+    }
     load()
     const int = setInterval(load, 60_000)
     const onFocus = () => load()
@@ -220,6 +227,22 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                     <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
                       {avisosUnread > 9 ? '9+' : avisosUnread}
                     </span>
+                  )}
+                  {!collapsed && href === '/admin/documentos' && (badges.documentos ?? 0) > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1.5" title="Documentos con error o rechazados">
+                      {badges.documentos! > 99 ? '99+' : badges.documentos}
+                    </span>
+                  )}
+                  {collapsed && href === '/admin/documentos' && (badges.documentos ?? 0) > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                  {!collapsed && href === '/admin/recibos' && (badges.recibos ?? 0) > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1.5" title="Lotes con documentos en error">
+                      {badges.recibos! > 99 ? '99+' : badges.recibos}
+                    </span>
+                  )}
+                  {collapsed && href === '/admin/recibos' && (badges.recibos ?? 0) > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
                   )}
                   {!collapsed && (
                     <GripVertical size={14} className="opacity-0 group-hover:opacity-30 shrink-0 cursor-grab active:cursor-grabbing" />

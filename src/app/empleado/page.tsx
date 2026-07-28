@@ -92,7 +92,7 @@ export default async function EmpleadoPage() {
             <p className="text-2xl font-bold">{totalDocumentosRecibidos}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Documentos recibidos</p>
           </Link>
-          <Link href="/empleado/documentos?tab=formularios" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/empleado/solicitudes?tab=formularios" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             <ClipboardList size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalFormulariosPendientes}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Formularios pendientes</p>

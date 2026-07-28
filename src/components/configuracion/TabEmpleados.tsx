@@ -28,8 +28,8 @@ const TIPOS = [
   { value: 'archivo', label: 'Archivo' },
 ]
 
-interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
-interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
+interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean; visibleEnAlta: boolean }
+interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean; visibleEnAlta: boolean }
 interface PendingDelete { id: number; nombre: string; count: number }
 
 export function TabEmpleados() {
@@ -46,11 +46,12 @@ export function TabEmpleados() {
     fetch('/api/configuracion/campos-personalizados').then(r => r.json()).then(setCamposCustom)
   }, [])
 
-  function toggle(campo: string, key: 'visible' | 'requerido') {
+  function toggle(campo: string, key: 'visible' | 'requerido' | 'visibleEnAlta') {
     setFields(fs => fs.map(f => {
       if (f.campo !== campo) return f
       const updated = { ...f, [key]: !f[key] }
-      if (key === 'visible' && !updated.visible) updated.requerido = false
+      if (key === 'visible' && !updated.visible) { updated.requerido = false; updated.visibleEnAlta = false }
+      if (key === 'visibleEnAlta' && !updated.visibleEnAlta) updated.requerido = false
       return updated
     }))
   }
@@ -82,15 +83,16 @@ export function TabEmpleados() {
     toast.success('Campo restaurado')
   }
 
-  async function toggleCustom(id: number, key: 'visible' | 'requerido', value: boolean) {
+  async function toggleCustom(id: number, key: 'visible' | 'requerido' | 'visibleEnAlta', value: boolean) {
     const campo = camposCustom.find(c => c.id === id)!
     const updated = { ...campo, [key]: value }
-    if (key === 'visible' && !value) updated.requerido = false
+    if (key === 'visible' && !value) { updated.requerido = false; updated.visibleEnAlta = false }
+    if (key === 'visibleEnAlta' && !value) updated.requerido = false
     setCamposCustom(cs => cs.map(c => c.id === id ? updated : c))
     await fetch(`/api/configuracion/campos-personalizados/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visible: updated.visible, requerido: updated.requerido }),
+      body: JSON.stringify({ visible: updated.visible, requerido: updated.requerido, visibleEnAlta: updated.visibleEnAlta }),
     })
   }
 
@@ -137,6 +139,7 @@ export function TabEmpleados() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">Campo</th>
                   <th className="text-center px-4 py-2 font-medium">Visible</th>
+                  <th className="text-center px-4 py-2 font-medium" title="Aparece en el formulario al crear un nuevo legajo. Si está apagado, el campo solo se muestra al editar el empleado.">En alta</th>
                   <th className="text-center px-4 py-2 font-medium">Requerido</th>
                   <th className="px-4 py-2" />
                 </tr>
@@ -145,6 +148,7 @@ export function TabEmpleados() {
                 {(['nombre', 'apellido'] as const).map(f => (
                   <tr key={f} className="border-t bg-muted/30">
                     <td className="px-4 py-2 text-muted-foreground capitalize">{f.charAt(0).toUpperCase() + f.slice(1)}</td>
+                    <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
                     <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
                     <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
                     <td />
@@ -157,7 +161,10 @@ export function TabEmpleados() {
                       <input type="checkbox" checked={f.visible} onChange={() => toggle(f.campo, 'visible')} className="w-4 h-4 accent-green-700" />
                     </td>
                     <td className="text-center px-4 py-2">
-                      <input type="checkbox" checked={f.requerido} onChange={() => toggle(f.campo, 'requerido')} disabled={!f.visible} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
+                      <input type="checkbox" checked={f.visibleEnAlta} onChange={() => toggle(f.campo, 'visibleEnAlta')} disabled={!f.visible} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
+                    </td>
+                    <td className="text-center px-4 py-2">
+                      <input type="checkbox" checked={f.requerido} onChange={() => toggle(f.campo, 'requerido')} disabled={!f.visible || !f.visibleEnAlta} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
                     </td>
                     <td className="px-4 py-2 text-right">
                       <button onClick={() => handleEliminarDefault(f.campo)} className="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
@@ -208,6 +215,7 @@ export function TabEmpleados() {
                     <th className="text-left px-4 py-2 font-medium">Campo</th>
                     <th className="text-left px-4 py-2 font-medium">Tipo</th>
                     <th className="text-center px-4 py-2 font-medium">Visible</th>
+                    <th className="text-center px-4 py-2 font-medium" title="Aparece en el formulario al crear un nuevo legajo. Si está apagado, el campo solo se muestra al editar el empleado, dentro de 'Información adicional'.">En alta</th>
                     <th className="text-center px-4 py-2 font-medium">Requerido</th>
                     <th className="px-4 py-2" />
                   </tr>
@@ -221,7 +229,10 @@ export function TabEmpleados() {
                         <input type="checkbox" checked={c.visible} onChange={() => toggleCustom(c.id, 'visible', !c.visible)} className="w-4 h-4 accent-green-700" />
                       </td>
                       <td className="text-center px-4 py-2">
-                        <input type="checkbox" checked={c.requerido} onChange={() => toggleCustom(c.id, 'requerido', !c.requerido)} disabled={!c.visible} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
+                        <input type="checkbox" checked={c.visibleEnAlta} onChange={() => toggleCustom(c.id, 'visibleEnAlta', !c.visibleEnAlta)} disabled={!c.visible} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
+                      </td>
+                      <td className="text-center px-4 py-2">
+                        <input type="checkbox" checked={c.requerido} onChange={() => toggleCustom(c.id, 'requerido', !c.requerido)} disabled={!c.visible || !c.visibleEnAlta} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
                       </td>
                       <td className="px-4 py-2 text-right">
                         <button onClick={() => handleEliminar(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>

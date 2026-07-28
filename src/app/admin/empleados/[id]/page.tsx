@@ -17,7 +17,6 @@ import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
 import { ManagerDialog } from '@/components/usuarios/ManagerDialog'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
-import { EmpleadoFormulariosTab } from '@/components/empleados/EmpleadoFormulariosTab'
 import { EmpleadoSolicitudesTab } from '@/components/empleados/EmpleadoSolicitudesTab'
 import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
@@ -52,7 +51,7 @@ export default function EmpleadoDetailPage() {
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'formularios' | 'solicitudes' | 'calendario'>('datos')
+  const [tab, setTab] = useState<'datos' | 'documentos' | 'recibos' | 'evaluaciones' | 'solicitudes' | 'calendario'>('datos')
   const [subordinadosOpen, setSubordinadosOpen] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const [manager, setManager] = useState<{ id: number; label: string } | null>(null)
@@ -226,7 +225,6 @@ export default function EmpleadoDetailPage() {
             { id: 'documentos', label: 'Documentos' },
             { id: 'recibos', label: 'Recibos' },
             ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones' as const, label: 'Evaluaciones' }] : []),
-            { id: 'formularios', label: 'Formularios' },
             { id: 'solicitudes', label: 'Solicitudes' },
             { id: 'calendario', label: 'Calendario' },
           ] as const).map(t => (
@@ -248,7 +246,6 @@ export default function EmpleadoDetailPage() {
         {tab === 'documentos' && <DocumentosTable employeeId={form.id} esRecibo={false} />}
         {tab === 'recibos' && <DocumentosTable employeeId={form.id} esRecibo={true} />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
-        {tab === 'formularios' && <EmpleadoFormulariosTab employeeId={form.id} />}
         {tab === 'solicitudes' && <EmpleadoSolicitudesTab employeeId={form.id} />}
         {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}
         {tab === 'datos' && <div className="max-w-3xl space-y-6">

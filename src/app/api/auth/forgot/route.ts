@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import crypto from 'crypto'
 
 function hashToken(token: string) {
@@ -32,15 +32,9 @@ export async function POST(req: NextRequest) {
     if (emailDestino) {
       const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`
       // Fire-and-forget: no bloqueamos la respuesta esperando al SMTP
-      sendMail({
+      sendMailFromTemplate('PASSWORD_RESET', {
         to: emailDestino,
-        subject: 'Recuperar contraseña — RRHH',
-        title: 'Recuperar tu contraseña',
-        bodyHtml: `
-          <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
-          <p>El link es válido por 1 hora. Si no fuiste vos, ignorá este mail.</p>
-        `,
-        ctaLabel: 'Restablecer contraseña',
+        vars: {},
         ctaUrl: resetUrl,
       }).catch(e => console.error('[email/forgot] fallo:', e))
     }

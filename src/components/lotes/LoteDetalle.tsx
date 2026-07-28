@@ -4,14 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, UsersRound, Eye, Upload, Search } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgregarRecibosDialog } from './AgregarRecibosDialog'
-import { EditarRosterDialog } from './EditarRosterDialog'
 import { handleApiError } from '@/lib/apiErrors'
 
 interface Documento {
@@ -87,7 +86,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [agregando, setAgregando] = useState(false)
-  const [editandoRoster, setEditandoRoster] = useState(false)
   const [replaceTargetDocId, setReplaceTargetDocId] = useState<number | null>(null)
   const [deleteDoc, setDeleteDoc] = useState<{ id: number; empleado: string } | null>(null)
   const replaceFileRef = useRef<HTMLInputElement>(null)
@@ -359,14 +357,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setEditandoRoster(true)}
-            >
-              <UsersRound size={14} className="mr-1.5" />
-              Editar empleados
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setAgregando(true)}
             >
               <Plus size={14} className="mr-1.5" />
@@ -565,12 +555,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         loteId={loteId}
         onClose={() => setAgregando(false)}
         onSaved={() => { setAgregando(false); fetchData() }}
-      />
-      <EditarRosterDialog
-        open={editandoRoster}
-        loteId={loteId}
-        onClose={() => setEditandoRoster(false)}
-        onSaved={() => { setEditandoRoster(false); fetchData() }}
       />
       <input
         ref={replaceFileRef}

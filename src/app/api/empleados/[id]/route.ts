@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getEmployeeDependencies, getUserDependencies, deletePersona, deletePersonaCascade } from '@/lib/personDependencies'
 import { validarCuil } from '@/lib/cuil'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -128,11 +128,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         'Empleado',
         `Legajo: ${emp.updated.legajo} — de ${emp.emailChangedFrom} a ${nuevoEmail}`
       )
-      const subject = 'Tu email de acceso fue modificado'
-      const body1 = `Se modificó el email de acceso al portal de RRHH asociado a tu cuenta.<br/><br/>Nuevo email de acceso: <strong>${nuevoEmail}</strong><br/>Email anterior: ${emp.emailChangedFrom}<br/><br/>Si vos no realizaste este cambio, contactá inmediatamente al administrador del sistema.`
+      const vars = { emailNuevo: nuevoEmail, emailAnterior: emp.emailChangedFrom }
       Promise.all([
-        sendMail({ to: emp.emailChangedFrom, subject, title: 'Cambio de email de acceso', bodyHtml: body1 }),
-        sendMail({ to: nuevoEmail, subject, title: 'Cambio de email de acceso', bodyHtml: body1 }),
+        sendMailFromTemplate('EMAIL_CAMBIADO', { to: emp.emailChangedFrom, vars }),
+        sendMailFromTemplate('EMAIL_CAMBIADO', { to: nuevoEmail, vars }),
       ]).catch(() => {})
     }
     return NextResponse.json(emp.updated)

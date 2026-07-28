@@ -211,21 +211,23 @@ model GeneralConfig {
 }
 
 model EmployeeFieldConfig {
-  campo     String   @id
-  visible   Boolean  @default(true)
-  requerido Boolean  @default(false)
-  eliminado Boolean  @default(false)
-  updatedAt DateTime @updatedAt
+  campo         String   @id
+  visible       Boolean  @default(true)
+  requerido     Boolean  @default(false)
+  eliminado     Boolean  @default(false)
+  visibleEnAlta Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
 }
 
 model CampoPersonalizado {
-  id        Int      @id @default(autoincrement())
-  nombre    String   @unique
-  tipo      String   @default("texto")
-  visible   Boolean  @default(true)
-  requerido Boolean  @default(false)
-  orden     Int      @default(0)
-  createdAt DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique
+  tipo          String   @default("texto")
+  visible       Boolean  @default(true)
+  requerido     Boolean  @default(false)
+  visibleEnAlta Boolean  @default(true)
+  orden         Int      @default(0)
+  createdAt     DateTime @default(now())
 
   valores ValorCampoEmpleado[]
 
@@ -252,6 +254,16 @@ model SignatureConfig {
   extraHeaders String   @default("{}")
   extraBody    String   @default("{}")
   updatedAt    DateTime @updatedAt
+}
+
+model EmailTemplate {
+  key       String   @id
+  subject   String   @db.NVarChar(500)
+  title     String   @db.NVarChar(500)
+  bodyHtml  String   @db.NVarChar(Max)
+  ctaLabel  String?  @db.NVarChar(200)
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
 }
 
 model TipoSolicitud {

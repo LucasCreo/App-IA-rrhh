@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { parseClientDate } from '@/lib/dates'
 import { esTopDelOrganigrama } from '@/lib/scope'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
@@ -121,20 +121,18 @@ export async function POST(req: Request) {
   const fmt = (d: Date) => d.toLocaleDateString('es-AR')
   const rango = `${fmt(inicio)} — ${fmt(fin)}`
   // Fire-and-forget: no bloqueamos la respuesta esperando los emails
-  Promise.all(admins.map(a => sendMail({
+  Promise.all(admins.map(a => sendMailFromTemplate('AUSENCIA_NUEVA', {
     to: a.email,
-    subject: `Nueva solicitud de ausencia — ${solicitud.employee.apellido}, ${solicitud.employee.nombre}`,
-    title: 'Nueva solicitud de ausencia pendiente',
-    bodyHtml: `
-      <p><strong>${solicitud.employee.apellido}, ${solicitud.employee.nombre}</strong> (legajo ${solicitud.employee.legajo}) solicita una ausencia:</p>
-      <ul>
-        <li><strong>Tipo:</strong> ${solicitud.tipoAusencia.nombre}</li>
-        <li><strong>Período:</strong> ${rango} (${dias} días hábiles)</li>
-        ${motivo?.trim() ? `<li><strong>Motivo:</strong> ${motivo.trim()}</li>` : ''}
-      </ul>
-    `,
-    ctaLabel: 'Revisar solicitud',
-    ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/ausencias`,
+    vars: {
+      apellido: solicitud.employee.apellido,
+      nombre: solicitud.employee.nombre,
+      legajo: solicitud.employee.legajo,
+      tipoAusencia: solicitud.tipoAusencia.nombre,
+      rango,
+      dias: String(dias),
+      bloqueMotivo: motivo?.trim() ? `<li><strong>Motivo:</strong> ${motivo.trim()}</li>` : '',
+    },
+    ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes`,
   }))).catch(e => console.error('[email/ausencia-solicitud] fallo:', e))
 
   return NextResponse.json(solicitud, { status: 201 })

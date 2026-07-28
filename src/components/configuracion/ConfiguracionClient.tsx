@@ -11,6 +11,7 @@ import { TabAuditoria } from '@/components/configuracion/TabAuditoria'
 import { TabCalendario } from '@/components/configuracion/TabCalendario'
 import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
 import { TabFormularios } from '@/components/configuracion/TabFormularios'
+import { TabEmails } from '@/components/configuracion/TabEmails'
 import { UsuariosPage } from '@/components/usuarios/UsuariosPage'
 import { cn } from '@/lib/utils'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
@@ -36,6 +37,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
     { id: 'calendario', label: 'Calendario' },
     ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones', label: 'Evaluaciones' }] : []),
     { id: 'formularios', label: 'Formularios' },
+    { id: 'emails', label: 'Emails' },
     ...(puedeGestionarUsuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
     ...(puedeVerAuditoria ? [{ id: 'auditoria', label: 'Auditoría' }] : []),
   ]
@@ -67,6 +69,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
         {tab === 'calendario' && <TabCalendario />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <TabEvaluaciones />}
         {tab === 'formularios' && <TabFormularios />}
+        {tab === 'emails' && <TabEmails />}
         {tab === 'usuarios' && <UsuariosPage />}
         {tab === 'auditoria' && <TabAuditoria />}
       </div>

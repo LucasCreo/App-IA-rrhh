@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds } from '@/lib/scope'
 
 export async function GET() {
@@ -85,17 +85,14 @@ export async function POST(req: Request) {
     : null
   Promise.all(empleados
     .filter(e => e.email)
-    .map(e => sendMail({
+    .map(e => sendMailFromTemplate('FORMULARIO_ASIGNADO', {
       to: e.email,
-      subject: `Nuevo formulario asignado: ${nombre.trim()}`,
-      title: 'Tenés un formulario para completar',
-      bodyHtml: `
-        <p>Hola ${e.nombre},</p>
-        <p>Se te asignó un nuevo formulario: <strong>${nombre.trim()}</strong>.</p>
-        ${fechaTexto ? `<p>Fecha límite: <strong>${fechaTexto}</strong>.</p>` : ''}
-      `,
-      ctaLabel: 'Completar formulario',
-      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos?tab=formularios`,
+      vars: {
+        nombre: e.nombre,
+        formulario: nombre.trim(),
+        bloqueFecha: fechaTexto ? `<p>Fecha límite: <strong>${fechaTexto}</strong>.</p>` : '',
+      },
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/solicitudes?tab=formularios`,
     }))
   ).catch(err => console.error('[email/formulario-asignado] fallo:', err))
 

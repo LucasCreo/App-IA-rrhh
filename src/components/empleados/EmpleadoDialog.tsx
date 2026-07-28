@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
-import { Paperclip, X } from 'lucide-react'
+import { Paperclip, X, ChevronDown } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 import { validarCuil, maskCuilInput } from '@/lib/cuil'
@@ -21,8 +21,8 @@ interface Empleado {
   id?: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
 }
-interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
-interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
+interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean; visibleEnAlta: boolean }
+interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean; visibleEnAlta: boolean }
 interface Props { open: boolean; onClose: () => void; onSaved: () => void; empleado?: Empleado }
 
 const empty: Empleado = {
@@ -49,6 +49,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [crearUsuario, setCrearUsuario] = useState(false)
   const [existingUser, setExistingUser] = useState<{ id: number; email: string; username: string | null } | null>(null)
   const [errors, setErrors] = useState<Set<string>>(new Set())
+  const [showAdicional, setShowAdicional] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -87,6 +88,20 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   function isRequired(campo: string) {
     const cfg = fieldConfig.find(f => f.campo === campo)
     return cfg ? cfg.requerido : false
+  }
+
+  function isEnAlta(campo: string) {
+    const cfg = fieldConfig.find(f => f.campo === campo)
+    return cfg ? cfg.visibleEnAlta : true
+  }
+
+  // Un campo estándar se muestra en la sección principal si es visible y (estamos editando y va en alta, o creando y va en alta).
+  // En la sección "Información adicional" (solo edición) van los visibles que no estén marcados como "en alta".
+  function isInMain(campo: string) {
+    return isVisible(campo) && isEnAlta(campo)
+  }
+  function isInAdicional(campo: string) {
+    return !isNew && isVisible(campo) && !isEnAlta(campo)
   }
 
   function clearError(key: string) {
@@ -251,7 +266,142 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
           )}
 
           {/* ── NUEVO: Step 2 / EDITAR: datos del legajo ── */}
-          {(!isNew || step === 2) && (
+          {(!isNew || step === 2) && (() => {
+            const renderStandardField = (k: string) => {
+              const textEntry = TEXT_FIELDS.find(([key]) => key === k)
+              if (textEntry) {
+                const [key, label] = textEntry
+                return (
+                  <div key={key}>
+                    <Label className="mb-1.5">{label}{isRequired(key as string) && <span className="text-red-500 ml-1">*</span>}</Label>
+                    <Input
+                      value={(form[key] ?? '') as string}
+                      onChange={e => set(key)(key === 'cuil' ? maskCuilInput(e.target.value) : e.target.value)}
+                      inputMode={key === 'cuil' ? 'numeric' : undefined}
+                      maxLength={key === 'cuil' ? 13 : undefined}
+                      placeholder={key === 'cuil' ? '20-12345678-9' : undefined}
+                      className={cn(err(key as string) && 'border-red-500 focus-visible:ring-red-500')}
+                    />
+                    {key === 'cuil' && err('cuil') && (
+                      <p className="text-xs text-red-500 mt-1">CUIL inválido</p>
+                    )}
+                  </div>
+                )
+              }
+              if (k === 'fechaIngreso') return (
+                <div key="fechaIngreso">
+                  <Label className="mb-1.5">Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
+                  <Input
+                    type="date"
+                    value={form.fechaIngreso?.toString().slice(0, 10)}
+                    onChange={e => set('fechaIngreso')(e.target.value)}
+                    className={cn(err('fechaIngreso') && 'border-red-500 focus-visible:ring-red-500')}
+                  />
+                </div>
+              )
+              if (k === 'categoria') return (
+                <div key="categoria">
+                  <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
+                  {!catsLoaded ? (
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  ) : (
+                    <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { set('categoriaId')(v); clearError('categoria') } }}>
+                      <SelectTrigger className={cn(err('categoria') && 'border-red-500 focus:ring-red-500')}>
+                        <SelectValue placeholder="Seleccionar">
+                          {cats.find(c => c.id === Number(form.categoriaId))?.nombre ?? 'Seleccionar'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cats.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )
+              if (k === 'estado') return (
+                <div key="estado">
+                  <Label className="mb-1.5">Estado</Label>
+                  <Select value={form.estado} onValueChange={v => v && set('estado')(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVO">Activo</SelectItem>
+                      <SelectItem value="INACTIVO">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
+              return null
+            }
+
+            const renderCustomField = (c: CampoPersonalizado) => (
+              <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
+                <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
+                {c.tipo === 'booleano' ? (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Checkbox
+                      checked={valoresCustom[c.id] === 'true'}
+                      onCheckedChange={v => setValoresCustom(prev => ({ ...prev, [c.id]: v ? 'true' : 'false' }))}
+                    />
+                    <span className="text-sm text-muted-foreground">Sí</span>
+                  </div>
+                ) : c.tipo === 'archivo' ? (
+                  <div className="space-y-1.5">
+                    {valoresCustom[c.id] ? (
+                      <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/40">
+                        <Paperclip size={13} className="text-muted-foreground shrink-0" />
+                        <a href={`/api/campos/archivo?file=${valoresCustom[c.id]}`} target="_blank" className="text-sm text-blue-600 hover:underline flex-1 truncate">
+                          {valoresCustom[c.id].replace(/^\d+-/, '')}
+                        </a>
+                        <button type="button" onClick={() => setValoresCustom(prev => ({ ...prev, [c.id]: '' }))} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <Input
+                        type="file"
+                        className={cn(err(`custom_${c.id}`) && 'border-red-500')}
+                        onChange={async e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const fd = new FormData()
+                          fd.append('file', file)
+                          const res = await fetch('/api/campos/archivo', { method: 'POST', body: fd })
+                          if (res.ok) {
+                            const { fileName } = await res.json()
+                            setValoresCustom(prev => ({ ...prev, [c.id]: fileName }))
+                            clearError(`custom_${c.id}`)
+                          } else {
+                            const errPayload = await parseApiError(res)
+                            showApiError(errPayload, href => router.push(href))
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
+                    value={valoresCustom[c.id] ?? ''}
+                    onChange={e => { setValoresCustom(v => ({ ...v, [c.id]: e.target.value })); clearError(`custom_${c.id}`) }}
+                    className={cn(err(`custom_${c.id}`) && 'border-red-500 focus-visible:ring-red-500')}
+                  />
+                )}
+              </div>
+            )
+
+            const STD_ORDER = ['legajo', 'cuil', 'email', 'telefono', 'fechaIngreso', 'categoria', 'estado']
+            const stdMain = STD_ORDER.filter(k => {
+              if (isNew && k === 'email') return false
+              return isInMain(k)
+            })
+            const stdAdicional = STD_ORDER.filter(k => isInAdicional(k))
+            const customMain = camposCustom.filter(c => c.visible && c.visibleEnAlta)
+            const customAdicional = !isNew ? camposCustom.filter(c => c.visible && !c.visibleEnAlta) : []
+            const hasAdicional = stdAdicional.length + customAdicional.length > 0
+
+            return (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -271,125 +421,28 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                     className={cn(err('apellido') && 'border-red-500 focus-visible:ring-red-500')}
                   />
                 </div>
-                {TEXT_FIELDS.filter(([k]) => {
-                  if (isNew && k === 'email') return false
-                  return isVisible(k as string)
-                }).map(([k, label]) => (
-                  <div key={k}>
-                    <Label className="mb-1.5">{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
-                    <Input
-                      value={(form[k] ?? '') as string}
-                      onChange={e => set(k)(k === 'cuil' ? maskCuilInput(e.target.value) : e.target.value)}
-                      inputMode={k === 'cuil' ? 'numeric' : undefined}
-                      maxLength={k === 'cuil' ? 13 : undefined}
-                      placeholder={k === 'cuil' ? '20-12345678-9' : undefined}
-                      className={cn(err(k as string) && 'border-red-500 focus-visible:ring-red-500')}
-                    />
-                    {k === 'cuil' && err('cuil') && (
-                      <p className="text-xs text-red-500 mt-1">CUIL inválido</p>
-                    )}
-                  </div>
-                ))}
-                {isVisible('fechaIngreso') && (
-                  <div>
-                    <Label className="mb-1.5">Fecha Ingreso{isRequired('fechaIngreso') && <span className="text-red-500 ml-1">*</span>}</Label>
-                    <Input
-                      type="date"
-                      value={form.fechaIngreso?.toString().slice(0, 10)}
-                      onChange={e => set('fechaIngreso')(e.target.value)}
-                      className={cn(err('fechaIngreso') && 'border-red-500 focus-visible:ring-red-500')}
-                    />
-                  </div>
-                )}
-                {isVisible('categoria') && (
-                  <div>
-                    <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
-                    {!catsLoaded ? (
-                      <Skeleton className="h-9 w-full rounded-md" />
-                    ) : (
-                      <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { set('categoriaId')(v); clearError('categoria') } }}>
-                        <SelectTrigger className={cn(err('categoria') && 'border-red-500 focus:ring-red-500')}>
-                          <SelectValue placeholder="Seleccionar">
-                            {cats.find(c => c.id === Number(form.categoriaId))?.nombre ?? 'Seleccionar'}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cats.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                )}
-                {isVisible('estado') && (
-                  <div>
-                    <Label className="mb-1.5">Estado</Label>
-                    <Select value={form.estado} onValueChange={v => v && set('estado')(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVO">Activo</SelectItem>
-                        <SelectItem value="INACTIVO">Inactivo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                {camposCustom.filter(c => c.visible).map(c => (
-                  <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
-                    <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
-                    {c.tipo === 'booleano' ? (
-                      <div className="flex items-center gap-2 pt-1">
-                        <Checkbox
-                          checked={valoresCustom[c.id] === 'true'}
-                          onCheckedChange={v => setValoresCustom(prev => ({ ...prev, [c.id]: v ? 'true' : 'false' }))}
-                        />
-                        <span className="text-sm text-muted-foreground">Sí</span>
-                      </div>
-                    ) : c.tipo === 'archivo' ? (
-                      <div className="space-y-1.5">
-                        {valoresCustom[c.id] ? (
-                          <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/40">
-                            <Paperclip size={13} className="text-muted-foreground shrink-0" />
-                            <a href={`/api/campos/archivo?file=${valoresCustom[c.id]}`} target="_blank" className="text-sm text-blue-600 hover:underline flex-1 truncate">
-                              {valoresCustom[c.id].replace(/^\d+-/, '')}
-                            </a>
-                            <button type="button" onClick={() => setValoresCustom(prev => ({ ...prev, [c.id]: '' }))} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <Input
-                            type="file"
-                            className={cn(err(`custom_${c.id}`) && 'border-red-500')}
-                            onChange={async e => {
-                              const file = e.target.files?.[0]
-                              if (!file) return
-                              const fd = new FormData()
-                              fd.append('file', file)
-                              const res = await fetch('/api/campos/archivo', { method: 'POST', body: fd })
-                              if (res.ok) {
-                                const { fileName } = await res.json()
-                                setValoresCustom(prev => ({ ...prev, [c.id]: fileName }))
-                                clearError(`custom_${c.id}`)
-                              } else {
-                                const err = await parseApiError(res)
-                                showApiError(err, href => router.push(href))
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <Input
-                        type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
-                        value={valoresCustom[c.id] ?? ''}
-                        onChange={e => { setValoresCustom(v => ({ ...v, [c.id]: e.target.value })); clearError(`custom_${c.id}`) }}
-                        className={cn(err(`custom_${c.id}`) && 'border-red-500 focus-visible:ring-red-500')}
-                      />
-                    )}
-                  </div>
-                ))}
+                {stdMain.map(k => renderStandardField(k))}
+                {customMain.map(c => renderCustomField(c))}
               </div>
+
+              {hasAdicional && (
+                <div className="border-t pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdicional(v => !v)}
+                    className="w-full flex items-center justify-between text-sm font-semibold text-foreground hover:text-green-700 transition-colors"
+                  >
+                    <span>Información adicional</span>
+                    <ChevronDown size={16} className={cn('transition-transform', showAdicional && 'rotate-180')} />
+                  </button>
+                  {showAdicional && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      {stdAdicional.map(k => renderStandardField(k))}
+                      {customAdicional.map(c => renderCustomField(c))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {isNew && (
                 <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -444,7 +497,8 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                 </div>
               )}
             </>
-          )}
+            )
+          })()}
         </div>
 
         <DialogFooter className="px-1 shrink-0 border-t pt-4">

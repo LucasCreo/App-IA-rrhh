@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const body = await req.json()
-    const { nombre, descripcion, employeeIds } = body
+    const { nombre, descripcion } = body
 
     const loteId = Number(id)
     const data: any = {}
@@ -109,37 +109,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (Object.keys(data).length > 0) {
       await prisma.lote.update({ where: { id: loteId }, data })
-    }
-
-    if (Array.isArray(employeeIds)) {
-      const nuevos = employeeIds.map(Number).filter(n => Number.isInteger(n))
-      const nuevoSet = new Set(nuevos)
-
-      const conDoc = await prisma.document.findMany({
-        where: { loteId },
-        select: { employeeId: true },
-      })
-      const empleadosConDoc = new Set(conDoc.map(d => d.employeeId))
-
-      const actuales = await prisma.loteEmpleado.findMany({
-        where: { loteId },
-        select: { employeeId: true },
-      })
-      const actualSet = new Set<number>(actuales.map((a: any) => a.employeeId as number))
-
-      const aAgregar = nuevos.filter(id => !actualSet.has(id))
-      const aQuitar = [...actualSet].filter(id => !nuevoSet.has(id) && !empleadosConDoc.has(id))
-
-      if (aAgregar.length > 0) {
-        await prisma.loteEmpleado.createMany({
-          data: aAgregar.map(employeeId => ({ loteId, employeeId })),
-        })
-      }
-      if (aQuitar.length > 0) {
-        await prisma.loteEmpleado.deleteMany({
-          where: { loteId, employeeId: { in: aQuitar } },
-        })
-      }
     }
 
     await logAction(user.userId, 'EDITAR_LOTE', 'Lote', data.nombre ?? `ID ${loteId}`)

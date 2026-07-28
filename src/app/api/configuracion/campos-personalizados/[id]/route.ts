@@ -8,10 +8,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params
-  const { visible, requerido } = await req.json()
+  const { visible, requerido, visibleEnAlta } = await req.json()
+  const data: { visible?: boolean; requerido?: boolean; visibleEnAlta?: boolean } = {}
+  if (typeof visible === 'boolean') data.visible = visible
+  if (typeof requerido === 'boolean') data.requerido = requerido
+  if (typeof visibleEnAlta === 'boolean') data.visibleEnAlta = visibleEnAlta
   const campo = await prisma.campoPersonalizado.update({
     where: { id: Number(id) },
-    data: { visible, requerido },
+    data,
   })
   return NextResponse.json(campo)
 }

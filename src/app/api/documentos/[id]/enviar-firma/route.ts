@@ -4,7 +4,7 @@ import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendToSign, checkSignatureStatus, SignatureError } from '@/lib/signature'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { SIGNATURE_MODE } from '@/lib/features'
 
@@ -20,16 +20,15 @@ async function notificarEmpleado(docId: number, accion: string) {
     if (!doc?.employee?.email) return
     const tipo = doc.tipoDocumento?.nombre ?? 'Documento'
     const requiereFirma = accion === 'FIRMA'
-    await sendMail({
+    await sendMailFromTemplate('DOCUMENTO_A_FIRMA', {
       to: doc.employee.email,
-      subject: `Nuevo documento disponible: ${tipo}`,
-      title: requiereFirma ? 'Tenés un documento pendiente de firma' : 'Nuevo documento disponible',
-      bodyHtml: `
-        <p>Hola ${doc.employee.nombre},</p>
-        <p>Se cargó un nuevo documento en tu portal: <strong>${tipo}</strong>${doc.periodo ? ` (${doc.periodo})` : ''}.</p>
-        ${requiereFirma ? '<p>Requiere tu firma para completarse.</p>' : ''}
-      `,
-      ctaLabel: 'Ver en el portal',
+      vars: {
+        nombre: doc.employee.nombre,
+        tipo,
+        titulo: requiereFirma ? 'Tenés un documento pendiente de firma' : 'Nuevo documento disponible',
+        bloquePeriodo: doc.periodo ? ` (${doc.periodo})` : '',
+        bloqueFirma: requiereFirma ? '<p>Requiere tu firma para completarse.</p>' : '',
+      },
       ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos`,
     })
   } catch (e) {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds, isAncestorOfUser } from '@/lib/scope'
 
 const patchSchema = z.object({
@@ -94,16 +94,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const rango = `${fmt(solicitud.fechaInicio)} — ${fmt(solicitud.fechaFin)}`
     const esAprobada = estado === 'APROBADA'
     // Fire-and-forget
-    sendMail({
+    sendMailFromTemplate('AUSENCIA_RESUELTA', {
       to: emp.email,
-      subject: `Solicitud de ausencia ${esAprobada ? 'aprobada' : 'rechazada'}`,
-      title: `Tu solicitud de ausencia fue ${esAprobada ? 'aprobada' : 'rechazada'}`,
-      bodyHtml: `
-        <p>Hola ${emp.nombre},</p>
-        <p>Tu solicitud de <strong>${solicitud.tipoAusencia.nombre}</strong> para el período <strong>${rango}</strong> fue <strong>${esAprobada ? 'aprobada' : 'rechazada'}</strong>.</p>
-        ${comentarioAdmin ? `<p><em>Comentario del administrador:</em> ${comentarioAdmin}</p>` : ''}
-      `,
-      ctaLabel: 'Ver en el portal',
+      vars: {
+        nombre: emp.nombre,
+        tipoAusencia: solicitud.tipoAusencia.nombre,
+        rango,
+        resultado: esAprobada ? 'aprobada' : 'rechazada',
+        bloqueComentario: comentarioAdmin ? `<p><em>Comentario del administrador:</em> ${comentarioAdmin}</p>` : '',
+      },
       ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/ausencias`,
     }).catch(e => console.error('[email/ausencia-resolucion] fallo:', e))
   }

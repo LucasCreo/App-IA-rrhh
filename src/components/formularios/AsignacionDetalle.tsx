@@ -91,7 +91,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
     setDeleting(false)
     if (!res.ok) { toast.error('Error al eliminar'); return }
     toast.success('Solicitud eliminada')
-    router.push('/admin/formularios')
+    router.push('/admin/solicitudes?tab=formularios')
   }
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/admin/formularios" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3">
+        <Link href="/admin/solicitudes?tab=formularios" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3">
           <ChevronLeft size={13} /> Formularios
         </Link>
         <div className="flex items-start justify-between gap-4">

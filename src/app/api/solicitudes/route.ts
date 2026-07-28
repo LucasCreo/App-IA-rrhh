@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { esTopDelOrganigrama, getScopedEmployeeIds, getDescendantEmployeeIds } from '@/lib/scope'
 
 export async function GET(req: NextRequest) {
@@ -88,18 +88,15 @@ export async function POST(req: NextRequest) {
   ])
   if (empleado) {
     // Fire-and-forget
-    Promise.all(admins.map(a => sendMail({
+    Promise.all(admins.map(a => sendMailFromTemplate('SOLICITUD_NUEVA', {
       to: a.email,
-      subject: `Solicitud de documento — ${empleado.apellido}, ${empleado.nombre}`,
-      title: 'Nueva solicitud de documento',
-      bodyHtml: `
-        <p><strong>${empleado.apellido}, ${empleado.nombre}</strong> (legajo ${empleado.legajo}) solicita:</p>
-        <ul>
-          <li><strong>Tipo:</strong> ${tipo.nombre}</li>
-          ${descripcion?.trim() ? `<li><strong>Detalle:</strong> ${descripcion.trim()}</li>` : ''}
-        </ul>
-      `,
-      ctaLabel: 'Ver solicitudes',
+      vars: {
+        apellido: empleado.apellido,
+        nombre: empleado.nombre,
+        legajo: empleado.legajo,
+        tipo: tipo.nombre,
+        bloqueDescripcion: descripcion?.trim() ? `<li><strong>Detalle:</strong> ${descripcion.trim()}</li>` : '',
+      },
       ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes`,
     }))).catch(e => console.error('[email/doc-solicitud] fallo:', e))
   }

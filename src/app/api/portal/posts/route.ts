@@ -6,7 +6,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { logAction } from '@/lib/audit'
 import { sanitizePostHtml } from '@/lib/richContent'
-import { sendMail } from '@/lib/email'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { validateFile, extForKind } from '@/lib/fileValidation'
 
 const MAX_IMG = 5 * 1024 * 1024
@@ -173,16 +173,13 @@ export async function POST(req: NextRequest) {
     const previewHtml = contenido
       ? sanitizePostHtml(contenido).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
       : '(sin texto)'
-    Promise.all(destinatarios.map(d => sendMail({
+    Promise.all(destinatarios.map(d => sendMailFromTemplate('POST_NUEVO', {
       to: d.email,
-      subject: `Nuevo aviso de ${autorNombre}`,
-      title: 'Nuevo aviso publicado',
-      bodyHtml: `
-        <p>Hola ${d.employee?.nombre ?? ''},</p>
-        <p><strong>${autorNombre}</strong> publicó un nuevo aviso:</p>
-        <blockquote style="border-left:3px solid #16a34a;padding-left:12px;color:#374151;margin:12px 0;">${previewHtml}${previewHtml.length >= 200 ? '…' : ''}</blockquote>
-      `,
-      ctaLabel: 'Ver aviso',
+      vars: {
+        nombre: d.employee?.nombre ?? '',
+        autor: autorNombre,
+        preview: `${previewHtml}${previewHtml.length >= 200 ? '…' : ''}`,
+      },
       ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/portal`,
     }))).catch(e => console.error('[email/post] fallo:', e))
   }

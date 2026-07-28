@@ -9,11 +9,12 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Paperclip, FileText, CalendarOff, Plus, CheckCircle2, XCircle, Clock, Search } from 'lucide-react'
+import { Upload, Paperclip, FileText, CalendarOff, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Clock, Search } from 'lucide-react'
 import { handleApiError } from '@/lib/apiErrors'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
+import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/FormularioDialog'
 
 interface CampoSolicitud { nombre: string; label: string; tipo: 'texto' | 'numero' | 'fecha'; requerido: boolean }
 interface TipoSolicitud { id: number; nombre: string; descripcion?: string; requiereAprobacion: boolean; campos: CampoSolicitud[] }
@@ -34,12 +35,14 @@ interface Saldo { diasTotales: number; diasUsados: number }
 type ItemBase = { key: string; fecha: string; estado: string; pendiente: boolean }
 type ItemDoc = ItemBase & { kind: 'doc'; data: SolicitudDoc }
 type ItemAus = ItemBase & { kind: 'ausencia'; data: SolicitudAusencia }
-type Item = ItemDoc | ItemAus
+type ItemForm = ItemBase & { kind: 'form'; data: FormularioRespuesta }
+type Item = ItemDoc | ItemAus | ItemForm
 
 const FILTROS = [
   { value: 'todos', label: 'Todos' },
   { value: 'documentos', label: 'Documentos' },
   { value: 'ausencias', label: 'Ausencias' },
+  { value: 'formularios', label: 'Formularios' },
   { value: 'pendientes', label: 'Pendientes' },
 ] as const
 type Filtro = typeof FILTROS[number]['value']
@@ -73,13 +76,21 @@ const ESTADO_AUS: Record<string, { icon: React.ReactNode; className: string; lab
 
 export function MisSolicitudes() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialTab = ((): Filtro => {
+    const t = searchParams.get('tab')
+    return FILTROS.some(f => f.value === t) ? (t as Filtro) : 'todos'
+  })()
   const [docs, setDocs] = useState<SolicitudDoc[]>([])
   const [ausencias, setAusencias] = useState<SolicitudAusencia[]>([])
+  const [forms, setForms] = useState<FormularioRespuesta[]>([])
+  const [editForm, setEditForm] = useState<FormularioRespuesta | null>(null)
+  const [viewForm, setViewForm] = useState<FormularioRespuesta | null>(null)
   const [saldo, setSaldo] = useState<Saldo | null>(null)
   const [tiposSol, setTiposSol] = useState<TipoSolicitud[]>([])
   const [tiposAus, setTiposAus] = useState<TipoAusencia[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [filtro, setFiltro] = useState<Filtro>(initialTab)
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'aprobada' | 'rechazada'>('')
   const [detalle, setDetalle] = useState<Item | null>(null)
@@ -100,10 +111,12 @@ export function MisSolicitudes() {
     Promise.all([
       fetch('/api/solicitudes').then(r => r.json()).catch(() => []),
       fetch('/api/empleado/ausencias').then(r => r.json()).catch(() => ({ solicitudes: [], saldo: null })),
-    ]).then(([d, a]) => {
+      fetch('/api/empleado/formularios').then(r => r.json()).catch(() => []),
+    ]).then(([d, a, f]) => {
       setDocs(Array.isArray(d) ? d : [])
       setAusencias(a?.solicitudes ?? [])
       setSaldo(a?.saldo ?? null)
+      setForms(Array.isArray(f) ? f : [])
     }).finally(() => setLoading(false))
   }
 
@@ -139,6 +152,7 @@ export function MisSolicitudes() {
   const items: Item[] = [
     ...docs.map<ItemDoc>(d => ({ kind: 'doc', key: `d-${d.id}`, fecha: d.createdAt, estado: d.estado, pendiente: d.estado === 'PENDIENTE', data: d })),
     ...ausencias.map<ItemAus>(a => ({ kind: 'ausencia', key: `a-${a.id}`, fecha: a.createdAt, estado: a.estado, pendiente: a.estado === 'PENDIENTE', data: a })),
+    ...forms.map<ItemForm>(f => ({ kind: 'form', key: `f-${f.id}`, fecha: f.updatedAt, estado: f.estado, pendiente: f.estado === 'PENDIENTE', data: f })),
   ]
 
   function estadoMatch(estado: string, target: typeof estadoFiltro): boolean {
@@ -154,11 +168,18 @@ export function MisSolicitudes() {
   const filtered = items.filter(i => {
     if (filtro === 'documentos' && i.kind !== 'doc') return false
     if (filtro === 'ausencias' && i.kind !== 'ausencia') return false
+    if (filtro === 'formularios' && i.kind !== 'form') return false
     if (filtro === 'pendientes' && !i.pendiente) return false
     if (!estadoMatch(i.estado, estadoFiltro)) return false
     if (q) {
-      const nombre = i.kind === 'doc' ? i.data.tipo.nombre : i.data.tipoAusencia.nombre
-      const desc = i.kind === 'doc' ? (i.data.descripcion ?? '') : (i.data.motivo ?? '')
+      const nombre =
+        i.kind === 'doc' ? i.data.tipo.nombre
+        : i.kind === 'ausencia' ? i.data.tipoAusencia.nombre
+        : `${i.data.asignacion.nombre} ${i.data.asignacion.plantilla.nombre}`
+      const desc =
+        i.kind === 'doc' ? (i.data.descripcion ?? '')
+        : i.kind === 'ausencia' ? (i.data.motivo ?? '')
+        : ''
       if (!nombre.toLowerCase().includes(q) && !desc.toLowerCase().includes(q)) return false
     }
     return true
@@ -171,6 +192,7 @@ export function MisSolicitudes() {
     todos: items.length,
     documentos: items.filter(i => i.kind === 'doc').length,
     ausencias: items.filter(i => i.kind === 'ausencia').length,
+    formularios: items.filter(i => i.kind === 'form').length,
     pendientes: items.filter(i => i.pendiente).length,
   }
 
@@ -262,9 +284,11 @@ export function MisSolicitudes() {
             </button>
           ))}
         </div>
-        <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
-          <Plus size={14} className="mr-1" /> Nueva solicitud
-        </Button>
+        {filtro !== 'formularios' && (
+          <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
+            <Plus size={14} className="mr-1" /> Nueva solicitud
+          </Button>
+        )}
       </div>
 
       {filtro === 'todos' && (
@@ -304,12 +328,14 @@ export function MisSolicitudes() {
         <div className="divide-y rounded-lg border overflow-hidden">
           {filtered.map(item => (
             <div key={item.key} className="flex items-start gap-3 px-4 py-3 bg-card">
-              {item.kind === 'doc'
-                ? <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                : <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />}
+              {item.kind === 'doc' && <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />}
+              {item.kind === 'ausencia' && <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />}
+              {item.kind === 'form' && <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">
-                  {item.kind === 'doc' ? item.data.tipo.nombre : item.data.tipoAusencia.nombre}
+                  {item.kind === 'doc' && item.data.tipo.nombre}
+                  {item.kind === 'ausencia' && item.data.tipoAusencia.nombre}
+                  {item.kind === 'form' && item.data.asignacion.nombre}
                 </p>
                 {item.kind === 'ausencia' && (
                   <p className="text-xs text-muted-foreground">{fmt(item.data.fechaInicio)} – {fmt(item.data.fechaFin)} · {item.data.dias} día{item.data.dias !== 1 ? 's' : ''}</p>
@@ -317,18 +343,57 @@ export function MisSolicitudes() {
                 {item.kind === 'doc' && item.data.descripcion && (
                   <p className="text-xs text-muted-foreground truncate">{item.data.descripcion}</p>
                 )}
+                {item.kind === 'form' && (
+                  <p className="text-xs text-muted-foreground truncate">{item.data.asignacion.plantilla.nombre}</p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
-                {item.kind === 'doc'
-                  ? <StatusBadge estado={item.estado} />
-                  : (
-                    <Badge variant="outline" className={cn('gap-1', ESTADO_AUS[item.estado]?.className)}>
-                      {ESTADO_AUS[item.estado]?.icon} {ESTADO_AUS[item.estado]?.label ?? item.estado}
-                    </Badge>
-                  )}
-                <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetalle(item)}>
-                  Ver
-                </button>
+                {item.kind === 'doc' && <StatusBadge estado={item.estado} />}
+                {item.kind === 'ausencia' && (
+                  <Badge variant="outline" className={cn('gap-1', ESTADO_AUS[item.estado]?.className)}>
+                    {ESTADO_AUS[item.estado]?.icon} {ESTADO_AUS[item.estado]?.label ?? item.estado}
+                  </Badge>
+                )}
+                {item.kind === 'form' && (() => {
+                  const vencido = item.estado === 'PENDIENTE' && item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
+                  if (vencido) return (
+                    <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                      <XCircle size={11} /> Vencido
+                    </span>
+                  )
+                  if (item.estado === 'PENDIENTE') return (
+                    <span className="inline-flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+                      <Circle size={11} /> Pendiente
+                    </span>
+                  )
+                  return (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle2 size={11} /> Completado
+                    </span>
+                  )
+                })()}
+                {item.kind === 'form' ? (() => {
+                  const vencido = item.estado === 'PENDIENTE' && item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
+                  if (vencido) return (
+                    <span className="text-xs text-muted-foreground italic" title="La fecha límite venció. Contactá al admin.">
+                      No se puede completar
+                    </span>
+                  )
+                  if (item.estado === 'PENDIENTE') return (
+                    <button className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline" onClick={() => setEditForm(item.data)}>
+                      Completar
+                    </button>
+                  )
+                  return (
+                    <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setViewForm(item.data)}>
+                      Ver
+                    </button>
+                  )
+                })() : (
+                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetalle(item)}>
+                    Ver
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -582,6 +647,18 @@ export function MisSolicitudes() {
         onClose={() => setPreview(null)}
         url={preview?.url ?? null}
         filename={preview?.filename ?? null}
+      />
+
+      <FormularioDialog
+        respuesta={editForm}
+        mode="fill"
+        onClose={() => setEditForm(null)}
+        onSaved={load}
+      />
+      <FormularioDialog
+        respuesta={viewForm}
+        mode="view"
+        onClose={() => setViewForm(null)}
       />
     </div>
   )

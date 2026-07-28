@@ -79,6 +79,7 @@ export function SolicitudesUnificadas() {
   const [qDebounced, setQDebounced] = useState('')
 
   const [reviewDoc, setReviewDoc] = useState<{ solicitud: SolicitudDoc; estado: 'APROBADO' | 'RECHAZADO' } | null>(null)
+  const [viewDoc, setViewDoc] = useState<SolicitudDoc | null>(null)
   const [comentarioDoc, setComentarioDoc] = useState('')
   const [visibleDoc, setVisibleDoc] = useState(false)
 
@@ -335,6 +336,7 @@ export function SolicitudesUnificadas() {
                 selected={isSelected}
                 onToggleSelect={() => toggleOne(item.key)}
                 onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
+                onView={() => setViewDoc(item.data)}
                 onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
               />
             ) : (
@@ -473,6 +475,68 @@ export function SolicitudesUnificadas() {
         filename={preview?.filename ?? null}
       />
 
+      <Dialog open={viewDoc !== null} onOpenChange={v => !v && setViewDoc(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalle de solicitud</DialogTitle>
+          </DialogHeader>
+          {viewDoc && (() => {
+            const meta = (() => { try { return JSON.parse(viewDoc.metadata ?? '{}') as Record<string, string> } catch { return {} } })()
+            const entries = Object.entries(meta).filter(([, v]) => v)
+            return (
+              <div className="space-y-3 text-sm min-w-0">
+                <div className="grid grid-cols-2 gap-2 min-w-0">
+                  <div className="min-w-0"><p className="text-muted-foreground text-xs">Empleado</p><p className="font-medium truncate">{viewDoc.employee.apellido}, {viewDoc.employee.nombre}</p></div>
+                  <div className="min-w-0"><p className="text-muted-foreground text-xs">Legajo</p><p className="truncate">{viewDoc.employee.legajo}</p></div>
+                  <div className="min-w-0"><p className="text-muted-foreground text-xs">Tipo</p><p className="font-medium truncate">{viewDoc.tipo.nombre}</p></div>
+                  <div className="min-w-0"><p className="text-muted-foreground text-xs">Solicitado</p><p>{fmt(viewDoc.createdAt)}</p></div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <StatusBadge estado={viewDoc.estado} />
+                  {viewDoc.nombreArchivo && (
+                    <button
+                      onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${viewDoc.nombreArchivo}`, filename: viewDoc.nombreArchivo })}
+                      className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline min-w-0 max-w-full"
+                    >
+                      <Paperclip size={13} className="shrink-0" />
+                      <span className="truncate">{viewDoc.nombreArchivo.replace(/^\d+-/, '')}</span>
+                    </button>
+                  )}
+                </div>
+                {entries.length > 0 && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1">
+                    {entries.map(([k, v]) => {
+                      const campo = viewDoc.tipo.campos?.find(c => c.nombre === k)
+                      return (
+                        <div key={k} className="flex justify-between gap-4 text-xs min-w-0">
+                          <span className="text-muted-foreground shrink-0">{campo?.label ?? k}</span>
+                          <span className="text-foreground text-right break-words min-w-0">{v}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {viewDoc.descripcion && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <p className="text-muted-foreground text-xs mb-0.5">Descripción</p>
+                    <p className="break-words">{viewDoc.descripcion}</p>
+                  </div>
+                )}
+                {viewDoc.comentario && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <p className="text-muted-foreground text-xs mb-0.5">Comentario admin</p>
+                    <p className="italic break-words">{viewDoc.comentario}</p>
+                    {!viewDoc.comentarioVisible && (
+                      <p className="text-xs text-muted-foreground/70 mt-1">(no visible al empleado)</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk review dialog */}
       <Dialog open={bulkReview !== null} onOpenChange={v => { if (!v && !bulkProcessing) setBulkReview(null) }}>
         <DialogContent className="max-w-sm">
@@ -512,12 +576,13 @@ export function SolicitudesUnificadas() {
   )
 }
 
-function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onPreview }: {
+function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onView, onPreview }: {
   s: SolicitudDoc
   selectable: boolean
   selected: boolean
   onToggleSelect: () => void
   onReview: (estado: 'APROBADO' | 'RECHAZADO') => void
+  onView: () => void
   onPreview?: (nombreArchivo: string) => void
 }) {
   const meta = (() => { try { return JSON.parse(s.metadata ?? '{}') as Record<string, string> } catch { return {} } })()
@@ -570,7 +635,7 @@ function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onPreview }
           <StatusBadge estado={s.estado} />
           <p className="text-xs text-muted-foreground mt-0.5">{new Date(s.createdAt).toLocaleDateString('es-AR')}</p>
         </div>
-        {s.estado === 'PENDIENTE' && (
+        {s.estado === 'PENDIENTE' ? (
           s.canApprove ? (
             <div className="flex gap-1">
               <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30" title="Aprobar" onClick={() => onReview('APROBADO')}>
@@ -583,6 +648,10 @@ function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onPreview }
           ) : (
             <span className="text-xs text-muted-foreground italic">Fuera de tu jerarquía</span>
           )
+        ) : (
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onView}>
+            Ver
+          </Button>
         )}
       </div>
     </div>

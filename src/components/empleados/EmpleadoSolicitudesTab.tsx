@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Check, X, FileText, CalendarOff, CheckCircle2, XCircle, Clock, Paperclip } from 'lucide-react'
+import { Check, X, FileText, CalendarOff, ClipboardList, CheckCircle2, XCircle, Clock, Paperclip } from 'lucide-react'
 import { handleApiError } from '@/lib/apiErrors'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
@@ -30,15 +30,31 @@ interface SolicitudAus {
   canApprove: boolean
   tipoAusencia: { id: number; nombre: string; color: string; afectaSaldo: boolean }
 }
+interface CampoForm { nombre: string; label: string; tipo: string; rellena: string }
+interface RespuestaForm {
+  id: number
+  estado: string
+  datos: Record<string, string>
+  createdAt: string
+  updatedAt: string
+  asignacion: {
+    nombre: string
+    fechaLimite?: string
+    datosAdmin: Record<string, string>
+    plantilla: { nombre: string; campos: CampoForm[] }
+  }
+}
 
 type ItemDoc = { kind: 'doc'; key: string; fecha: string; pendiente: boolean; estado: string; data: SolicitudDoc }
 type ItemAus = { kind: 'aus'; key: string; fecha: string; pendiente: boolean; estado: string; data: SolicitudAus }
-type Item = ItemDoc | ItemAus
+type ItemForm = { kind: 'form'; key: string; fecha: string; pendiente: boolean; estado: string; data: RespuestaForm }
+type Item = ItemDoc | ItemAus | ItemForm
 
 const FILTROS = [
   { value: 'todos', label: 'Todos' },
   { value: 'doc', label: 'Documentos' },
   { value: 'aus', label: 'Ausencias' },
+  { value: 'form', label: 'Formularios' },
   { value: 'pendientes', label: 'Pendientes' },
 ] as const
 type Filtro = typeof FILTROS[number]['value']
@@ -57,6 +73,8 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
   const router = useRouter()
   const [docs, setDocs] = useState<SolicitudDoc[]>([])
   const [ausencias, setAusencias] = useState<SolicitudAus[]>([])
+  const [forms, setForms] = useState<RespuestaForm[]>([])
+  const [viewForm, setViewForm] = useState<RespuestaForm | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
 
@@ -81,13 +99,14 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch(`/api/empleados/${employeeId}/solicitudes`)
-      .then(r => r.json())
-      .then(d => {
-        setDocs(Array.isArray(d?.documentos) ? d.documentos : [])
-        setAusencias(Array.isArray(d?.ausencias) ? d.ausencias : [])
-      })
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch(`/api/empleados/${employeeId}/solicitudes`).then(r => r.json()).catch(() => ({})),
+      fetch(`/api/empleados/${employeeId}/formularios`).then(r => r.json()).catch(() => []),
+    ]).then(([d, f]) => {
+      setDocs(Array.isArray(d?.documentos) ? d.documentos : [])
+      setAusencias(Array.isArray(d?.ausencias) ? d.ausencias : [])
+      setForms(Array.isArray(f) ? f : [])
+    }).finally(() => setLoading(false))
   }, [employeeId])
 
   useEffect(() => { load() }, [load])
@@ -121,11 +140,13 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
   const items: Item[] = [
     ...docs.map<ItemDoc>(d => ({ kind: 'doc', key: `d-${d.id}`, fecha: d.createdAt, pendiente: d.estado === 'PENDIENTE', estado: d.estado, data: d })),
     ...ausencias.map<ItemAus>(a => ({ kind: 'aus', key: `a-${a.id}`, fecha: a.createdAt, pendiente: a.estado === 'PENDIENTE', estado: a.estado, data: a })),
+    ...forms.map<ItemForm>(f => ({ kind: 'form', key: `f-${f.id}`, fecha: f.updatedAt, pendiente: f.estado === 'PENDIENTE', estado: f.estado, data: f })),
   ]
 
   const filtered = items.filter(i => {
     if (filtro === 'doc') return i.kind === 'doc'
     if (filtro === 'aus') return i.kind === 'aus'
+    if (filtro === 'form') return i.kind === 'form'
     if (filtro === 'pendientes') return i.pendiente
     return true
   }).sort((a, b) => {
@@ -137,6 +158,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
     todos: items.length,
     doc: items.filter(i => i.kind === 'doc').length,
     aus: items.filter(i => i.kind === 'aus').length,
+    form: items.filter(i => i.kind === 'form').length,
     pendientes: items.filter(i => i.pendiente).length,
   }
 
@@ -170,16 +192,20 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
         <p className="text-sm text-muted-foreground py-12 text-center">Sin solicitudes</p>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(item => item.kind === 'doc' ? (
-            <RowDoc
-              key={item.key}
-              s={item.data}
-              onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
-              onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
-            />
-          ) : (
-            <RowAus key={item.key} s={item.data} onReview={() => { setReviewAus(item.data); setComentarioAus(item.data.comentarioAdmin ?? '') }} />
-          ))}
+          {filtered.map(item => {
+            if (item.kind === 'doc') return (
+              <RowDoc
+                key={item.key}
+                s={item.data}
+                onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
+                onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
+              />
+            )
+            if (item.kind === 'aus') return (
+              <RowAus key={item.key} s={item.data} onReview={() => { setReviewAus(item.data); setComentarioAus(item.data.comentarioAdmin ?? '') }} />
+            )
+            return <RowForm key={item.key} r={item.data} onView={() => setViewForm(item.data)} />
+          })}
         </div>
       )}
 
@@ -301,6 +327,52 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
         url={preview?.url ?? null}
         filename={preview?.filename ?? null}
       />
+
+      <Dialog open={!!viewForm} onOpenChange={v => !v && setViewForm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{viewForm?.asignacion.nombre}</DialogTitle>
+            <p className="text-xs text-muted-foreground">{viewForm?.asignacion.plantilla.nombre}</p>
+          </DialogHeader>
+          {viewForm && (
+            <div className="space-y-2 mt-1 max-h-96 overflow-y-auto pr-1">
+              {viewForm.asignacion.plantilla.campos
+                .filter(c => c.rellena === 'empleado')
+                .map(c => {
+                  const valor = viewForm.datos[c.nombre]
+                  return (
+                    <div key={c.nombre} className="flex items-start justify-between text-sm gap-4">
+                      <span className="text-muted-foreground shrink-0">{c.label}</span>
+                      {c.tipo === 'archivo' && valor ? (
+                        <button
+                          onClick={() => setPreview({ url: `/api/formularios/archivo?file=${valor}`, filename: valor })}
+                          className="font-medium text-right text-green-700 dark:text-green-400 hover:underline truncate max-w-[200px]"
+                        >
+                          {valor.replace(/^\d+-/, '')}
+                        </button>
+                      ) : (
+                        <span className="font-medium text-right">{valor || '—'}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              {viewForm.asignacion.plantilla.campos.some(c => c.rellena === 'admin') && (
+                <div className="border-t pt-3 mt-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Datos administrativos</p>
+                  {viewForm.asignacion.plantilla.campos
+                    .filter(c => c.rellena === 'admin')
+                    .map(c => (
+                      <div key={c.nombre} className="flex items-start justify-between text-sm gap-4 mb-2">
+                        <span className="text-muted-foreground shrink-0">{c.label}</span>
+                        <span className="font-medium text-right">{viewForm.asignacion.datosAdmin[c.nombre] || '—'}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -362,6 +434,45 @@ function RowDoc({ s, onReview, onPreview }: { s: SolicitudDoc; onReview: (estado
           ) : (
             <span className="text-xs text-muted-foreground italic">Fuera de tu jerarquía</span>
           )
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RowForm({ r, onView }: { r: RespuestaForm; onView: () => void }) {
+  const completado = r.estado !== 'PENDIENTE'
+  const vencido = !completado && r.asignacion.fechaLimite && new Date(r.asignacion.fechaLimite) < new Date()
+  return (
+    <div className="flex items-start gap-4 px-4 py-3 bg-card">
+      <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Formulario</span>
+          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{r.asignacion.nombre}</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">{r.asignacion.plantilla.nombre}</p>
+        {r.asignacion.fechaLimite && !completado && (
+          <p className={cn('text-xs mt-0.5', vencido ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400')}>
+            {vencido ? 'Venció el' : 'Vence'}: {new Date(r.asignacion.fechaLimite).toLocaleDateString('es-AR')}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-right hidden sm:block">
+          {completado ? (
+            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 gap-1"><CheckCircle2 size={11} /> Completado</Badge>
+          ) : vencido ? (
+            <Badge variant="outline" className="gap-1 text-red-500 border-red-400"><XCircle size={11} /> Vencido</Badge>
+          ) : (
+            <Badge variant="outline" className="gap-1 text-muted-foreground"><Clock size={11} /> Pendiente</Badge>
+          )}
+          <p className="text-xs text-muted-foreground mt-0.5">{new Date(r.updatedAt).toLocaleDateString('es-AR')}</p>
+        </div>
+        {completado && (
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onView}>
+            Ver
+          </Button>
         )}
       </div>
     </div>

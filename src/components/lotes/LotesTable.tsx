@@ -142,20 +142,19 @@ export function LotesTable() {
               const errTotal = lote.stats.errores + lote.stats.rechazados
               const isSelected = selected.has(lote.id)
               return (
-                <div
-                  key={lote.id}
-                  onClick={() => router.push(`/admin/lotes/${lote.id}`)}
-                  className={`bg-card border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group ${isSelected ? 'border-green-500' : 'border-border'}`}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div onClick={e => e.stopPropagation()} className="shrink-0">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleOne(lote.id)}
-                        aria-label={`Seleccionar ${lote.nombre}`}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
+                <div key={lote.id} className="flex items-center gap-3">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggleOne(lote.id)}
+                    aria-label={`Seleccionar ${lote.nombre}`}
+                    className="shrink-0"
+                  />
+                  <div
+                    onClick={() => router.push(`/admin/lotes/${lote.id}`)}
+                    className={`flex-1 min-w-0 bg-card border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group ${isSelected ? 'border-green-500' : 'border-border'}`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-semibold text-foreground">{lote.nombre}</p>
                         <span className="text-xs text-muted-foreground">{formatPeriodo(lote.periodo)}</span>
@@ -193,11 +192,12 @@ export function LotesTable() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs text-muted-foreground hidden sm:block">
-                        {new Date(lote.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
-                      <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs text-muted-foreground hidden sm:block">
+                          {new Date(lote.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                        <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                      </div>
                     </div>
                   </div>
                 </div>

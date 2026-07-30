@@ -6,6 +6,7 @@ import { logAction } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { validarCuil } from '@/lib/cuil'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -54,7 +55,11 @@ export async function GET(req: NextRequest) {
     prisma.employee.count({ where }),
     prisma.employee.findMany({
       where,
-      include: { categoria: true, _count: { select: { solicitudesModificacion: { where: { estado: 'PENDIENTE' } } } } },
+      include: {
+        categoria: true,
+        user: { select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } },
+        _count: { select: { solicitudesModificacion: { where: { estado: 'PENDIENTE' } } } },
+      },
       orderBy: { apellido: 'asc' },
       skip: (page - 1) * limit,
       take: limit,
@@ -133,6 +138,13 @@ export async function POST(req: NextRequest) {
       return newEmp
     })
     await logAction(user.userId, 'CREAR', 'Empleado', `Legajo: ${emp.legajo}${body.crearUsuario ? ' (con usuario)' : ''}`)
+    if (body.crearUsuario && body.email) {
+      sendMailFromTemplate('EMPLEADO_BIENVENIDA', {
+        to: body.email,
+        vars: { nombre: body.nombre, email: body.email, password: body.password },
+        ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
+      }).catch(e => console.error('[email/bienvenida] fallo:', e))
+    }
     return NextResponse.json(emp, { status: 201 })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

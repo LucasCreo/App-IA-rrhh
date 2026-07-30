@@ -21,12 +21,14 @@ export async function GET(req: NextRequest) {
 
   // Categoría del usuario (si es empleado) para filtrar posts con alcance CATEGORIA
   let miCategoriaId: number | null = null
+  let miCategoriaNombre: string | null = null
   if (user.employeeId) {
     const emp = await prisma.employee.findUnique({
       where: { id: user.employeeId },
-      select: { categoriaId: true },
+      select: { categoriaId: true, categoria: { select: { nombre: true } } },
     })
     miCategoriaId = emp?.categoriaId ?? null
+    miCategoriaNombre = emp?.categoria?.nombre ?? null
   }
 
   const posts = await prisma.post.findMany({
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
         ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
       ],
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }] as any,
     take: limit,
     include: {
       autor: {
@@ -47,23 +49,30 @@ export async function GET(req: NextRequest) {
         },
       },
       categoria: { select: { id: true, nombre: true } },
-      reacciones: { select: { userId: true, tipo: true } },
-      _count: { select: { comentarios: true } },
+      _count: { select: { comentarios: true, reacciones: true } },
+      reacciones: { where: { userId: user.userId }, select: { tipo: true } },
     },
   })
 
   const puedePublicar = await puedePublicarEnPortal(user)
+  const meUser = await prisma.user.findUnique({
+    where: { id: user.userId },
+    select: { avisosLastSeenAt: true },
+  })
 
   return NextResponse.json({
     puedePublicar,
     isAdmin: user.role === 'ADMIN',
     userId: user.userId,
+    miCategoriaNombre,
+    avisosLastSeenAt: meUser?.avisosLastSeenAt ?? null,
     posts: posts.map(p => ({
       id: p.id,
       contenido: p.contenido,
       imagenUrl: p.imagenUrl,
       alcance: p.alcance,
       categoria: p.categoria,
+      pinned: (p as any).pinned ?? false,
       createdAt: p.createdAt,
       editedAt: p.editedAt,
       autor: {
@@ -74,9 +83,8 @@ export async function GET(req: NextRequest) {
         nombreCompleto: p.autor.employee ? `${p.autor.employee.nombre} ${p.autor.employee.apellido}` : p.autor.email,
         rolNombre: p.autor.employee?.categoria?.nombre ?? null,
       },
-      reacciones: p.reacciones,
-      totalReacciones: p.reacciones.length,
-      miReaccion: p.reacciones.find(r => r.userId === user.userId)?.tipo ?? null,
+      totalReacciones: p._count.reacciones,
+      miReaccion: p.reacciones[0]?.tipo ?? null,
       totalComentarios: p._count.comentarios,
     })),
   })

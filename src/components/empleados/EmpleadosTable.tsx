@@ -19,12 +19,14 @@ import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { BloqueoEliminacionDialog } from '@/components/shared/BloqueoEliminacionDialog'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 interface Categoria { id: number; nombre: string }
 interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; estado: string
   categoria: { nombre: string }; categoriaId: number
+  user?: { avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null } | null
   _count?: { solicitudesModificacion: number }
 }
 
@@ -370,8 +372,16 @@ export function EmpleadosTable() {
                   </TableCell>
                   <TableCell className="font-mono">{emp.legajo}</TableCell>
                   <TableCell>
-                    <span className="flex items-center gap-2">
-                      {emp.apellido}, {emp.nombre}
+                    <span className="flex items-center gap-2.5">
+                      <AvatarDisplay
+                        nombre={`${emp.nombre} ${emp.apellido}`}
+                        iniciales={`${emp.nombre[0] ?? ''}${emp.apellido[0] ?? ''}`}
+                        avatarUrl={emp.user?.avatarUrl ?? null}
+                        bgColor={emp.user?.avatarBgColor ?? null}
+                        textColor={emp.user?.avatarTextColor ?? null}
+                        size={28}
+                      />
+                      <span>{emp.apellido}, {emp.nombre}</span>
                       {(emp._count?.solicitudesModificacion ?? 0) > 0 && (
                         <span className="h-2 w-2 rounded-full bg-yellow-400 shrink-0" title="Solicitud de modificación pendiente" />
                       )}

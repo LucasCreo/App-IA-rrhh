@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { AdminHeader } from '@/components/layout/AdminHeader'
 import { KPICards } from '@/components/dashboard/KPICards'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Users, SlidersHorizontal, Eye, EyeOff, GripVertical, CalendarOff, UserPen, ArrowRight, BellRing } from 'lucide-react'
+import { FileText, Users, SlidersHorizontal, Eye, EyeOff, GripVertical, CalendarOff, UserPen, ArrowRight, BellRing, RotateCcw } from 'lucide-react'
+import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import dynamic from 'next/dynamic'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
@@ -65,6 +66,13 @@ export default function AdminDashboard() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  function resetPersonalizacion() {
+    localStorage.removeItem('dashboard-widget-order')
+    localStorage.removeItem('dashboard-hidden-widgets')
+    setWidgetOrder(WIDGETS.map(w => w.id))
+    setHidden(new Set())
+  }
+
   function toggleWidget(id: string) {
     setHidden(prev => {
       const next = new Set(prev)
@@ -100,30 +108,23 @@ export default function AdminDashboard() {
 
         {data ? (
           <div className="space-y-6">
-            {data.me && (
-              <WelcomeCard
-                me={data.me}
-                pendingSolicitudesDoc={data.pendingSolicitudesDoc}
-                pendingSolicitudesMod={data.pendingSolicitudesMod}
-                pendingAusencias={data.pendingAusencias ?? 0}
-              />
-            )}
+            {data.me && <WelcomeCard me={data.me} />}
             {widgetOrder.map(id => {
               if (hidden.has(id)) return null
               if (id === 'kpis') return <KPICards key={id} data={data} />
               if (id === 'graficos') return (
                 <Charts
                   key={id}
-                  documentosPorEstado={data.documentosPorEstado}
+                  solicitudesPorEstado={data.solicitudesPorEstado}
                   recibosPorEstado={data.recibosPorEstado}
                   empleadosPorCategoria={data.empleadosPorCategoria}
                 />
               )
               if (id === 'eventos') return (
-                <ProximosEventos key={id} href="/admin/calendario" />
+                <ProximosEventos key={id} href="/admin/calendario?from=dashboard" />
               )
               if (id === 'portal') return (
-                <UltimosPostsWidget key={id} baseHref="/admin/portal" />
+                <UltimosPostsWidget key={id} baseHref="/admin/portal?from=dashboard" />
               )
               if (id === 'pendientes') return (
                 <div key={id} className="rounded-xl border bg-card shadow-sm">
@@ -170,19 +171,26 @@ export default function AdminDashboard() {
                       <Users size={14} className="text-muted-foreground" />
                       <span className="text-sm font-semibold">Últimos incorporados</span>
                     </div>
-                    <Link href="/admin/empleados" className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todos</Link>
+                    <Link href="/admin/empleados?from=dashboard" className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todos</Link>
                   </div>
                   {data.recentEmpleados.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">Sin empleados registrados</p>
                   ) : (
                     <ul className="divide-y">
                       {data.recentEmpleados.map((e: any) => (
-                        <li key={e.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                          <div className="min-w-0">
+                        <li key={e.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                          <AvatarDisplay
+                            iniciales={e.iniciales}
+                            avatarUrl={e.avatarUrl}
+                            bgColor={e.avatarBgColor}
+                            textColor={e.avatarTextColor}
+                            size={32}
+                          />
+                          <div className="min-w-0 flex-1">
                             <p className="font-medium truncate">{e.nombre}</p>
-                            <p className="text-xs text-muted-foreground">{e.categoria} · {e.legajo}</p>
+                            <p className="text-xs text-muted-foreground truncate">{e.categoria} · {e.legajo}</p>
                           </div>
-                          <span className="text-xs text-muted-foreground shrink-0 ml-4">
+                          <span className="text-xs text-muted-foreground shrink-0">
                             {new Date(e.createdAt).toLocaleDateString('es-AR')}
                           </span>
                         </li>
@@ -195,33 +203,34 @@ export default function AdminDashboard() {
             })}
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-6">
+            <div className="rounded-xl border border-border bg-card p-5 flex items-center gap-4">
+              <Skeleton className="h-14 w-14 rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-border shadow-sm p-4 space-y-3">
-                  <Skeleton className="h-3 w-24" />
-                  <Skeleton className="h-8 w-16" />
-                  <Skeleton className="h-3 w-36" />
+                <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-8 w-14" />
+                  <Skeleton className="h-3 w-28" />
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-border p-5 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
                   <Skeleton className="h-4 w-40" />
-                  {i < 2 ? (
-                    <div className="flex items-center justify-center h-[240px]">
-                      <Skeleton className="h-44 w-44 rounded-full" />
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-1">
-                      {Array.from({ length: 4 }).map((_, j) => <Skeleton key={j} className="h-10 w-full rounded-md" />)}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-center h-[200px]">
+                    <Skeleton className="h-40 w-40 rounded-full" />
+                  </div>
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -258,6 +267,11 @@ export default function AdminDashboard() {
                 </div>
               )
             })}
+          </div>
+          <div className="pt-2 border-t">
+            <Button size="sm" variant="ghost" className="w-full gap-1.5 text-xs" onClick={resetPersonalizacion}>
+              <RotateCcw size={13} /> Restaurar por defecto
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

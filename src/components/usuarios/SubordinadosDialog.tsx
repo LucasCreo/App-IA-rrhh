@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 interface UserLite {
   id: number
   email: string
-  employee: { apellido: string; nombre: string; legajo: string } | null
+  role: string
+  employee: { apellido: string; nombre: string; legajo: string; categoria?: { nombre: string } | null } | null
 }
 
 interface Props {
@@ -131,7 +133,22 @@ export function SubordinadosDialog({ open, managerId, managerLabel, onClose, onS
                     })}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="truncate">{label}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="truncate">{label}</p>
+                      <span className={cn(
+                        'text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0',
+                        u.role === 'ADMIN'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
+                          : 'bg-muted text-muted-foreground'
+                      )}>
+                        {u.role === 'ADMIN' ? 'Admin' : 'Empleado'}
+                      </span>
+                      {u.employee?.categoria?.nombre && (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded border border-border text-muted-foreground shrink-0">
+                          {u.employee.categoria.nombre}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-muted-foreground truncate">{sub}</p>
                   </div>
                 </label>

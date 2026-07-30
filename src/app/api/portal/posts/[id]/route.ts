@@ -14,6 +14,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const post = await prisma.post.findUnique({ where: { id: Number(id) } })
   if (!post) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
+  const body = await req.json()
+
+  // Toggle pin: solo admin
+  if (typeof body.pinned === 'boolean') {
+    if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { pinned: body.pinned, pinnedAt: body.pinned ? new Date() : null } as any,
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   if (post.autorId !== user.userId && user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
   }
@@ -30,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  const { contenido } = await req.json()
+  const { contenido } = body
   if (typeof contenido !== 'string' || !contenido.trim()) {
     return NextResponse.json({ error: 'El contenido no puede estar vacío' }, { status: 400 })
   }

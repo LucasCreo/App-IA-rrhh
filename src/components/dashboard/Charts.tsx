@@ -6,7 +6,7 @@ import { useTheme } from '@/components/providers/ThemeProvider'
 const CAT_COLORS = ['#16a34a', '#2563eb', '#ca8a04', '#dc2626', '#7c3aed', '#0891b2', '#d97706']
 
 interface Props {
-  documentosPorEstado: Array<{ name: string; value: number; color: string }>
+  solicitudesPorEstado?: Array<{ name: string; value: number; color: string }>
   recibosPorEstado?: Array<{ name: string; value: number; color: string }>
   empleadosPorCategoria: Array<{ nombre: string; cantidad: number }>
 }
@@ -40,11 +40,11 @@ function Legend({ items }: { items: Array<{ label: string; color: string; value:
   )
 }
 
-export function Charts({ documentosPorEstado, recibosPorEstado, empleadosPorCategoria }: Props) {
+export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorCategoria }: Props) {
   const { theme } = useTheme()
   const tooltip = theme === 'dark' ? darkTooltip : lightTooltip
 
-  const pieData = documentosPorEstado
+  const solicitudesData = (solicitudesPorEstado ?? [])
     .filter(d => d.value > 0)
     .map(d => ({ id: d.name, label: d.name, value: d.value, color: d.color }))
 
@@ -57,7 +57,7 @@ export function Charts({ documentosPorEstado, recibosPorEstado, empleadosPorCate
     color: CAT_COLORS[i % CAT_COLORS.length],
   }))
 
-  const totalDocs = documentosPorEstado.reduce((s, d) => s + d.value, 0)
+  const totalSolicitudes = (solicitudesPorEstado ?? []).reduce((s, d) => s + d.value, 0)
   const totalRecibos = (recibosPorEstado ?? []).reduce((s, d) => s + d.value, 0)
   const totalEmps = catPieData.reduce((s, d) => s + d.value, 0)
 
@@ -75,20 +75,20 @@ export function Charts({ documentosPorEstado, recibosPorEstado, empleadosPorCate
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="bg-card rounded-xl border border-border p-5">
-        <p className="font-semibold text-foreground">Estado de Documentos</p>
-        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalDocs} documentos en total</p>
-        {pieData.length === 0 ? (
+        <p className="font-semibold text-foreground">Estado de Solicitudes</p>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalSolicitudes} solicitudes en total</p>
+        {solicitudesData.length === 0 ? (
           <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
         ) : (
           <>
             <div className="h-[200px]">
               <ResponsivePie
-                data={pieData}
+                data={solicitudesData}
                 colors={{ datum: 'data.color' }}
                 {...pieConfig}
               />
             </div>
-            <Legend items={pieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
+            <Legend items={solicitudesData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
           </>
         )}
       </div>

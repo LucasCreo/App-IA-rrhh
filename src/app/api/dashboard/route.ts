@@ -23,11 +23,11 @@ export async function GET() {
     totalDocs, docsByEstado, empByCategoria,
     pendingSolicitudesDoc, pendingSolicitudesMod,
     recentSolicitudes, recentEmpleados,
-    pendingSolList, pendingModList,
     pendingAusencias,
-    recibosByEstado,
+    totalRecibos, recibosByEstado,
     recentPendAusencias,
     recentPendMods,
+    solDocByEstado, solAusByEstado,
   ] = await Promise.all([
     prisma.employee.count(),
     prisma.employee.count({ where: { estado: 'ACTIVO' } }),
@@ -46,17 +46,13 @@ export async function GET() {
     prisma.employee.findMany({
       orderBy: { createdAt: 'desc' },
       take: 5,
-      include: { categoria: { select: { nombre: true } } },
-    }),
-    prisma.solicitudDocumento.findMany({
-      where: { estado: 'PENDIENTE' },
-      select: { tipo: { select: { nombre: true } } },
-    }),
-    prisma.solicitudModificacion.findMany({
-      where: { estado: 'PENDIENTE' },
-      select: { employee: { select: { nombre: true, apellido: true } } },
+      include: {
+        categoria: { select: { nombre: true } },
+        user: { select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } },
+      },
     }),
     prisma.solicitudAusencia.count({ where: { estado: 'PENDIENTE' } }),
+    prisma.document.count({ where: { tipoDocumento: { is: { nombre: 'Recibo de Sueldo' } } } }),
     prisma.document.groupBy({ by: ['estado'], _count: true, where: { tipoDocumento: { is: { nombre: 'Recibo de Sueldo' } } } }),
     prisma.solicitudAusencia.findMany({
       where: { estado: 'PENDIENTE' },
@@ -75,6 +71,8 @@ export async function GET() {
         employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
       },
     }),
+    prisma.solicitudDocumento.groupBy({ by: ['estado'], _count: true }),
+    prisma.solicitudAusencia.groupBy({ by: ['estado'], _count: true }),
   ])
 
   const categories = await prisma.category.findMany()
@@ -82,13 +80,6 @@ export async function GET() {
 
   const documentsByEstado = Object.fromEntries(docsByEstado.map(d => [d.estado, d._count]))
   const recibosByEstadoMap = Object.fromEntries(recibosByEstado.map(d => [d.estado, d._count]))
-
-  const solicitudesPorTipo = Object.entries(
-    pendingSolList.reduce((acc: Record<string, number>, s) => {
-      acc[s.tipo.nombre] = (acc[s.tipo.nombre] ?? 0) + 1
-      return acc
-    }, {})
-  ).map(([nombre, cantidad]) => ({ nombre, cantidad }))
 
   const pendientesRevision = [
     ...recentSolicitudes.map(s => ({
@@ -98,7 +89,7 @@ export async function GET() {
       legajo: s.employee.legajo,
       descripcion: `Solicita: ${s.tipo.nombre}`,
       createdAt: s.createdAt,
-      href: '/admin/solicitudes',
+      href: '/admin/solicitudes?from=dashboard',
     })),
     ...recentPendAusencias.map(a => ({
       id: `aus-${a.id}`,
@@ -107,7 +98,7 @@ export async function GET() {
       legajo: a.employee.legajo,
       descripcion: `Ausencia: ${a.tipoAusencia.nombre} (${a.dias} día${a.dias === 1 ? '' : 's'})`,
       createdAt: a.createdAt,
-      href: '/admin/ausencias',
+      href: '/admin/solicitudes?from=dashboard',
     })),
     ...recentPendMods.map(m => ({
       id: `mod-${m.id}`,
@@ -116,19 +107,11 @@ export async function GET() {
       legajo: m.employee.legajo,
       descripcion: 'Solicita modificar sus datos personales',
       createdAt: m.createdAt,
-      href: `/admin/empleados/${m.employee.id}`,
+      href: `/admin/empleados/${m.employee.id}?from=dashboard`,
     })),
   ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 8)
-
-  const modificacionesPorEmpleado = Object.entries(
-    pendingModList.reduce((acc: Record<string, number>, m) => {
-      const nombre = `${m.employee.apellido}, ${m.employee.nombre}`
-      acc[nombre] = (acc[nombre] ?? 0) + 1
-      return acc
-    }, {})
-  ).map(([nombre, cantidad]) => ({ nombre, cantidad }))
 
   return NextResponse.json({
     me: {
@@ -151,8 +134,7 @@ export async function GET() {
     borradores: documentsByEstado['BORRADOR'] ?? 0,
     pendingSolicitudesDoc,
     pendingSolicitudesMod,
-    solicitudesPorTipo,
-    modificacionesPorEmpleado,
+    totalRecibos,
     pendientesRevision,
     recentSolicitudes: recentSolicitudes.map(s => ({
       id: s.id,
@@ -164,25 +146,35 @@ export async function GET() {
     recentEmpleados: recentEmpleados.map(e => ({
       id: e.id,
       nombre: `${e.apellido}, ${e.nombre}`,
+      iniciales: `${e.nombre[0] ?? ''}${e.apellido[0] ?? ''}`.toUpperCase(),
       legajo: e.legajo,
       categoria: e.categoria.nombre,
       createdAt: e.createdAt,
+      avatarUrl: e.user?.avatarUrl ?? null,
+      avatarBgColor: e.user?.avatarBgColor ?? null,
+      avatarTextColor: e.user?.avatarTextColor ?? null,
     })),
     empleadosPorCategoria: empByCategoria.map(e => ({
       nombre: catMap[e.categoriaId] ?? 'N/A',
       cantidad: e._count,
     })),
-    documentosPorEstado: [
-      { name: 'Firmados', value: documentsByEstado['FIRMADO'] ?? 0, color: '#16a34a' },
-      { name: 'Enviados', value: documentsByEstado['ENVIADO_A_FIRMA'] ?? 0, color: '#2563eb' },
-      { name: 'Borradores', value: documentsByEstado['BORRADOR'] ?? 0, color: '#6b7280' },
-      { name: 'Rechazados', value: documentsByEstado['RECHAZADO'] ?? 0, color: '#dc2626' },
-    ],
     recibosPorEstado: [
       { name: 'Firmados', value: recibosByEstadoMap['FIRMADO'] ?? 0, color: '#16a34a' },
       { name: 'Enviados', value: recibosByEstadoMap['ENVIADO_A_FIRMA'] ?? 0, color: '#2563eb' },
       { name: 'Borradores', value: recibosByEstadoMap['BORRADOR'] ?? 0, color: '#6b7280' },
       { name: 'Rechazados', value: recibosByEstadoMap['RECHAZADO'] ?? 0, color: '#dc2626' },
     ],
+    solicitudesPorEstado: (() => {
+      const doc = Object.fromEntries(solDocByEstado.map(d => [d.estado, d._count]))
+      const aus = Object.fromEntries(solAusByEstado.map(d => [d.estado, d._count]))
+      const pend = (doc['PENDIENTE'] ?? 0) + (aus['PENDIENTE'] ?? 0) + pendingSolicitudesMod
+      const apro = (doc['APROBADO'] ?? 0) + (aus['APROBADA'] ?? 0)
+      const rech = (doc['RECHAZADO'] ?? 0) + (aus['RECHAZADA'] ?? 0)
+      return [
+        { name: 'Pendientes', value: pend, color: '#ca8a04' },
+        { name: 'Aprobadas', value: apro, color: '#16a34a' },
+        { name: 'Rechazadas', value: rech, color: '#dc2626' },
+      ]
+    })(),
   })
 }

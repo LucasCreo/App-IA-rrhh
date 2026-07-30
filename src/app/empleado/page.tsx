@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList } from 'lucide-react'
+import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList, IdCard } from 'lucide-react'
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
@@ -51,7 +51,10 @@ export default async function EmpleadoPage() {
 
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Bienvenida */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <Link
+          href="/empleado/mi-legajo"
+          className="block rounded-xl border bg-card p-5 shadow-sm hover:shadow-md hover:border-green-500/60 transition-all group"
+        >
           <div className="flex items-center gap-4">
             <AvatarDisplay
               iniciales={`${employee.nombre[0]}${employee.apellido[0]}`}
@@ -60,7 +63,7 @@ export default async function EmpleadoPage() {
               textColor={dbUser?.avatarTextColor ?? null}
               size={56}
             />
-            <div>
+            <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-green-700 dark:text-green-400">Bienvenido, {employee.nombre}</h2>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap text-sm text-muted-foreground">
                 <span className="flex items-center gap-1"><Tag size={12} /> {employee.categoria.nombre}</span>
@@ -72,8 +75,11 @@ export default async function EmpleadoPage() {
                 Ingresó el {new Date(employee.fechaIngreso).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </p>
             </div>
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
+              <IdCard size={13} /> Mi legajo <ChevronRight size={12} />
+            </span>
           </div>
-        </div>
+        </Link>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

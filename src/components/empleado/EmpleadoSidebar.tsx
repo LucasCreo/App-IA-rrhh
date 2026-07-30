@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical, IdCard } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const NAV_INICIO = { href: '/empleado', label: 'Inicio', icon: LayoutDashboard }
 const NAV_DRAGGABLE = [
+  { href: '/empleado/mi-legajo', label: 'Mi Legajo', icon: IdCard },
   { href: '/empleado/portal', label: 'Avisos', icon: Newspaper },
   { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },

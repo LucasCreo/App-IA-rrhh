@@ -13,7 +13,12 @@ export async function GET() {
       email: true,
       role: true,
       createdAt: true,
-      employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
+      employee: {
+        select: {
+          id: true, nombre: true, apellido: true, legajo: true,
+          categoria: { select: { nombre: true } },
+        },
+      },
       permisos: { select: { permiso: true } },
     },
     orderBy: [{ role: 'asc' }, { email: 'asc' }],

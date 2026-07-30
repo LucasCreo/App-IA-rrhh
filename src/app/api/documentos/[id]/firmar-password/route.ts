@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser, comparePassword } from '@/lib/auth'
 import { logAction } from '@/lib/audit'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -57,5 +58,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
 
   await logAction(user.userId, 'FIRMAR_PASSWORD', 'Documento', `Doc ${docId}`)
+
+  ;(async () => {
+    try {
+      const [full, admins] = await Promise.all([
+        prisma.document.findUnique({
+          where: { id: docId },
+          select: {
+            periodo: true,
+            employee: { select: { nombre: true, apellido: true, legajo: true } },
+            tipoDocumento: { select: { nombre: true } },
+          },
+        }),
+        prisma.user.findMany({ where: { role: 'ADMIN', email: { not: '' } }, select: { email: true } }),
+      ])
+      if (!full || admins.length === 0) return
+      const tipo = full.tipoDocumento?.nombre ?? 'Documento'
+      const vars = {
+        apellido: full.employee.apellido,
+        nombre: full.employee.nombre,
+        legajo: full.employee.legajo,
+        tipo,
+        bloquePeriodo: full.periodo ? `<li><strong>Período:</strong> ${full.periodo}</li>` : '',
+        bloqueConformidad: `<li><strong>Firma:</strong> ${conforme ? 'Conforme' : 'No conforme'}</li>`,
+        bloqueComentario: comentario
+          ? `<blockquote style="border-left:3px solid #16a34a;padding-left:12px;color:#374151;margin:12px 0;">${comentario}</blockquote>`
+          : '',
+      }
+      await Promise.all(admins.map(a => sendMailFromTemplate('RECIBO_FIRMADO', {
+        to: a.email, vars,
+        ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/documentos`,
+      })))
+    } catch (e) { console.error('[email/recibo-firmado] fallo:', e) }
+  })()
+
   return NextResponse.json({ ok: true })
 }

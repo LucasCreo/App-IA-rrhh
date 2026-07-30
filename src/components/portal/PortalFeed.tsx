@@ -5,16 +5,30 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, Check } from 'lucide-react'
+import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, Check, Pin, PinOff, Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RichEditor } from './RichEditor'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { handleApiError } from '@/lib/apiErrors'
+import { cn } from '@/lib/utils'
 
 let EDIT_WINDOW_MIN = 60 * 24
 function dentroDeVentanaEdicion(createdAt: string): boolean {
   return (Date.now() - new Date(createdAt).getTime()) / 60000 <= EDIT_WINDOW_MIN
+}
+function minutosRestantesEdicion(createdAt: string): number {
+  return Math.max(0, EDIT_WINDOW_MIN - (Date.now() - new Date(createdAt).getTime()) / 60000)
+}
+function formatoTiempoRestante(min: number): string {
+  if (min < 60) return `${Math.ceil(min)} min`
+  const h = Math.floor(min / 60)
+  const m = Math.round(min % 60)
+  if (h < 24) return m > 0 ? `${h} h ${m} min` : `${h} h`
+  const d = Math.floor(h / 24)
+  const hResto = h % 24
+  return hResto > 0 ? `${d} d ${hResto} h` : `${d} d`
 }
 
 function PostContent({ html }: { html: string }) {
@@ -45,6 +59,7 @@ interface Post {
   imagenUrl: string | null
   alcance: 'GLOBAL' | 'CATEGORIA'
   categoria: { id: number; nombre: string } | null
+  pinned?: boolean
   createdAt: string
   editedAt?: string | null
   autor: Autor
@@ -90,7 +105,7 @@ function Avatar({ autor, size = 40 }: { autor: { nombreCompleto: string; avatarU
   )
 }
 
-function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; categorias: Categoria[]; isAdmin: boolean }) {
+function NuevoPost({ onCreated, categorias, isAdmin, miCategoriaNombre }: { onCreated: () => void; categorias: Categoria[]; isAdmin: boolean; miCategoriaNombre: string | null }) {
   const [expandido, setExpandido] = useState(false)
   const [contenido, setContenido] = useState('')
   const [alcance, setAlcance] = useState<'GLOBAL' | 'CATEGORIA'>('GLOBAL')
@@ -162,12 +177,18 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
         minHeight={120}
         autoFocus
       />
+      {!isAdmin && miCategoriaNombre && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Users size={12} />
+          Se publicará para tu categoría: <span className="font-medium text-foreground">{miCategoriaNombre}</span>
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           {isAdmin && (
             <>
               <Select value={alcance} onValueChange={v => setAlcance(v as any)}>
-                <SelectTrigger className="w-52 h-9 text-sm">
+                <SelectTrigger className="w-full sm:w-52 h-9 text-sm">
                   <SelectValue>
                     {alcance === 'GLOBAL' ? 'Todos los empleados' : 'Por categoría'}
                   </SelectValue>
@@ -179,7 +200,7 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
               </Select>
               {alcance === 'CATEGORIA' && (
                 <Select value={categoriaId} onValueChange={v => setCategoriaId(v ?? '')}>
-                  <SelectTrigger className="w-40 h-9 text-sm"><SelectValue placeholder="Elegir…" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue placeholder="Elegir…" /></SelectTrigger>
                   <SelectContent>
                     {categorias.map(c => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
@@ -200,7 +221,7 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
           </label>
         </div>
         <Button
-          className="bg-green-700 hover:bg-green-800"
+          className="bg-green-700 hover:bg-green-800 w-full sm:w-auto"
           onClick={handlePublish}
           disabled={publicando}
         >
@@ -212,11 +233,13 @@ function NuevoPost({ onCreated, categorias, isAdmin }: { onCreated: () => void; 
   )
 }
 
-function PostCard({ post, userId, onDeleted, onReaccion }: {
+function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
   post: Post
   userId: number
+  isAdmin: boolean
+  esNuevo?: boolean
   onDeleted: () => void
-  onReaccion: () => void
+  onUpdate: (id: number, changes: Partial<Post>) => void
 }) {
   const [comentariosVisibles, setComentariosVisibles] = useState(false)
   const [comentarios, setComentarios] = useState<Comentario[] | null>(null)
@@ -254,7 +277,7 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     if (!r.ok) { await handleApiError(r); return }
     toast.success('Publicación actualizada')
     setEditando(false)
-    onReaccion()
+    onUpdate(post.id, { contenido: contenidoEdit, editedAt: new Date().toISOString() })
   }
 
   function iniciarEdicionComentario(c: Comentario) {
@@ -305,11 +328,10 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     setEnviando(false)
     if (!r.ok) { toast.error('Error al comentar'); return }
     setNuevoComentario('')
-    // Recargar comentarios
     const rr = await fetch(`/api/portal/posts/${post.id}/comentarios`)
     const data = await rr.json()
     setComentarios(data.comentarios)
-    onReaccion() // refresca contador
+    onUpdate(post.id, { totalComentarios: data.comentarios.length })
   }
 
   async function enviarRespuesta() {
@@ -328,7 +350,7 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     const rr = await fetch(`/api/portal/posts/${post.id}/comentarios`)
     const data = await rr.json()
     setComentarios(data.comentarios)
-    onReaccion()
+    onUpdate(post.id, { totalComentarios: data.comentarios.length })
   }
 
   async function borrarComentario(cid: number) {
@@ -336,13 +358,22 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     if (!r.ok) { await handleApiError(r); return }
     setComentarios(prev => prev?.filter(c => c.id !== cid) ?? null)
     setConfirmDeleteComentId(null)
-    onReaccion()
+    onUpdate(post.id, { totalComentarios: Math.max(0, post.totalComentarios - 1) })
   }
 
   async function darLike() {
-    await fetch(`/api/portal/posts/${post.id}/reaccion`, { method: 'POST' })
-    setLikes(null) // invalidar cache
-    onReaccion()
+    const yaLike = !!post.miReaccion
+    // Optimista
+    onUpdate(post.id, {
+      miReaccion: yaLike ? null : 'like',
+      totalReacciones: yaLike ? post.totalReacciones - 1 : post.totalReacciones + 1,
+    })
+    setLikes(null)
+    const r = await fetch(`/api/portal/posts/${post.id}/reaccion`, { method: 'POST' })
+    if (!r.ok) {
+      // Revertir
+      onUpdate(post.id, { miReaccion: post.miReaccion, totalReacciones: post.totalReacciones })
+    }
   }
 
   async function borrarPost() {
@@ -353,8 +384,23 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
     onDeleted()
   }
 
+  async function togglePin() {
+    const willPin = !post.pinned
+    const r = await fetch(`/api/portal/posts/${post.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: willPin }),
+    })
+    if (!r.ok) { await handleApiError(r); return }
+    toast.success(willPin ? 'Fijado arriba' : 'Desfijado')
+    onDeleted() // recargar todo para que se reordene por pinned
+  }
+
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm">
+    <div className={cn(
+      'bg-card border rounded-xl shadow-sm',
+      post.pinned ? 'border-green-500/70 dark:border-green-500/50' : 'border-border'
+    )}>
       <div className="p-4 flex items-start gap-3">
         <Avatar autor={post.autor} />
         <div className="flex-1 min-w-0">
@@ -364,21 +410,54 @@ function PostCard({ post, userId, onDeleted, onReaccion }: {
               {post.autor.rolNombre && (
                 <p className="text-xs text-muted-foreground">{post.autor.rolNombre}</p>
               )}
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 flex-wrap">
                 {timeAgo(post.createdAt)}
                 {post.editedAt && <span className="italic">· editado</span>}
                 {' · '}
                 {post.alcance === 'GLOBAL'
                   ? <><Globe size={10} /> Todos</>
                   : <><Users size={10} /> {post.categoria?.nombre}</>}
+                {post.pinned && (
+                  <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400 font-medium">
+                    · <Pin size={10} /> Fijado
+                  </span>
+                )}
+                {esNuevo && (
+                  <span className="text-[10px] font-semibold text-white bg-blue-600 px-1.5 py-0.5 rounded ml-1">
+                    NUEVO
+                  </span>
+                )}
+                {puedeEditarPost && !editando && (() => {
+                  const min = minutosRestantesEdicion(post.createdAt)
+                  const urgente = min < 120
+                  return (
+                    <span className={urgente ? 'text-amber-600 dark:text-amber-400' : ''}>
+                      · editable {formatoTiempoRestante(min)} más
+                    </span>
+                  )
+                })()}
               </p>
             </div>
             <div className="flex items-center gap-1">
+              {isAdmin && (
+                <button
+                  onClick={togglePin}
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    post.pinned
+                      ? 'text-green-700 dark:text-green-400 hover:text-green-800'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title={post.pinned ? 'Desfijar' : 'Fijar arriba'}
+                >
+                  {post.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                </button>
+              )}
               {puedeEditarPost && !editando && (
                 <button
                   onClick={iniciarEdicionPost}
                   className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-                  title="Editar"
+                  title={`Editar (queda ${formatoTiempoRestante(minutosRestantesEdicion(post.createdAt))})`}
                 >
                   <Pencil size={14} />
                 </button>
@@ -673,6 +752,10 @@ export function PortalFeed() {
   const [puedePublicar, setPuedePublicar] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [miCategoriaNombre, setMiCategoriaNombre] = useState<string | null>(null)
+  const [lastSeenAt, setLastSeenAt] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [orden, setOrden] = useState<'recientes' | 'destacados' | 'menciones'>('recientes')
 
   async function load() {
     setLoading(true)
@@ -687,6 +770,8 @@ export function PortalFeed() {
       setUserId(data.userId)
       setPuedePublicar(data.puedePublicar)
       setIsAdmin(!!data.isAdmin)
+      setMiCategoriaNombre(data.miCategoriaNombre ?? null)
+      setLastSeenAt(data.avisosLastSeenAt ?? null)
     }
     if (rCats.ok) setCategorias(await rCats.json())
     if (rCfg.ok) {
@@ -699,9 +784,54 @@ export function PortalFeed() {
 
   useEffect(() => { load() }, [])
 
+  const q = search.trim().toLowerCase()
+  const mencionRegex = new RegExp(`data-id=["']${userId}["']`)
+  const engagement = (p: Post) => p.totalReacciones + p.totalComentarios
+  const postsFiltrados = posts
+    .filter(p => {
+      if (orden === 'destacados' && engagement(p) === 0) return false
+      if (orden === 'menciones' && !mencionRegex.test(p.contenido || '')) return false
+      if (q) {
+        const texto = (p.contenido || '').replace(/<[^>]+>/g, ' ').toLowerCase()
+        const autor = p.autor.nombreCompleto.toLowerCase()
+        if (!texto.includes(q) && !autor.includes(q)) return false
+      }
+      return true
+    })
+    .sort((a, b) => {
+      if (orden === 'destacados') {
+        // Pinneados primero, después por engagement, después por fecha
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
+        const diff = engagement(b) - engagement(a)
+        if (diff !== 0) return diff
+      }
+      return 0 // conservar el orden del server (pinned → createdAt desc)
+    })
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {puedePublicar && <NuevoPost onCreated={load} categorias={categorias} isAdmin={isAdmin} />}
+      {puedePublicar && <NuevoPost onCreated={load} categorias={categorias} isAdmin={isAdmin} miCategoriaNombre={miCategoriaNombre} />}
+      {posts.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar en el feed…"
+              className="pl-9 h-9 text-sm"
+            />
+          </div>
+          <Select value={orden} onValueChange={v => setOrden((v ?? 'recientes') as any)}>
+            <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recientes">Recientes</SelectItem>
+              <SelectItem value="destacados">Destacados</SelectItem>
+              <SelectItem value="menciones">Menciones</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {loading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
@@ -711,16 +841,25 @@ export function PortalFeed() {
           <p className="text-sm text-muted-foreground">Todavía no hay publicaciones en el portal.</p>
           {puedePublicar && <p className="text-xs text-muted-foreground mt-1">¡Sé el primero en publicar algo!</p>}
         </div>
+      ) : postsFiltrados.length === 0 ? (
+        <div className="bg-card border border-border rounded-xl p-8 text-center">
+          <p className="text-sm text-muted-foreground">No se encontraron publicaciones con esos filtros.</p>
+        </div>
       ) : (
-        posts.map(p => (
-          <PostCard
-            key={p.id}
-            post={p}
-            userId={userId}
-            onDeleted={load}
-            onReaccion={load}
-          />
-        ))
+        postsFiltrados.map(p => {
+          const esNuevo = lastSeenAt != null && p.autor.id !== userId && new Date(p.createdAt) > new Date(lastSeenAt)
+          return (
+            <PostCard
+              key={p.id}
+              post={p}
+              userId={userId}
+              isAdmin={isAdmin}
+              esNuevo={esNuevo}
+              onDeleted={load}
+              onUpdate={(id, changes) => setPosts(prev => prev.map(x => x.id === id ? { ...x, ...changes } : x))}
+            />
+          )
+        })
       )}
     </div>
   )

@@ -66,6 +66,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese CUIL', field: 'cuil' }, { status: 409 })
   }
 
+  const empPrev = await prisma.employee.findUnique({ where: { id: empId }, select: { estado: true } })
+
   try {
     const emp = await prisma.$transaction(async tx => {
       const updated = await tx.employee.update({
@@ -133,6 +135,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         sendMailFromTemplate('EMAIL_CAMBIADO', { to: emp.emailChangedFrom, vars }),
         sendMailFromTemplate('EMAIL_CAMBIADO', { to: nuevoEmail, vars }),
       ]).catch(() => {})
+    }
+    if (empPrev && body.estado && body.estado !== empPrev.estado && emp.updated.email) {
+      sendMailFromTemplate('EMPLEADO_ESTADO_CAMBIADO', {
+        to: emp.updated.email,
+        vars: {
+          nombre: emp.updated.nombre,
+          estado: body.estado === 'ACTIVO' ? 'activada' : 'desactivada',
+        },
+      }).catch(e => console.error('[email/estado-cambiado] fallo:', e))
     }
     return NextResponse.json(emp.updated)
   } catch (e) {

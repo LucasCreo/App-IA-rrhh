@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizePostHtml } from '@/lib/richContent'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -74,5 +75,69 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       parentCommentId,
     },
   })
+
+  // Fire-and-forget: notificar al destinatario correspondiente
+  ;(async () => {
+    try {
+      const [autor, post] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { email: true, employee: { select: { nombre: true, apellido: true } } },
+        }),
+        prisma.post.findUnique({
+          where: { id: postId },
+          select: {
+            contenido: true,
+            autor: { select: { id: true, email: true, employee: { select: { nombre: true } } } },
+          },
+        }),
+      ])
+      if (!post) return
+      const autorNombre = autor?.employee ? `${autor.employee.nombre} ${autor.employee.apellido}` : autor?.email ?? 'Alguien'
+      const postTitulo = post.contenido.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || '(aviso)'
+      const textoLimpio = contenido.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)
+      const ctaUrl = `${process.env.NEXT_PUBLIC_APP_URL}/empleado/portal`
+
+      if (parentCommentId) {
+        // Es una respuesta: notificar al autor del comentario padre
+        const parent = await prisma.postComment.findUnique({
+          where: { id: parentCommentId },
+          select: {
+            autorId: true,
+            autor: { select: { email: true, employee: { select: { nombre: true } } } },
+          },
+        })
+        if (parent && parent.autorId !== user.userId && parent.autor.email) {
+          await sendMailFromTemplate('COMENTARIO_RESPONDIDO', {
+            to: parent.autor.email,
+            vars: {
+              nombre: parent.autor.employee?.nombre ?? '',
+              autor: autorNombre,
+              postTitulo,
+              respuesta: textoLimpio,
+            },
+            ctaUrl,
+          })
+        }
+      } else {
+        // Es un comentario de primer nivel: notificar al autor del post
+        if (post.autor.id !== user.userId && post.autor.email) {
+          await sendMailFromTemplate('COMENTARIO_NUEVO_EN_POST', {
+            to: post.autor.email,
+            vars: {
+              nombre: post.autor.employee?.nombre ?? '',
+              autor: autorNombre,
+              postTitulo,
+              comentario: textoLimpio,
+            },
+            ctaUrl,
+          })
+        }
+      }
+    } catch (e) {
+      console.error('[email/comentario] fallo:', e)
+    }
+  })()
+
   return NextResponse.json({ id: c.id, parentCommentId }, { status: 201 })
 }

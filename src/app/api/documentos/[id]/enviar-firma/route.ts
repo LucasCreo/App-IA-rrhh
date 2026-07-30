@@ -78,6 +78,33 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     const message = e instanceof Error ? e.message : 'Error desconocido'
     const code = e instanceof SignatureError ? e.code : undefined
     await prisma.document.update({ where: { id: Number(id) }, data: { estado: 'ERROR' } })
+
+    ;(async () => {
+      try {
+        const [full, admins] = await Promise.all([
+          prisma.document.findUnique({
+            where: { id: Number(id) },
+            select: {
+              employee: { select: { nombre: true, apellido: true } },
+              tipoDocumento: { select: { nombre: true } },
+            },
+          }),
+          prisma.user.findMany({ where: { role: 'ADMIN', email: { not: '' } }, select: { email: true } }),
+        ])
+        if (!full || admins.length === 0) return
+        const vars = {
+          apellido: full.employee.apellido,
+          nombre: full.employee.nombre,
+          tipo: full.tipoDocumento?.nombre ?? 'Documento',
+          error: message,
+        }
+        await Promise.all(admins.map(a => sendMailFromTemplate('DOCUMENTO_ERROR_FIRMA', {
+          to: a.email, vars,
+          ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/documentos`,
+        })))
+      } catch (err) { console.error('[email/documento-error-firma] fallo:', err) }
+    })()
+
     const status = code === 'SIGNATURE_NOT_CONFIGURED' || code === 'SIGNATURE_INCOMPLETE' ? 400 : 502
     return NextResponse.json({ error: message, code }, { status })
   }

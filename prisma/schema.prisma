@@ -123,6 +123,8 @@ model Post {
   imagenUrl    String?
   alcance      String        @default("GLOBAL") // GLOBAL | CATEGORIA
   categoriaId  Int?
+  pinned       Boolean       @default(false)
+  pinnedAt     DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   editedAt     DateTime?

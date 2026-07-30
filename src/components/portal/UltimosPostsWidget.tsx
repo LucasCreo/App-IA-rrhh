@@ -35,7 +35,7 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
 }
 
-export function UltimosPostsWidget({ baseHref }: { baseHref: '/admin/portal' | '/empleado/portal' }) {
+export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
   const [posts, setPosts] = useState<Post[] | null>(null)
 
   useEffect(() => {

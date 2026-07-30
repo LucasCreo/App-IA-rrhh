@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const cookieStore = await cookies()
@@ -30,5 +30,32 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id: Number(id) },
     data: { datos: JSON.stringify(datos), estado: 'ENVIADO' },
   })
+
+  ;(async () => {
+    try {
+      const [full, admins] = await Promise.all([
+        prisma.respuestaFormulario.findUnique({
+          where: { id: Number(id) },
+          select: {
+            employee: { select: { nombre: true, apellido: true, legajo: true } },
+            asignacion: { select: { nombre: true } },
+          },
+        }),
+        prisma.user.findMany({ where: { role: 'ADMIN', email: { not: '' } }, select: { email: true } }),
+      ])
+      if (!full || admins.length === 0) return
+      const vars = {
+        apellido: full.employee.apellido,
+        nombre: full.employee.nombre,
+        legajo: full.employee.legajo,
+        formulario: full.asignacion.nombre,
+      }
+      await Promise.all(admins.map(a => sendMailFromTemplate('FORMULARIO_COMPLETADO', {
+        to: a.email, vars,
+        ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes?tab=formularios`,
+      })))
+    } catch (e) { console.error('[email/formulario-completado] fallo:', e) }
+  })()
+
   return NextResponse.json(updated)
 }

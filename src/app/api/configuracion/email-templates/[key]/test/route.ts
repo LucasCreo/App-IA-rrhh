@@ -57,6 +57,52 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     emailNuevo: 'juan.nuevo@empresa.com',
     emailAnterior: 'juan.viejo@empresa.com',
   },
+  SOLICITUD_DOC_RESUELTA: {
+    nombre: 'Juan',
+    tipo: 'Certificado de trabajo',
+    resultado: 'aprobada',
+    bloqueComentario: '<p><em>Comentario del administrador:</em> Ya te lo enviamos por mail aparte.</p>',
+  },
+  MODIFICACION_REVISADA: {
+    nombre: 'Juan',
+  },
+  EMPLEADO_BIENVENIDA: {
+    nombre: 'Juan',
+    email: 'juan@empresa.com',
+    password: 'ContrasenaTemporal123',
+  },
+  EMPLEADO_ESTADO_CAMBIADO: {
+    nombre: 'Juan',
+    estado: 'desactivada',
+  },
+  COMENTARIO_RESPONDIDO: {
+    nombre: 'Juan',
+    autor: 'María López',
+    postTitulo: 'Feriado del 15/09',
+    respuesta: '¡Gracias por el aviso! Confirmo que lo tomo.',
+  },
+  RECIBO_FIRMADO: {
+    apellido: 'García', nombre: 'Juan', legajo: '1234',
+    tipo: 'Recibo de sueldo',
+    bloquePeriodo: '<li><strong>Período:</strong> 2026-07</li>',
+    bloqueConformidad: '<li><strong>Firma:</strong> Conforme</li>',
+    bloqueComentario: '<blockquote style="border-left:3px solid #16a34a;padding-left:12px;color:#374151;margin:12px 0;">Todo correcto, gracias.</blockquote>',
+  },
+  FORMULARIO_COMPLETADO: {
+    apellido: 'García', nombre: 'Juan', legajo: '1234',
+    formulario: 'Evaluación anual 2026',
+  },
+  DOCUMENTO_ERROR_FIRMA: {
+    apellido: 'García', nombre: 'Juan',
+    tipo: 'Recibo de sueldo',
+    error: 'Timeout al conectar con el proveedor de firma',
+  },
+  COMENTARIO_NUEVO_EN_POST: {
+    nombre: 'Juan',
+    autor: 'María López',
+    postTitulo: 'Feriado del 15/09',
+    comentario: 'Recuerden que ese día también cierra el comedor.',
+  },
 }
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ key: string }> }) {

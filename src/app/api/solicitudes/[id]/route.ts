@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { isAncestorOfUser } from '@/lib/scope'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 const patchSchema = z.object({
   estado: z.enum(['APROBADO', 'RECHAZADO']),
@@ -46,9 +47,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const solicitud = await prisma.solicitudDocumento.findUnique({
     where: { id: Number(id) },
     include: {
-      employee: { select: { nombre: true, apellido: true, legajo: true } },
+      employee: { select: { nombre: true, apellido: true, legajo: true, email: true } },
       tipo: true,
     },
   })
+  if (solicitud?.employee?.email) {
+    sendMailFromTemplate('SOLICITUD_DOC_RESUELTA', {
+      to: solicitud.employee.email,
+      vars: {
+        nombre: solicitud.employee.nombre,
+        tipo: solicitud.tipo.nombre,
+        resultado: estado === 'APROBADO' ? 'aprobada' : 'rechazada',
+        bloqueComentario: comentario?.trim() && comentarioVisible
+          ? `<p><em>Comentario del administrador:</em> ${comentario.trim()}</p>`
+          : '',
+      },
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/solicitudes`,
+    }).catch(e => console.error('[email/solicitud-resuelta] fallo:', e))
+  }
   return NextResponse.json(solicitud)
 }

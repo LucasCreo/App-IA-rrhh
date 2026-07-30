@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { isAncestorOfUser } from '@/lib/scope'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
 export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
@@ -11,7 +12,14 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params
   const actual = await prisma.solicitudModificacion.findUnique({
     where: { id: Number(id) },
-    select: { employee: { select: { user: { select: { id: true } } } } },
+    select: {
+      employee: {
+        select: {
+          nombre: true, email: true,
+          user: { select: { id: true } },
+        },
+      },
+    },
   })
   const solicitanteUserId = actual?.employee?.user?.id
   if (!solicitanteUserId || !(await isAncestorOfUser(user.userId, solicitanteUserId))) {
@@ -22,5 +30,12 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
     where: { id: Number(id) },
     data: { estado: 'REVISADO' },
   })
+  if (actual?.employee?.email) {
+    sendMailFromTemplate('MODIFICACION_REVISADA', {
+      to: actual.employee.email,
+      vars: { nombre: actual.employee.nombre },
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/perfil`,
+    }).catch(e => console.error('[email/modificacion-revisada] fallo:', e))
+  }
   return NextResponse.json(updated)
 }

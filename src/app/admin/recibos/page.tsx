@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 const TABS = [
   { id: 'lotes', label: 'Lotes' },
-  { id: 'individuales', label: 'Individuales' },
+  { id: 'individuales', label: 'Recibos' },
 ]
 
 export default function RecibosPage() {

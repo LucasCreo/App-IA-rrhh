@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { parseApiError, showApiError } from '@/lib/apiErrors'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
@@ -20,6 +20,8 @@ import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluaci
 import { EmpleadoSolicitudesTab } from '@/components/empleados/EmpleadoSolicitudesTab'
 import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { AvatarUpload } from '@/components/shared/AvatarUpload'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { validarCuil } from '@/lib/cuil'
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft, Network } from 'lucide-react'
@@ -39,6 +41,8 @@ const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
 export default function EmpleadoDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromDashboard = searchParams.get('from') === 'dashboard'
   const [form, setForm] = useState<Empleado | null>(null)
   const [cats, setCats] = useState<Categoria[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
@@ -57,6 +61,7 @@ export default function EmpleadoDetailPage() {
   const [manager, setManager] = useState<{ id: number; label: string } | null>(null)
   const [subordinados, setSubordinados] = useState<Array<{ id: number; label: string; sub: string }>>([])
   const [orgLoading, setOrgLoading] = useState(false)
+  const [confirmEmailChange, setConfirmEmailChange] = useState<{ from: string; to: string } | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -173,6 +178,15 @@ export default function EmpleadoDetailPage() {
       toast.error('Completá los campos obligatorios')
       return
     }
+    if (existingUser && form.email && form.email !== existingUser.email) {
+      setConfirmEmailChange({ from: existingUser.email, to: form.email })
+      return
+    }
+    await doSave()
+  }
+
+  async function doSave() {
+    if (!form) return
     setSaving(true)
     const camposPersonalizados = Object.entries(valoresCustom)
       .filter(([, v]) => v.trim() !== '')
@@ -198,7 +212,7 @@ export default function EmpleadoDetailPage() {
 
   if (loading) return (
     <>
-      <AdminHeader title="Empleado" />
+      <AdminHeader title="Legajo" />
       <div className="p-6 max-w-3xl space-y-4">
         {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
       </div>
@@ -211,12 +225,14 @@ export default function EmpleadoDetailPage() {
     <>
       <AdminHeader title={`${form.apellido}, ${form.nombre}`} />
       <div className="p-4 sm:p-6">
-        <button
-          onClick={() => router.push('/admin/empleados')}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft size={15} /> Volver a empleados
-        </button>
+        {!fromDashboard && (
+          <button
+            onClick={() => router.push('/admin/empleados')}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft size={15} /> Volver a legajos
+          </button>
+        )}
 
         {/* Pestañas */}
         <div className="flex border-b mb-6 overflow-x-auto overflow-y-hidden whitespace-nowrap">
@@ -247,7 +263,7 @@ export default function EmpleadoDetailPage() {
         {tab === 'recibos' && <DocumentosTable employeeId={form.id} esRecibo={true} />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'solicitudes' && <EmpleadoSolicitudesTab employeeId={form.id} />}
-        {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} userId={existingUser?.id ?? null} />}
+        {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} />}
         {tab === 'datos' && <div className="max-w-3xl space-y-6">
 
         {/* Datos personales */}
@@ -255,16 +271,26 @@ export default function EmpleadoDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Datos personales</p>
             <div className="flex items-center gap-2">
-              <AvatarDisplay
-                nombre={`${form.nombre} ${form.apellido}`}
-                iniciales={`${form.nombre[0] ?? ''}${form.apellido[0] ?? ''}`}
-                avatarUrl={existingUser?.avatarUrl ?? null}
-                bgColor={existingUser?.avatarBgColor ?? null}
-                textColor={existingUser?.avatarTextColor ?? null}
-                size={48}
-              />
+              {existingUser ? (
+                <AvatarUpload
+                  initials={`${form.nombre[0] ?? ''}${form.apellido[0] ?? ''}`}
+                  initialAvatar={existingUser.avatarUrl}
+                  initialBgColor={existingUser.avatarBgColor}
+                  initialTextColor={existingUser.avatarTextColor}
+                  size="md"
+                  targetUserId={existingUser.id}
+                />
+              ) : (
+                <AvatarDisplay
+                  nombre={`${form.nombre} ${form.apellido}`}
+                  iniciales={`${form.nombre[0] ?? ''}${form.apellido[0] ?? ''}`}
+                  size={48}
+                />
+              )}
               <span className="text-xs text-muted-foreground">
-                {existingUser?.avatarUrl ? 'Foto elegida por el usuario' : 'Iniciales'}
+                {existingUser
+                  ? (existingUser.avatarUrl ? 'Cambiar foto' : 'Personalizar iniciales')
+                  : 'Sin acceso al sistema'}
               </span>
             </div>
           </div>
@@ -505,6 +531,18 @@ export default function EmpleadoDetailPage() {
         </div>
         </div>}
       </div>
+      <ConfirmDialog
+        open={!!confirmEmailChange}
+        title="¿Cambiar email de acceso?"
+        description={confirmEmailChange
+          ? `El acceso al portal cambiará de "${confirmEmailChange.from}" a "${confirmEmailChange.to}". El empleado deberá iniciar sesión con el nuevo email.`
+          : ''}
+        confirmLabel="Sí, cambiar email"
+        confirmVariant="default"
+        cancelLabel="Cancelar"
+        onConfirm={() => { setConfirmEmailChange(null); doSave() }}
+        onCancel={() => setConfirmEmailChange(null)}
+      />
       {existingUser && (
         <>
           <SubordinadosDialog

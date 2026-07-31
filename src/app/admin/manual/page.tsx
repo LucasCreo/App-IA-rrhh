@@ -339,7 +339,7 @@ export default function ManualAdminPage() {
 
       <Section title="12. Configuración">
         <Sub title="General">
-          <p>Enlaces a los manuales, comportamiento global de la app (ventana de edición de posts, tiempo mínimo de lectura antes de firmar), contacto de soporte, información del sistema (versión, migraciones, contadores) y estado de servicios (DB, firma, Google, SMTP).</p>
+          <p>Enlaces a los manuales, comportamiento global de la app (ventana de edición de posts, tiempo mínimo de lectura antes de firmar), contacto de soporte, información del sistema (versión, migraciones, contadores) y estado de servicios (DB, Google, SMTP).</p>
         </Sub>
         <Sub title="Empleados">
           <p>Define qué campos del legajo son visibles y cuáles son obligatorios. También permite crear campos personalizados adicionales.</p>
@@ -364,9 +364,6 @@ export default function ManualAdminPage() {
         </Sub>
         <Sub title="Ausencias">
           <p>Configura los tipos de ausencia disponibles para los empleados.</p>
-        </Sub>
-        <Sub title="Firma electrónica">
-          <p>Configura el proveedor externo de firma electrónica (URL, API key y parámetros adicionales).</p>
         </Sub>
         <Sub title="Usuarios">
           <p>Gestión de cuentas, permisos por usuario y organigrama (subordinados). Ver sección 11.</p>

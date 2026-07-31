@@ -8,43 +8,43 @@ datasource db {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  username     String?   @unique
-  passwordHash String
-  role         String    @default("EMPLOYEE")
-  employeeId   Int?      @unique
-  managerUserId Int?
-  avatarUrl           String?
-  avatarBgColor       String?
-  avatarTextColor     String?
-  googleRefreshToken  String?
-  googleLastSync      DateTime?
-  avisosLastSeenAt    DateTime?
+  id                    Int       @id @default(autoincrement())
+  email                 String    @unique
+  username              String?   @unique
+  passwordHash          String
+  role                  String    @default("EMPLOYEE")
+  employeeId            Int?      @unique
+  managerUserId         Int?
+  avatarUrl             String?
+  avatarBgColor         String?
+  avatarTextColor       String?
+  googleRefreshToken    String?
+  googleLastSync        DateTime?
+  avisosLastSeenAt      DateTime?
   solicitudesLastSeenAt DateTime?
-  createdAt    DateTime  @default(now())
+  createdAt             DateTime  @default(now())
 
-  employee  Employee?  @relation(fields: [employeeId], references: [id])
-  permisos  UserPermiso[]
-  manager       User?     @relation("UserManager", fields: [managerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subordinados  User[]    @relation("UserManager")
-  documents       Document[]  @relation("CargadoPor")
+  employee        Employee?            @relation(fields: [employeeId], references: [id])
+  permisos        UserPermiso[]
+  manager         User?                @relation("UserManager", fields: [managerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinados    User[]               @relation("UserManager")
+  documents       Document[]           @relation("CargadoPor")
   auditLogs       AuditLog[]
-  lotes           Lote[]      @relation("LotesCargados")
-  eventosCreados  Evento[]    @relation("EventosCreadosPor")
+  lotes           Lote[]               @relation("LotesCargados")
+  eventosCreados  Evento[]             @relation("EventosCreadosPor")
   resetTokens     PasswordResetToken[]
-  posts           Post[]         @relation("PostAutor")
-  postReacciones  PostReaction[] @relation("PostReactionUser")
-  postComentarios PostComment[]  @relation("PostCommentAutor")
+  posts           Post[]               @relation("PostAutor")
+  postReacciones  PostReaction[]       @relation("PostReactionUser")
+  postComentarios PostComment[]        @relation("PostCommentAutor")
 }
 
 model PasswordResetToken {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -58,38 +58,38 @@ model UserPermiso {
 }
 
 model Employee {
-  id           Int       @id @default(autoincrement())
-  legajo       String    @unique
+  id           Int      @id @default(autoincrement())
+  legajo       String   @unique
   nombre       String
   apellido     String
-  cuil         String    @unique
-  email        String    @unique
+  cuil         String   @unique
+  email        String   @unique
   telefono     String?
   fechaIngreso DateTime
   categoriaId  Int
-  estado       String    @default("ACTIVO")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  estado       String   @default("ACTIVO")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  categoria       Category             @relation(fields: [categoriaId], references: [id])
-  user            User?
-  documents       Document[]
-  valoresCampos   ValorCampoEmpleado[]
-  solicitudes              SolicitudDocumento[]
-  solicitudesModificacion  SolicitudModificacion[]
-  eventosAsignados         EventoEmpleado[]
-  evaluaciones             Evaluacion[]
-  respuestasFormulario     RespuestaFormulario[]
-  ausencias                SolicitudAusencia[]
-  saldosVacaciones         SaldoVacaciones[]
-  lotes                    LoteEmpleado[]
+  categoria               Category                @relation(fields: [categoriaId], references: [id])
+  user                    User?
+  documents               Document[]
+  valoresCampos           ValorCampoEmpleado[]
+  solicitudes             SolicitudDocumento[]
+  solicitudesModificacion SolicitudModificacion[]
+  eventosAsignados        EventoEmpleado[]
+  evaluaciones            Evaluacion[]
+  respuestasFormulario    RespuestaFormulario[]
+  ausencias               SolicitudAusencia[]
+  saldosVacaciones        SaldoVacaciones[]
+  lotes                   LoteEmpleado[]
 }
 
 model Category {
-  id         Int        @id @default(autoincrement())
-  nombre     String     @unique
-  employees  Employee[]
-  posts      Post[]
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  employees Employee[]
+  posts     Post[]
 }
 
 model Document {
@@ -103,7 +103,6 @@ model Document {
   employeeId      Int
   tipoDocumentoId Int?
   estado          String    @default("BORRADOR")
-  firmaExternalId String?
   fechaFirma      DateTime?
   firmaConforme   Boolean?
   firmaComentario String?   @db.NVarChar(Max)
@@ -117,22 +116,22 @@ model Document {
 }
 
 model Post {
-  id           Int           @id @default(autoincrement())
-  autorId      Int
-  contenido    String        @db.NVarChar(Max)
-  imagenUrl    String?
-  alcance      String        @default("GLOBAL") // GLOBAL | CATEGORIA
-  categoriaId  Int?
-  pinned       Boolean       @default(false)
-  pinnedAt     DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  editedAt     DateTime?
+  id          Int       @id @default(autoincrement())
+  autorId     Int
+  contenido   String    @db.NVarChar(Max)
+  imagenUrl   String?
+  alcance     String    @default("GLOBAL") // GLOBAL | CATEGORIA
+  categoriaId Int?
+  pinned      Boolean   @default(false)
+  pinnedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  editedAt    DateTime?
 
-  autor        User          @relation("PostAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  categoria    Category?     @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  reacciones   PostReaction[]
-  comentarios  PostComment[]
+  autor       User           @relation("PostAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  categoria   Category?      @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reacciones  PostReaction[]
+  comentarios PostComment[]
 }
 
 model PostReaction {
@@ -141,18 +140,18 @@ model PostReaction {
   tipo      String   @default("LIKE")
   createdAt DateTime @default(now())
 
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation("PostReactionUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation("PostReactionUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([postId, userId])
 }
 
 model PostComment {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   postId          Int
   autorId         Int
-  contenido       String   @db.NVarChar(Max)
-  createdAt       DateTime @default(now())
+  contenido       String    @db.NVarChar(Max)
+  createdAt       DateTime  @default(now())
   editedAt        DateTime?
   parentCommentId Int?
 
@@ -163,16 +162,16 @@ model PostComment {
 }
 
 model TipoDocumento {
-  id            Int        @id @default(autoincrement())
-  nombre        String     @unique
-  descripcion   String?
-  accion        String     @default("FIRMA")
-  campos        String?   @db.NVarChar(Max)
-  tienePeriodo  Boolean    @default(true)
-  protegido     Boolean    @default(false)
-  documentos    Document[]
-  lotes         Lote[]
-  createdAt     DateTime   @default(now())
+  id           Int        @id @default(autoincrement())
+  nombre       String     @unique
+  descripcion  String?
+  accion       String     @default("FIRMA")
+  campos       String?    @db.NVarChar(Max)
+  tienePeriodo Boolean    @default(true)
+  protegido    Boolean    @default(false)
+  documentos   Document[]
+  lotes        Lote[]
+  createdAt    DateTime   @default(now())
 }
 
 model Lote {
@@ -201,15 +200,15 @@ model LoteEmpleado {
 }
 
 model GeneralConfig {
-  id                          Int      @id @default(autoincrement())
-  appName                     String   @default("RRHH")
-  logoUrl                     String?
-  editWindowMin               Int      @default(1440)
-  firmaMinSec                 Int      @default(10)
-  soporteEmail                String?
-  soporteTel                  String?
-  avisosEmpleadosHabilitados  Boolean  @default(true)
-  updatedAt                   DateTime @updatedAt
+  id                         Int      @id @default(autoincrement())
+  appName                    String   @default("RRHH")
+  logoUrl                    String?
+  editWindowMin              Int      @default(1440)
+  firmaMinSec                Int      @default(10)
+  soporteEmail               String?
+  soporteTel                 String?
+  avisosEmpleadosHabilitados Boolean  @default(true)
+  updatedAt                  DateTime @updatedAt
 }
 
 model EmployeeFieldConfig {
@@ -249,15 +248,6 @@ model ValorCampoEmpleado {
   @@map("valores_campo_empleado")
 }
 
-model SignatureConfig {
-  id           Int      @id @default(autoincrement())
-  providerUrl  String
-  apiKey       String
-  extraHeaders String   @default("{}")
-  extraBody    String   @default("{}")
-  updatedAt    DateTime @updatedAt
-}
-
 model EmailTemplate {
   key       String   @id
   subject   String   @db.NVarChar(500)
@@ -281,28 +271,28 @@ model TipoSolicitud {
 }
 
 model SolicitudDocumento {
-  id                 Int      @id @default(autoincrement())
-  employeeId         Int
-  tipoId             Int
-  nombreArchivo      String?  @db.NVarChar(Max)
-  descripcion        String?
-  metadata           String   @default("{}") @db.NVarChar(Max)
-  estado             String   @default("PENDIENTE")
-  comentario         String?
-  comentarioVisible  Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  employeeId        Int
+  tipoId            Int
+  nombreArchivo     String?  @db.NVarChar(Max)
+  descripcion       String?
+  metadata          String   @default("{}") @db.NVarChar(Max)
+  estado            String   @default("PENDIENTE")
+  comentario        String?
+  comentarioVisible Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   employee Employee      @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tipo     TipoSolicitud @relation(fields: [tipoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model SolicitudModificacion {
-  id          Int      @id @default(autoincrement())
-  employeeId  Int
-  comentario  String
-  estado      String   @default("PENDIENTE")
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  comentario String
+  estado     String   @default("PENDIENTE")
+  createdAt  DateTime @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
@@ -316,7 +306,7 @@ model Evento {
   todoElDia       Boolean   @default(true)
   tipo            String    @default("PERSONAL")
   subtipo         String?
-  comentarioAdmin String?  @db.NVarChar(Max)
+  comentarioAdmin String?   @db.NVarChar(Max)
   googleEventId   String?
   creadoPorId     Int
   createdAt       DateTime  @default(now())
@@ -428,7 +418,7 @@ model AsignacionFormulario {
   datosAdmin  String    @default("{}") @db.NVarChar(Max)
   createdAt   DateTime  @default(now())
 
-  plantilla  PlantillaFormulario  @relation(fields: [plantillaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  plantilla  PlantillaFormulario   @relation(fields: [plantillaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   respuestas RespuestaFormulario[]
 }
 
@@ -461,18 +451,18 @@ model TipoAusencia {
 }
 
 model SolicitudAusencia {
-  id              Int       @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   employeeId      Int
   tipoAusenciaId  Int
   fechaInicio     DateTime
   fechaFin        DateTime
   dias            Int
-  motivo          String?   @db.NVarChar(Max)
-  archivoUrl      String?   @db.NVarChar(500)
-  estado          String    @default("PENDIENTE")
-  comentarioAdmin String?   @db.NVarChar(Max)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  motivo          String?  @db.NVarChar(Max)
+  archivoUrl      String?  @db.NVarChar(500)
+  estado          String   @default("PENDIENTE")
+  comentarioAdmin String?  @db.NVarChar(Max)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tipoAusencia TipoAusencia @relation(fields: [tipoAusenciaId], references: [id], onDelete: NoAction, onUpdate: NoAction)

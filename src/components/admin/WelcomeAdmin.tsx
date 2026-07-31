@@ -14,7 +14,7 @@ const slides = [
   },
   {
     icon: Users,
-    title: 'Personal',
+    title: 'Legajos',
     description: `Cree y administre el registro de todos los empleados. Acceda a su ficha completa, documentos${EVALUACIONES_ENABLED ? ', evaluaciones' : ''} y formularios desde un mismo lugar. Puede seleccionar varios registros para exportar o eliminar en lote.`,
   },
   {

@@ -8,11 +8,18 @@ interface Props {
   title: string
   description?: string
   confirmLabel?: string
+  confirmVariant?: 'destructive' | 'default'
+  cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function ConfirmDialog({ open, title, description, confirmLabel = 'Eliminar', onConfirm, onCancel }: Props) {
+export function ConfirmDialog({
+  open, title, description,
+  confirmLabel = 'Eliminar', confirmVariant = 'destructive',
+  cancelLabel = 'Cancelar',
+  onConfirm, onCancel,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={open => { if (!open) onCancel() }}>
       <DialogContent className="sm:max-w-sm">
@@ -21,8 +28,14 @@ export function ConfirmDialog({ open, title, description, confirmLabel = 'Elimin
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button variant="destructive" onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant="outline" onClick={onCancel}>{cancelLabel}</Button>
+          <Button
+            variant={confirmVariant}
+            className={confirmVariant === 'default' ? 'bg-green-700 hover:bg-green-800' : ''}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

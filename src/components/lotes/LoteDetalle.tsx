@@ -4,9 +4,10 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search } from 'lucide-react'
+import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,7 +19,6 @@ interface Documento {
   estado: string
   fechaCarga: string
   fechaFirma: string | null
-  firmaExternalId: string | null
   firmaConforme: boolean | null
   firmaComentario: string | null
 }
@@ -86,6 +86,8 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [agregando, setAgregando] = useState(false)
+  const [envioErrors, setEnvioErrors] = useState<Array<{ id: number; empleado: string; legajo: string; message: string; code?: string }>>([])
+  const [envioReporteOpen, setEnvioReporteOpen] = useState(false)
   const [replaceTargetDocId, setReplaceTargetDocId] = useState<number | null>(null)
   const [deleteDoc, setDeleteDoc] = useState<{ id: number; empleado: string } | null>(null)
   const replaceFileRef = useRef<HTMLInputElement>(null)
@@ -112,9 +114,13 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
       const r = await fetch(`/api/lotes/${loteId}/enviar-firma`, { method: 'POST' })
       if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
-      if (data.errors?.length > 0) {
-        toast.warning(`${data.sent} enviados, ${data.errors.length} con error`)
+      const errs: typeof envioErrors = Array.isArray(data.errors) ? data.errors : []
+      if (errs.length > 0) {
+        setEnvioErrors(errs)
+        setEnvioReporteOpen(true)
+        toast.warning(`${data.sent} enviados, ${errs.length} con error`)
       } else {
+        setEnvioErrors([])
         toast.success(`${data.sent} recibo(s) enviados`)
       }
       await fetchData()
@@ -206,20 +212,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     }
   }
 
-  async function verificarDoc(docId: number) {
-    setActionLoading(docId)
-    try {
-      const r = await fetch(`/api/documentos/${docId}/enviar-firma`, { method: 'PATCH' })
-      if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
-      const data = await r.json()
-      toast.info(`Estado actualizado: ${data.estado}`)
-      await fetchData()
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  if (loading) {
+if (loading) {
     return (
       <div className="flex flex-col h-full">
         <div className="h-14 border-b border-border shrink-0" />
@@ -371,6 +364,17 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
               <Send size={14} className="mr-1.5" />
               {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
             </Button>
+            {(stats?.total ?? 0) > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                title="Descargar todos los recibos del lote como ZIP"
+                onClick={() => { window.location.href = `/api/lotes/${loteId}/descargar-zip` }}
+              >
+                <Download size={14} className="mr-1.5" />
+                Descargar ZIP
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -515,16 +519,6 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
                               <Send size={14} />
                             </button>
                           )}
-                          {estadoKey === 'ENVIADO_A_FIRMA' && accion === 'FIRMA' && emp.documento?.firmaExternalId && (
-                            <button
-                              onClick={() => verificarDoc(docId)}
-                              disabled={isLoading}
-                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-                              title="Verificar estado"
-                            >
-                              <RefreshCw size={14} />
-                            </button>
-                          )}
                           <span className="w-px h-4 bg-border mx-0.5" />
                           <button
                             onClick={() => setDeleteDoc({ id: docId, empleado: `${emp.apellido}, ${emp.nombre}` })}
@@ -570,6 +564,37 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         onConfirm={doDeleteDoc}
         onCancel={() => setDeleteDoc(null)}
       />
+
+      <Dialog open={envioReporteOpen} onOpenChange={v => !v && setEnvioReporteOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Envío a firma con errores</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {envioErrors.length} recibo{envioErrors.length === 1 ? '' : 's'} no pudo{envioErrors.length === 1 ? '' : 'ieron'} enviarse.
+              Podés reintentar solo los fallidos.
+            </p>
+          </DialogHeader>
+          <ul className="max-h-64 overflow-y-auto divide-y rounded-md border">
+            {envioErrors.map(err => (
+              <li key={err.id} className="px-3 py-2 text-xs">
+                <p className="font-medium truncate">{err.empleado}</p>
+                <p className="text-muted-foreground">Legajo {err.legajo} · {err.message}</p>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setEnvioReporteOpen(false)}>Cerrar</Button>
+            <Button
+              size="sm"
+              className="bg-green-700 hover:bg-green-800"
+              disabled={sending}
+              onClick={async () => { setEnvioReporteOpen(false); await enviarTodos() }}
+            >
+              <RefreshCw size={13} className="mr-1" /> Reintentar fallidos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

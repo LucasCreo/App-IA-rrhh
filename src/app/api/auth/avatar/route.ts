@@ -39,9 +39,21 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function resolveTargetId(url: string, currentUserId: number, currentRole: string): { targetId: number | null; err?: string } {
+  const requested = new URL(url).searchParams.get('userId')
+  if (!requested) return { targetId: currentUserId }
+  const id = Number(requested)
+  if (!Number.isFinite(id)) return { targetId: null, err: 'userId inválido' }
+  if (id !== currentUserId && currentRole !== 'ADMIN') return { targetId: null, err: 'Prohibido' }
+  return { targetId: id }
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { targetId, err } = resolveTargetId(req.url, user.userId, user.role)
+  if (err || !targetId) return NextResponse.json({ error: err ?? 'userId inválido' }, { status: err === 'Prohibido' ? 403 : 400 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File
@@ -60,38 +72,43 @@ export async function POST(req: NextRequest) {
   const avatarsDir = join(process.cwd(), 'uploads', 'avatars')
   await mkdir(avatarsDir, { recursive: true })
 
-  // Borrar el avatar previo si existía
-  const prev = await prisma.user.findUnique({ where: { id: user.userId }, select: { avatarUrl: true } })
+  const prev = await prisma.user.findUnique({ where: { id: targetId }, select: { avatarUrl: true } })
   if (prev?.avatarUrl) {
     const safe = prev.avatarUrl.replace(/[^a-zA-Z0-9._-]/g, '')
     try { await unlink(join(avatarsDir, safe)) } catch {}
   }
 
   const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg'
-  const fileName = `${user.userId}-${Date.now()}.${ext}`
+  const fileName = `${targetId}-${Date.now()}.${ext}`
   await writeFile(join(avatarsDir, fileName), buffer)
 
-  await prisma.user.update({ where: { id: user.userId }, data: { avatarUrl: fileName } })
+  await prisma.user.update({ where: { id: targetId }, data: { avatarUrl: fileName } })
 
   return NextResponse.json({ avatarUrl: fileName })
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const prev = await prisma.user.findUnique({ where: { id: user.userId }, select: { avatarUrl: true } })
+  const { targetId, err } = resolveTargetId(req.url, user.userId, user.role)
+  if (err || !targetId) return NextResponse.json({ error: err ?? 'userId inválido' }, { status: err === 'Prohibido' ? 403 : 400 })
+
+  const prev = await prisma.user.findUnique({ where: { id: targetId }, select: { avatarUrl: true } })
   if (prev?.avatarUrl) {
     const safe = prev.avatarUrl.replace(/[^a-zA-Z0-9._-]/g, '')
     try { await unlink(join(process.cwd(), 'uploads', 'avatars', safe)) } catch {}
   }
-  await prisma.user.update({ where: { id: user.userId }, data: { avatarUrl: null } })
+  await prisma.user.update({ where: { id: targetId }, data: { avatarUrl: null } })
   return NextResponse.json({ ok: true })
 }
 
 export async function PATCH(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const { targetId, err } = resolveTargetId(req.url, user.userId, user.role)
+  if (err || !targetId) return NextResponse.json({ error: err ?? 'userId inválido' }, { status: err === 'Prohibido' ? 403 : 400 })
 
   const body = await req.json()
   const { avatarBgColor, avatarTextColor } = body as { avatarBgColor?: string | null; avatarTextColor?: string | null }
@@ -106,6 +123,6 @@ export async function PATCH(req: NextRequest) {
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Sin cambios' }, { status: 400 })
   }
-  await prisma.user.update({ where: { id: user.userId }, data })
+  await prisma.user.update({ where: { id: targetId }, data })
   return NextResponse.json({ ok: true })
 }

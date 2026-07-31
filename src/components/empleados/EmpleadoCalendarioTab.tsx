@@ -1,8 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { toast } from 'sonner'
+import { handleApiError } from '@/lib/apiErrors'
+import { useRouter } from 'next/navigation'
 
 interface Evento {
   id: number
@@ -38,7 +49,6 @@ interface TipoEvento {
 
 interface Props {
   employeeId: number
-  userId?: number | null
 }
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -48,30 +58,128 @@ function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
+function NuevoEventoDialog({
+  open, onClose, employeeId, tipos, onCreated, router,
+}: {
+  open: boolean; onClose: () => void; employeeId: number
+  tipos: TipoEvento[]
+  onCreated: () => void
+  router: ReturnType<typeof useRouter>
+}) {
+  const [titulo, setTitulo] = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [tipo, setTipo] = useState('')
+  const [fechaInicio, setFechaInicio] = useState('')
+  const [fechaFin, setFechaFin] = useState('')
+  const [todoElDia, setTodoElDia] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setTitulo(''); setDescripcion(''); setTipo('')
+    setFechaInicio(ymd(new Date())); setFechaFin('')
+    setTodoElDia(true); setSaving(false)
+  }, [open])
+
+  async function guardar() {
+    if (!titulo.trim()) { toast.error('Título requerido'); return }
+    if (!fechaInicio) { toast.error('Fecha requerida'); return }
+    if (!tipo) { toast.error('Elegí un tipo de evento'); return }
+    setSaving(true)
+    const res = await fetch('/api/eventos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        titulo, descripcion: descripcion || undefined, tipo,
+        fechaInicio, fechaFin: fechaFin || undefined, todoElDia,
+        employeeIds: [employeeId],
+      }),
+    })
+    setSaving(false)
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
+    toast.success('Evento creado')
+    onCreated()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nuevo evento</DialogTitle>
+          <p className="text-xs text-muted-foreground">Se asignará automáticamente a este empleado.</p>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <div>
+            <Label className="mb-1.5">Título <span className="text-red-500">*</span></Label>
+            <Input value={titulo} onChange={e => setTitulo(e.target.value)} autoFocus />
+          </div>
+          <div>
+            <Label className="mb-1.5">Tipo <span className="text-red-500">*</span></Label>
+            <Select value={tipo} onValueChange={v => v && setTipo(v)}>
+              <SelectTrigger><SelectValue placeholder="Elegir…" /></SelectTrigger>
+              <SelectContent>
+                {tipos.map(t => (
+                  <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="mb-1.5">Fecha inicio <span className="text-red-500">*</span></Label>
+              <Input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1.5">Fecha fin</Label>
+              <Input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <Checkbox checked={todoElDia} onCheckedChange={v => setTodoElDia(!!v)} />
+            Todo el día
+          </label>
+          <div>
+            <Label className="mb-1.5">Descripción</Label>
+            <Textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button className="bg-green-700 hover:bg-green-800" onClick={guardar} disabled={saving}>
+            {saving ? 'Creando…' : 'Crear evento'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function EmpleadoCalendarioTab({ employeeId }: Props) {
   const now = new Date()
+  const router = useRouter()
   const [mes, setMes] = useState(now.getMonth() + 1)
   const [anio, setAnio] = useState(now.getFullYear())
   const [eventos, setEventos] = useState<Evento[]>([])
   const [tipos, setTipos] = useState<TipoEvento[]>([])
   const [loading, setLoading] = useState(true)
+  const [nuevoOpen, setNuevoOpen] = useState(false)
 
-  useEffect(() => {
+  const cargar = () => {
     setLoading(true)
     Promise.all([
-      fetch(`/api/eventos?mes=${mes}&anio=${anio}`).then(r => r.json()),
+      fetch(`/api/eventos?mes=${mes}&anio=${anio}&employeeId=${employeeId}`).then(r => r.json()),
       fetch('/api/configuracion/tipos-evento').then(r => r.ok ? r.json() : []),
     ]).then(([evs, tps]) => {
-      const filtered: Evento[] = (Array.isArray(evs) ? evs : []).filter((e: Evento) => {
-        const asignado = e.asignados?.some(a => a.employeeId === employeeId)
-        const creador = userId != null && e.creadoPorId === userId
-        return asignado || creador
-      })
-      setEventos(filtered)
+      setEventos(Array.isArray(evs) ? evs : [])
       setTipos(Array.isArray(tps) ? tps : [])
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [employeeId, userId, mes, anio])
+  }
+
+  useEffect(() => {
+    cargar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, mes, anio])
 
   const colorPorTipo = useMemo(() => {
     const m = new Map<string, string>()
@@ -146,6 +254,13 @@ export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
             >
               <ChevronRight size={15} />
             </button>
+            <Button
+              size="sm"
+              className="ml-2 h-7 text-xs bg-green-700 hover:bg-green-800"
+              onClick={() => setNuevoOpen(true)}
+            >
+              <Plus size={13} className="mr-1" /> Nuevo evento
+            </Button>
           </div>
         </div>
 
@@ -192,12 +307,23 @@ export function EmpleadoCalendarioTab({ employeeId, userId }: Props) {
         </div>
       </div>
 
+      <NuevoEventoDialog
+        open={nuevoOpen}
+        onClose={() => setNuevoOpen(false)}
+        employeeId={employeeId}
+        tipos={tipos}
+        onCreated={() => { setNuevoOpen(false); cargar() }}
+        router={router}
+      />
+
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b">
           <h3 className="font-semibold text-sm">Eventos del mes</h3>
         </div>
         {loading ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Cargando…</p>
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}
+          </div>
         ) : eventosOrdenados.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">Sin eventos este mes.</p>
         ) : (

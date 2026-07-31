@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Upload, FileText, X, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isPdfFile, MAX_PDF_SIZE } from '@/lib/pdf'
 
 const MESES = [
   { value: '01', label: 'Enero' }, { value: '02', label: 'Febrero' },
@@ -59,8 +60,9 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     })
   }, [open])
 
-  function handleFile(f: File) {
-    if (f.size > 10 * 1024 * 1024) { toast.error('El archivo supera los 10 MB'); return }
+  async function handleFile(f: File) {
+    if (f.size > MAX_PDF_SIZE) { toast.error('El archivo supera los 10 MB'); return }
+    if (!(await isPdfFile(f))) { toast.error('El archivo no es un PDF válido'); return }
     setFile(f)
   }
 

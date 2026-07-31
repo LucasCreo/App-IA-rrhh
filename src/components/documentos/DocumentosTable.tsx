@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { DocumentoUploadDialog } from './DocumentoUploadDialog'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { EmpleadoPicker } from './EmpleadoPicker'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Send, Trash2, Plus, RefreshCw, Download, Search, SlidersHorizontal, X } from 'lucide-react'
+import { FileText, Send, Trash2, Plus, Download, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
@@ -22,7 +23,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Doc {
   id: number; nombreArchivo: string; periodo: string | null; estado: string
-  fechaCarga: string; fechaFirma?: string; firmaExternalId?: string
+  fechaCarga: string; fechaFirma?: string
   firmaConforme?: boolean | null
   employee: { nombre: string; apellido: string; legajo: string }
   cargadoPor: { email: string }
@@ -110,13 +111,16 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   }, [filtQ])
 
   useEffect(() => {
-    fetch('/api/empleados?all=true&estado=ACTIVO')
-      .then(r => r.json())
-      .then(d => {
-        setTotalEmpleados(d.total)
-        setEmpleados(d.employees ?? [])
-      })
-    fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+    // Empleados y categorías solo hacen falta cuando NO estamos en scope 1-empleado
+    if (!employeeId) {
+      fetch('/api/empleados?all=true&estado=ACTIVO')
+        .then(r => r.json())
+        .then(d => {
+          setTotalEmpleados(d.total)
+          setEmpleados(d.employees ?? [])
+        })
+      fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+    }
     fetch('/api/configuracion/tipos-documento').then(r => r.json()).then(d => {
       const list = Array.isArray(d) ? d : []
       setTipos(esRecibo === true
@@ -146,15 +150,17 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
 
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [envioErrors, setEnvioErrors] = useState<Array<{ id: number; nombre: string; message: string }>>([])
+  const [envioReporteOpen, setEnvioReporteOpen] = useState(false)
+
   async function handleBulkDelete() {
     if (selectedDocs.length === 0) return
     setBulkDeleting(true)
-    let ok = 0, fail = 0
-    for (const doc of selectedDocs) {
-      const res = await fetch(`/api/documentos/${doc.id}`, { method: 'DELETE' })
-      if (res.ok) ok++
-      else fail++
-    }
+    const results = await Promise.all(selectedDocs.map(d =>
+      fetch(`/api/documentos/${d.id}`, { method: 'DELETE' })
+    ))
+    const ok = results.filter(r => r.ok).length
+    const fail = results.length - ok
     setBulkDeleting(false)
     setBulkDeleteOpen(false)
     if (ok > 0) toast.success(`${ok} eliminado(s)`)
@@ -162,47 +168,72 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
     load()
   }
 
-  function handleBulkDownload() {
+  async function handleBulkDownload() {
     if (selectedDocs.length === 0) return
-    for (const doc of selectedDocs) {
-      const a = document.createElement('a')
-      a.href = `/api/documentos/${doc.id}/archivo`
-      a.download = doc.nombreArchivo
-      a.target = '_blank'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
+    const res = await fetch('/api/documentos/descargar-zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selectedDocs.map(d => d.id) }),
+    })
+    if (!res.ok) {
+      await handleApiError(res, href => router.push(href))
+      return
     }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `documentos_${new Date().toISOString().slice(0, 10)}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function enviarDocs(target: Doc[]): Promise<Array<{ id: number; nombre: string; message: string }>> {
+    const results = await Promise.all(target.map(async doc => {
+      const res = await fetch(`/api/documentos/${doc.id}/enviar-firma`, { method: 'POST' })
+      if (res.ok) return null
+      const payload = await res.clone().json().catch(() => null)
+      return {
+        id: doc.id,
+        nombre: `${doc.employee.apellido}, ${doc.employee.nombre} (${doc.employee.legajo})`,
+        message: payload?.error ?? `Error ${res.status}`,
+      }
+    }))
+    return results.filter((x): x is { id: number; nombre: string; message: string } => x !== null)
   }
 
   async function handleBulkSend() {
-    // Si hay seleccionados, usar solo los enviables de esa lista; si no, todos los enviables
     const todosEnviables = docs.filter(d =>
       (d.estado === 'BORRADOR' || d.estado === 'ERROR') && d.tipoDocumento?.accion !== 'NINGUNA'
     )
     const target = selected.size > 0 ? enviablesSelected : todosEnviables
     if (!target.length) return
     setSendingBulk(true)
-    let ok = 0, fail = 0
-    let configError: Awaited<ReturnType<typeof handleApiError>> | null = null
-    for (const doc of target) {
-      const res = await fetch(`/api/documentos/${doc.id}/enviar-firma`, { method: 'POST' })
-      if (res.ok) { ok++; continue }
-      fail++
-      // Si el error es de configuración, detenemos e informamos una sola vez
-      const payload = await res.clone().json().catch(() => null)
-      if (payload?.code === 'SIGNATURE_NOT_CONFIGURED' || payload?.code === 'SIGNATURE_INCOMPLETE') {
-        configError = payload
-        break
-      }
-    }
+    const errors = await enviarDocs(target)
     setSendingBulk(false)
-    if (configError) {
-      // Reusar el helper para mostrar con acción "Configurar firma"
-      const { showApiError } = await import('@/lib/apiErrors')
-      showApiError(configError, href => router.push(href))
-    } else if (fail > 0) toast.error(`${fail} envío(s) fallaron`)
+    const ok = target.length - errors.length
     if (ok > 0) toast.success(`${ok} enviado(s)`)
+    if (errors.length > 0) {
+      setEnvioErrors(errors)
+      setEnvioReporteOpen(true)
+    }
+    load()
+  }
+
+  async function reintentarFallidos() {
+    const target = docs.filter(d => envioErrors.some(e => e.id === d.id))
+    if (target.length === 0) return
+    setSendingBulk(true)
+    const errors = await enviarDocs(target)
+    setSendingBulk(false)
+    const ok = target.length - errors.length
+    if (ok > 0) toast.success(`${ok} reenviado(s)`)
+    if (errors.length > 0) {
+      setEnvioErrors(errors)
+    } else {
+      setEnvioErrors([])
+      setEnvioReporteOpen(false)
+    }
     load()
   }
 
@@ -228,18 +259,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
     else setSelected(new Set(seleccionables.map(d => d.id)))
   }
 
-  async function handleCheckStatus(id: number) {
-    const res = await fetch(`/api/documentos/${id}/enviar-firma`, { method: 'PATCH' })
-    if (!res.ok) {
-      await handleApiError(res, href => router.push(href))
-    } else {
-      const data = await res.json()
-      toast.success(`Estado actualizado: ${data.estado ?? 'OK'}`)
-    }
-    load()
-  }
-
-  function exportCSV() {
+function exportCSV() {
     const BOM = '﻿'
     const headers = ['Empleado', 'Legajo', 'Período', 'Tipo', 'Archivo', 'Estado', 'Fecha Carga']
     const rows = docs.map(d => [
@@ -279,7 +299,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const firmados = docs.filter(d => d.estado === 'FIRMADO').length
   const enviados = docs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length
   const empleadosConRecibo = new Set(docs.map(d => d.employee.legajo)).size
-  const sinRecibo = filtPeriodo ? Math.max(0, totalEmpleados - empleadosConRecibo) : null
+  const sinRecibo = filtPeriodo && !employeeId ? Math.max(0, totalEmpleados - empleadosConRecibo) : null
 
   const activeFiltersCount = [
     filtMes, filtAno,
@@ -307,7 +327,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9"
-            placeholder="Buscar por archivo, empleado o legajo…"
+            placeholder={employeeId ? 'Buscar por archivo…' : 'Buscar por archivo, empleado o legajo…'}
             value={filtQ}
             onChange={e => { setFiltQ(e.target.value); setPage(1) }}
           />
@@ -546,30 +566,13 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
                   </span>
                 )}
                 <div className="flex gap-2 pt-1">
-                  {(() => {
-                    const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
-                    if (accion === 'NINGUNA') return null
-                    if (accion === 'LECTURA') {
-                      if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
-                        return <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}</Button>
-                      return null
-                    }
-                    return <>
-                      {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
-                        <Button size="sm" variant="outline" className="text-blue-600 flex-1" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
-                        </Button>
-                      )}
-                      {doc.estado === 'ENVIADO_A_FIRMA' && doc.firmaExternalId && (
-                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleCheckStatus(doc.id)}>
-                          <RefreshCw size={14} className="mr-1" />Ver estado
-                        </Button>
-                      )}
-                    </>
-                  })()}
-                  <Button size="sm" variant="destructive" onClick={() => setDeleteId(doc.id)}>
-                    <Trash2 size={14} />
-                  </Button>
+                  <DocActions
+                    doc={doc}
+                    sending={sending}
+                    onSend={handleSendToSign}
+                    onDelete={setDeleteId}
+                    fill
+                  />
                 </div>
               </div>
               )
@@ -647,30 +650,12 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
                       {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
-                      {(() => {
-                        const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
-                        if (accion === 'NINGUNA') return null
-                        if (accion === 'LECTURA') {
-                          if (doc.estado === 'BORRADOR' || doc.estado === 'ERROR')
-                            return <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}><Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}</Button>
-                          return null
-                        }
-                        return <>
-                          {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
-                            <Button size="sm" variant="outline" className="text-blue-600" onClick={() => handleSendToSign(doc.id)} disabled={sending === doc.id}>
-                              <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
-                            </Button>
-                          )}
-                          {doc.estado === 'ENVIADO_A_FIRMA' && doc.firmaExternalId && (
-                            <Button size="sm" variant="outline" onClick={() => handleCheckStatus(doc.id)}>
-                              <RefreshCw size={14} className="mr-1" />Estado
-                            </Button>
-                          )}
-                        </>
-                      })()}
-                      <Button size="sm" variant="destructive" onClick={() => setDeleteId(doc.id)}>
-                        <Trash2 size={14} />
-                      </Button>
+                      <DocActions
+                        doc={doc}
+                        sending={sending}
+                        onSend={handleSendToSign}
+                        onDelete={setDeleteId}
+                      />
                     </TableCell>
                   </TableRow>
                   )
@@ -726,8 +711,68 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={envioReporteOpen} onOpenChange={setEnvioReporteOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Envío incompleto</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground mb-2">
+            {envioErrors.length} documento{envioErrors.length === 1 ? '' : 's'} no se pudo{envioErrors.length === 1 ? '' : 'ieron'} enviar.
+          </div>
+          <div className="max-h-60 overflow-y-auto border rounded-md divide-y">
+            {envioErrors.map(e => (
+              <div key={e.id} className="p-2 text-xs">
+                <div className="font-medium">{e.nombre}</div>
+                <div className="text-red-600 dark:text-red-400">{e.message}</div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnvioReporteOpen(false)}>Cerrar</Button>
+            <Button className="bg-green-700 hover:bg-green-800" onClick={reintentarFallidos} disabled={sendingBulk}>
+              {sendingBulk ? 'Reenviando…' : 'Reintentar fallidos'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {uploadOpen && <DocumentoUploadDialog open onClose={() => setUploadOpen(false)} onSaved={load} esRecibo={esRecibo} employeeId={employeeId} />}
       {cargarOpen && <DocumentoCargarDialog open onClose={() => setCargarOpen(false)} onSaved={load} />}
     </div>
+  )
+}
+
+function DocActions({ doc, sending, onSend, onDelete, fill }: {
+  doc: Doc
+  sending: number | null
+  onSend: (id: number) => void
+  onDelete: (id: number) => void
+  fill?: boolean
+}) {
+  const accion = doc.tipoDocumento?.accion ?? 'FIRMA'
+  if (accion === 'NINGUNA') {
+    return (
+      <Button size="sm" variant="destructive" onClick={() => onDelete(doc.id)}>
+        <Trash2 size={14} />
+      </Button>
+    )
+  }
+  return (
+    <>
+      {(doc.estado === 'BORRADOR' || doc.estado === 'ERROR') && (
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn('text-blue-600', fill && 'flex-1')}
+          onClick={() => onSend(doc.id)}
+          disabled={sending === doc.id}
+        >
+          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
+        </Button>
+      )}
+      <Button size="sm" variant="destructive" onClick={() => onDelete(doc.id)}>
+        <Trash2 size={14} />
+      </Button>
+    </>
   )
 }

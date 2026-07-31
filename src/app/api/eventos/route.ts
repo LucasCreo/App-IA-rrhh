@@ -12,6 +12,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const mes = parseInt(searchParams.get('mes') ?? '0')
     const anio = parseInt(searchParams.get('anio') ?? '0')
+    const empleadoParam = searchParams.get('employeeId')
+    const empleadoFiltro = empleadoParam ? parseInt(empleadoParam) : null
 
     const desde = anio && mes ? new Date(anio, mes - 1, 1) : undefined
     const hasta = anio && mes ? new Date(anio, mes, 0, 23, 59, 59) : undefined
@@ -21,6 +23,11 @@ export async function GET(req: NextRequest) {
     const rangoAus = desde && hasta ? { fechaInicio: { lte: hasta }, fechaFin: { gte: desde } } : {}
 
     const esEmpleado = user.role === 'EMPLOYEE' && user.employeeId
+
+    // Si un admin pide eventos de un empleado específico, filtrar a los asignados a ese empleado
+    const filtroEmpleado = !esEmpleado && empleadoFiltro
+      ? { asignados: { some: { employeeId: empleadoFiltro } } }
+      : {}
 
     const eventos = esEmpleado
       ? await prisma.evento.findMany({
@@ -38,7 +45,7 @@ export async function GET(req: NextRequest) {
           orderBy: { fechaInicio: 'asc' },
         })
       : await prisma.evento.findMany({
-          where: rangoFiltro,
+          where: { ...rangoFiltro, ...filtroEmpleado },
           include: {
             creadoPor: { select: { email: true, role: true } },
             asignados: { include: { employee: { select: { id: true, nombre: true, apellido: true, legajo: true } } } },
@@ -52,6 +59,7 @@ export async function GET(req: NextRequest) {
         estado: 'APROBADA',
         ...rangoAus,
         ...(esEmpleado ? { employeeId: user.employeeId! } : {}),
+        ...(!esEmpleado && empleadoFiltro ? { employeeId: empleadoFiltro } : {}),
       },
       include: {
         tipoAusencia: { select: { nombre: true, color: true } },

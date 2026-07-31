@@ -16,6 +16,8 @@ interface Props {
   initialTextColor?: string | null
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  /** Cuando se pasa un userId, se cambia el avatar de ese usuario (admin editando a otro empleado). Por defecto edita el del usuario actual. */
+  targetUserId?: number
 }
 
 const sizes = { sm: 32, md: 40, lg: 80 }
@@ -43,8 +45,9 @@ async function cropToBlob(imageSrc: string, area: Area, tipo = 'image/jpeg'): Pr
 }
 
 export function AvatarUpload({
-  initials, initialAvatar, initialBgColor, initialTextColor, size = 'md', className,
+  initials, initialAvatar, initialBgColor, initialTextColor, size = 'md', className, targetUserId,
 }: Props) {
+  const qs = targetUserId ? `?userId=${targetUserId}` : ''
   const [avatar, setAvatar] = useState<string | null>(initialAvatar ?? null)
   const [bgColor, setBgColor] = useState<string>(initialBgColor ?? DEFAULT_BG)
   const [textColor, setTextColor] = useState<string>(initialTextColor ?? DEFAULT_TEXT)
@@ -81,7 +84,7 @@ export function AvatarUpload({
       const blob = await cropToBlob(imgSrc, croppedArea)
       const fd = new FormData()
       fd.append('file', new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
-      const res = await fetch('/api/auth/avatar', { method: 'POST', body: fd })
+      const res = await fetch(`/api/auth/avatar${qs}`, { method: 'POST', body: fd })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Error')
       const data = await res.json()
       setAvatar(data.avatarUrl)
@@ -97,7 +100,7 @@ export function AvatarUpload({
 
   async function eliminarFoto() {
     setBusy(true)
-    const res = await fetch('/api/auth/avatar', { method: 'DELETE' })
+    const res = await fetch(`/api/auth/avatar${qs}`, { method: 'DELETE' })
     setBusy(false)
     if (!res.ok) { toast.error('Error al eliminar'); return }
     setAvatar(null)
@@ -108,7 +111,7 @@ export function AvatarUpload({
 
   async function guardarColores() {
     setBusy(true)
-    const res = await fetch('/api/auth/avatar', {
+    const res = await fetch(`/api/auth/avatar${qs}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ avatarBgColor: bgColor, avatarTextColor: textColor }),

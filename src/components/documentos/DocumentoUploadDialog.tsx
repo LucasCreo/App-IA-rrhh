@@ -167,7 +167,6 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
         return
       }
 
-      // Parsear el primer error para dar detalle específico
       const firstErr = await parseApiError(failed[0].res)
       const nombre = failed[0].entry.file.name
 
@@ -179,8 +178,10 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
           error: `${failed.length} de ${results.length} archivos fallaron. Primer error — ${nombre}: ${firstErr.error}`,
         }, href => router.push(href))
       }
-      if (ok > 0) toast.success(`${ok} archivo${ok === 1 ? '' : 's'} cargado${ok === 1 ? '' : 's'} correctamente`)
-      onSaved()
+      if (ok > 0) {
+        toast.success(`${ok} archivo${ok === 1 ? '' : 's'} cargado${ok === 1 ? '' : 's'} correctamente`)
+        onSaved()
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error de red al cargar los archivos')
     } finally {

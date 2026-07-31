@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
-import { SIGNATURE_MODE } from '@/lib/features'
 
 export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
@@ -16,13 +15,6 @@ export async function GET() {
     results.db = { ok: true, detail: `Conectado (${Date.now() - t0}ms)` }
   } catch (e: any) {
     results.db = { ok: false, detail: e?.message ?? 'Sin conexión a la DB' }
-  }
-
-  results.firma = {
-    ok: true,
-    detail: SIGNATURE_MODE === 'password'
-      ? 'Modo contraseña (interno)'
-      : 'Modo proveedor externo',
   }
 
   const conGoogle = await prisma.user.count({

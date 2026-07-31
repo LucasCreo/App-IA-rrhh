@@ -74,12 +74,13 @@ export function LotesTable() {
   async function handleBulkDelete() {
     if (selected.size === 0) return
     setBulkDeleting(true)
-    let ok = 0, fail = 0
-    for (const id of selected) {
-      const res = await fetch(`/api/lotes/${id}`, { method: 'DELETE' })
-      if (res.ok) ok++
-      else fail++
-    }
+    const results = await Promise.all(
+      Array.from(selected).map(id =>
+        fetch(`/api/lotes/${id}`, { method: 'DELETE' }).then(r => r.ok)
+      )
+    )
+    const ok = results.filter(Boolean).length
+    const fail = results.length - ok
     setBulkDeleting(false)
     setBulkDeleteOpen(false)
     setSelected(new Set())
@@ -89,27 +90,24 @@ export function LotesTable() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="h-14 border-b border-border bg-background flex items-center justify-between px-6 shrink-0">
-        <h1 className="font-semibold text-foreground">Lotes de Recibos</h1>
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
-              onClick={() => setBulkDeleteOpen(true)}
-            >
-              <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}
-            </Button>
-          )}
-          <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
-            <Plus size={16} className="mr-1.5" />Nuevo Lote
+    <div className="space-y-4">
+      <div className="flex items-center justify-end gap-2">
+        {selected.size > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}
           </Button>
-        </div>
-      </header>
+        )}
+        <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
+          <Plus size={16} className="mr-1.5" />Nuevo Lote
+        </Button>
+      </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div>
         {loading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}

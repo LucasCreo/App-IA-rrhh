@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json()
   const doc = await prisma.document.update({
     where: { id: Number(id) },
-    data: { estado: body.estado, firmaExternalId: body.firmaExternalId, fechaFirma: body.fechaFirma },
+    data: { estado: body.estado, fechaFirma: body.fechaFirma },
   })
   return NextResponse.json(doc)
 }

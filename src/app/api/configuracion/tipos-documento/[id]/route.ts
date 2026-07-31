@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { Prisma } from '@prisma/client'
+import { invalidateReciboTipoCache } from '@/lib/tiposDocumento'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
@@ -40,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         tienePeriodo: tienePeriodo !== undefined ? tienePeriodo !== false : undefined,
       },
     })
+    invalidateReciboTipoCache()
     return NextResponse.json({ ...tipo, campos: tipo.campos ? JSON.parse(tipo.campos) : null })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -63,6 +65,7 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
       await tx.document.updateMany({ where: { tipoDocumentoId: Number(id) }, data: { tipoDocumentoId: null } })
       await tx.tipoDocumento.delete({ where: { id: Number(id) } })
     })
+    invalidateReciboTipoCache()
     return NextResponse.json({ ok: true })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

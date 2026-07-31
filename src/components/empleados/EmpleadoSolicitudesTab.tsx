@@ -78,19 +78,17 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
 
-  const [reviewDoc, setReviewDoc] = useState<{ solicitud: SolicitudDoc; estado: 'APROBADO' | 'RECHAZADO' } | null>(null)
-  const [comentarioDoc, setComentarioDoc] = useState('')
-  const [visibleDoc, setVisibleDoc] = useState(false)
-
-  const [reviewAus, setReviewAus] = useState<SolicitudAus | null>(null)
-  const [comentarioAus, setComentarioAus] = useState('')
+  const [reviewDoc, setReviewDoc] = useState<{
+    solicitud: SolicitudDoc; estado: 'APROBADO' | 'RECHAZADO'; comentario: string; comentarioVisible: boolean
+  } | null>(null)
+  const [reviewAus, setReviewAus] = useState<{ solicitud: SolicitudAus; comentario: string } | null>(null)
   const [saldoReview, setSaldoReview] = useState<{ diasTotales: number; diasUsados: number } | null>(null)
-
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
 
   useEffect(() => {
-    if (!reviewAus || !reviewAus.tipoAusencia.afectaSaldo) { setSaldoReview(null); return }
-    const anio = new Date(reviewAus.fechaInicio).getFullYear()
+    const s = reviewAus?.solicitud
+    if (!s || !s.tipoAusencia.afectaSaldo) { setSaldoReview(null); return }
+    const anio = new Date(s.fechaInicio).getFullYear()
     fetch(`/api/ausencias/saldo?employeeId=${employeeId}&anio=${anio}`)
       .then(r => r.ok ? r.json() : null)
       .then(s => setSaldoReview(s))
@@ -116,24 +114,24 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
     const res = await fetch(`/api/solicitudes/${reviewDoc.solicitud.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: reviewDoc.estado, comentario: comentarioDoc, comentarioVisible: visibleDoc }),
+      body: JSON.stringify({ estado: reviewDoc.estado, comentario: reviewDoc.comentario, comentarioVisible: reviewDoc.comentarioVisible }),
     })
     if (!res.ok) { toast.error('Error al actualizar la solicitud'); return }
     toast.success(reviewDoc.estado === 'APROBADO' ? 'Solicitud aprobada' : 'Solicitud rechazada')
-    setReviewDoc(null); setComentarioDoc(''); setVisibleDoc(false)
+    setReviewDoc(null)
     load()
   }
 
   async function resolverAus(estado: 'APROBADA' | 'RECHAZADA') {
     if (!reviewAus) return
-    const res = await fetch(`/api/ausencias/solicitudes/${reviewAus.id}`, {
+    const res = await fetch(`/api/ausencias/solicitudes/${reviewAus.solicitud.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado, comentarioAdmin: comentarioAus }),
+      body: JSON.stringify({ estado, comentarioAdmin: reviewAus.comentario }),
     })
     if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     toast.success(estado === 'APROBADA' ? 'Solicitud aprobada' : 'Solicitud rechazada')
-    setReviewAus(null); setComentarioAus('')
+    setReviewAus(null)
     load()
   }
 
@@ -197,12 +195,12 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
               <RowDoc
                 key={item.key}
                 s={item.data}
-                onReview={(estado) => { setReviewDoc({ solicitud: item.data, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
+                onReview={(estado) => setReviewDoc({ solicitud: item.data, estado, comentario: '', comentarioVisible: false })}
                 onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
               />
             )
             if (item.kind === 'aus') return (
-              <RowAus key={item.key} s={item.data} onReview={() => { setReviewAus(item.data); setComentarioAus(item.data.comentarioAdmin ?? '') }} />
+              <RowAus key={item.key} s={item.data} onReview={() => setReviewAus({ solicitud: item.data, comentario: item.data.comentarioAdmin ?? '' })} />
             )
             return <RowForm key={item.key} r={item.data} onView={() => setViewForm(item.data)} />
           })}
@@ -218,18 +216,18 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
             <p className="text-sm text-muted-foreground">Podés agregar un comentario opcional para el empleado.</p>
             <Textarea
               placeholder="Ej: Todo en orden, muchas gracias…"
-              value={comentarioDoc}
-              onChange={e => setComentarioDoc(e.target.value)}
+              value={reviewDoc?.comentario ?? ''}
+              onChange={e => setReviewDoc(r => r ? { ...r, comentario: e.target.value } : r)}
               rows={3}
             />
             <div className="flex items-center gap-2">
               <Checkbox
                 id="visible"
-                checked={visibleDoc}
-                onCheckedChange={v => setVisibleDoc(v === true)}
-                disabled={!comentarioDoc.trim()}
+                checked={reviewDoc?.comentarioVisible ?? false}
+                onCheckedChange={v => setReviewDoc(r => r ? { ...r, comentarioVisible: v === true } : r)}
+                disabled={!reviewDoc?.comentario.trim()}
               />
-              <label htmlFor="visible" className={cn('text-sm select-none', !comentarioDoc.trim() && 'text-muted-foreground/50')}>
+              <label htmlFor="visible" className={cn('text-sm select-none', !reviewDoc?.comentario.trim() && 'text-muted-foreground/50')}>
                 Mostrar comentario al empleado
               </label>
             </div>
@@ -250,60 +248,68 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {reviewAus?.estado === 'PENDIENTE' ? 'Revisar solicitud de ausencia' : 'Detalle de solicitud'}
+              {reviewAus?.solicitud.estado === 'PENDIENTE' ? 'Revisar solicitud de ausencia' : 'Detalle de solicitud'}
             </DialogTitle>
           </DialogHeader>
-          {reviewAus && (
+          {reviewAus && (() => {
+            const s = reviewAus.solicitud
+            return (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
-                <div><p className="text-muted-foreground text-xs">Tipo</p><p className="font-medium">{reviewAus.tipoAusencia.nombre}</p></div>
-                <div><p className="text-muted-foreground text-xs">Solicitado</p><p>{fmt(reviewAus.createdAt)}</p></div>
-                <div><p className="text-muted-foreground text-xs">Desde</p><p>{fmt(reviewAus.fechaInicio)}</p></div>
-                <div><p className="text-muted-foreground text-xs">Hasta</p><p>{fmt(reviewAus.fechaFin)}</p></div>
-                <div><p className="text-muted-foreground text-xs">Días hábiles</p><p>{reviewAus.dias}</p></div>
+                <div><p className="text-muted-foreground text-xs">Tipo</p><p className="font-medium">{s.tipoAusencia.nombre}</p></div>
+                <div><p className="text-muted-foreground text-xs">Solicitado</p><p>{fmt(s.createdAt)}</p></div>
+                <div><p className="text-muted-foreground text-xs">Desde</p><p>{fmt(s.fechaInicio)}</p></div>
+                <div><p className="text-muted-foreground text-xs">Hasta</p><p>{fmt(s.fechaFin)}</p></div>
+                <div><p className="text-muted-foreground text-xs">Días hábiles</p><p>{s.dias}</p></div>
               </div>
-              {reviewAus.tipoAusencia.afectaSaldo && saldoReview && (() => {
+              {s.tipoAusencia.afectaSaldo && saldoReview && (() => {
                 const restantes = saldoReview.diasTotales - saldoReview.diasUsados
-                const despues = restantes - reviewAus.dias
+                const despues = restantes - s.dias
                 if (despues >= 0) {
                   return <p className="text-xs text-muted-foreground">Saldo: {restantes} disponibles · quedarían {despues} tras aprobar</p>
                 }
                 return (
                   <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
-                    ⚠ Al aprobar, el saldo quedaría en <strong>{despues}</strong> (solicita {reviewAus.dias} y le quedan {restantes}).
+                    ⚠ Al aprobar, el saldo quedaría en <strong>{despues}</strong> (solicita {s.dias} y le quedan {restantes}).
                   </div>
                 )
               })()}
-              {reviewAus.motivo && (
+              {s.motivo && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-muted-foreground text-xs mb-0.5">Motivo</p>
-                  <p>{reviewAus.motivo}</p>
+                  <p>{s.motivo}</p>
                 </div>
               )}
-              {reviewAus.archivoUrl && (
+              {s.archivoUrl && (
                 <button
-                  onClick={() => setPreview({ url: reviewAus.archivoUrl!, filename: reviewAus.archivoUrl!.split('/').pop() ?? undefined })}
+                  onClick={() => setPreview({ url: s.archivoUrl!, filename: s.archivoUrl!.split('/').pop() ?? undefined })}
                   className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
                 >
                   <Paperclip size={13} /> Ver adjunto
                 </button>
               )}
-              {reviewAus.estado === 'PENDIENTE' && (
+              {s.estado === 'PENDIENTE' && (
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Comentario (opcional)</label>
-                  <Input className="mt-1" value={comentarioAus} onChange={e => setComentarioAus(e.target.value)} placeholder="Ej: aprobado para la semana del 14/7" />
+                  <Input
+                    className="mt-1"
+                    value={reviewAus.comentario}
+                    onChange={e => setReviewAus(r => r ? { ...r, comentario: e.target.value } : r)}
+                    placeholder="Ej: aprobado para la semana del 14/7"
+                  />
                 </div>
               )}
-              {reviewAus.estado !== 'PENDIENTE' && reviewAus.comentarioAdmin && (
+              {s.estado !== 'PENDIENTE' && s.comentarioAdmin && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-muted-foreground text-xs mb-0.5">Comentario admin</p>
-                  <p>{reviewAus.comentarioAdmin}</p>
+                  <p>{s.comentarioAdmin}</p>
                 </div>
               )}
             </div>
-          )}
-          {reviewAus?.estado === 'PENDIENTE' && (
-            reviewAus.canApprove ? (
+            )
+          })()}
+          {reviewAus?.solicitud.estado === 'PENDIENTE' && (
+            reviewAus.solicitud.canApprove ? (
               <DialogFooter className="gap-2">
                 <Button variant="destructive" size="sm" onClick={() => resolverAus('RECHAZADA')}>
                   <XCircle size={14} className="mr-1" /> Rechazar
@@ -336,6 +342,14 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
           </DialogHeader>
           {viewForm && (
             <div className="space-y-2 mt-1 max-h-96 overflow-y-auto pr-1">
+              {viewForm.estado === 'PENDIENTE' && (
+                <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+                  El empleado aún no completó este formulario.
+                  {viewForm.asignacion.fechaLimite && (
+                    <> Vence el {new Date(viewForm.asignacion.fechaLimite).toLocaleDateString('es-AR')}.</>
+                  )}
+                </div>
+              )}
               {viewForm.asignacion.plantilla.campos
                 .filter(c => c.rellena === 'empleado')
                 .map(c => {
@@ -469,11 +483,9 @@ function RowForm({ r, onView }: { r: RespuestaForm; onView: () => void }) {
           )}
           <p className="text-xs text-muted-foreground mt-0.5">{new Date(r.updatedAt).toLocaleDateString('es-AR')}</p>
         </div>
-        {completado && (
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onView}>
-            Ver
-          </Button>
-        )}
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onView}>
+          {completado ? 'Ver respuestas' : 'Ver detalle'}
+        </Button>
       </div>
     </div>
   )

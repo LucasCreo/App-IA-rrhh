@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { randomBytes } from 'crypto'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -50,7 +51,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         continue
       }
 
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      // Prevenir duplicados: mismo empleado ya cargado en este lote
+      const dup = await prisma.document.findFirst({
+        where: { loteId: lote.id, employeeId },
+        select: { id: true },
+      })
+      if (dup) {
+        errors.push(`${file.name}: el empleado ya tiene un recibo cargado en este lote (eliminá el anterior si querés reemplazarlo)`)
+        continue
+      }
+
+      const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
       const filePath = join(uploadsDir, fileName)
       await writeFile(filePath, buffer)
 

@@ -14,7 +14,9 @@ import { ImportEmpleadosDialog } from './ImportEmpleadosDialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, Plus, Search, SlidersHorizontal, X, Download, Upload } from 'lucide-react'
+import { Trash2, Plus, Search, SlidersHorizontal, X, Download, Upload, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
+import { formatearCuil } from '@/lib/cuil'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -26,8 +28,32 @@ interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; estado: string
   categoria: { nombre: string }; categoriaId: number
-  user?: { avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null } | null
+  user?: {
+    avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null
+    manager?: { employee: { nombre: string; apellido: string } | null } | null
+  } | null
   _count?: { solicitudesModificacion: number }
+}
+
+function SortableHead({ campo, label, sortBy, sortOrder, onSort }: {
+  campo: string; label: string; sortBy: string; sortOrder: 'asc' | 'desc'; onSort: (c: string) => void
+}) {
+  const active = sortBy === campo
+  const Icon = active ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ChevronsUpDown
+  return (
+    <TableHead>
+      <button
+        onClick={() => onSort(campo)}
+        className={cn(
+          'inline-flex items-center gap-1 hover:text-foreground transition-colors',
+          active ? 'text-foreground font-semibold' : 'text-muted-foreground'
+        )}
+      >
+        {label}
+        <Icon size={12} className={active ? '' : 'opacity-40'} />
+      </button>
+    </TableHead>
+  )
 }
 
 export function EmpleadosTable() {
@@ -39,8 +65,15 @@ export function EmpleadosTable() {
   const [qDebounced, setQDebounced] = useState(q)
   const [estado, setEstado] = useState(() => searchParams.get('estado') ?? '')
   const [categoriaId, setCategoriaId] = useState(() => searchParams.get('categoriaId') ?? '')
+  const [sinAcceso, setSinAcceso] = useState(() => searchParams.get('sinAcceso') === 'true')
   const [cats, setCats] = useState<Categoria[]>([])
   const [page, setPage] = useState(() => Number(searchParams.get('page') ?? '1') || 1)
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const l = Number(searchParams.get('limit') ?? '20')
+    return [20, 50, 100].includes(l) ? l : 20
+  })
+  const [sortBy, setSortBy] = useState<string>(() => searchParams.get('sortBy') ?? 'apellido')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(() => (searchParams.get('sortOrder') === 'desc' ? 'desc' : 'asc'))
   const [dialog, setDialog] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; legajo: string } | null>(null)
@@ -66,26 +99,39 @@ export function EmpleadosTable() {
     if (qDebounced) params.set('q', qDebounced)
     if (estado) params.set('estado', estado)
     if (categoriaId) params.set('categoriaId', categoriaId)
+    if (sinAcceso) params.set('sinAcceso', 'true')
     if (page > 1) params.set('page', String(page))
+    if (pageSize !== 20) params.set('limit', String(pageSize))
+    if (sortBy !== 'apellido') params.set('sortBy', sortBy)
+    if (sortOrder !== 'asc') params.set('sortOrder', sortOrder)
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [qDebounced, estado, categoriaId, page, pathname, router])
+  }, [qDebounced, estado, categoriaId, sinAcceso, page, pageSize, sortBy, sortOrder, pathname, router])
 
   const load = useCallback(() => {
     setLoading(true)
-    const params = new URLSearchParams({ q: qDebounced, page: String(page) })
+    const params = new URLSearchParams({ q: qDebounced, page: String(page), limit: String(pageSize) })
     if (estado) params.set('estado', estado)
     if (categoriaId) params.set('categoriaId', categoriaId)
+    if (sinAcceso) params.set('sinAcceso', 'true')
+    params.set('sortBy', sortBy)
+    params.set('sortOrder', sortOrder)
     fetch(`/api/empleados?${params}`)
       .then(r => r.json())
       .then(setData)
       .finally(() => setLoading(false))
-  }, [qDebounced, estado, categoriaId, page])
+  }, [qDebounced, estado, categoriaId, sinAcceso, page, pageSize, sortBy, sortOrder])
 
   useEffect(() => { load() }, [load])
 
   // Al cambiar de página o filtros, limpiar selección
-  useEffect(() => { setSelected(new Set()) }, [qDebounced, estado, categoriaId, page])
+  useEffect(() => { setSelected(new Set()) }, [qDebounced, estado, categoriaId, sinAcceso, page, pageSize, sortBy, sortOrder])
+
+  function toggleSort(campo: string) {
+    if (sortBy === campo) setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(campo); setSortOrder('asc') }
+    setPage(1)
+  }
 
   const allSelected = data.employees.length > 0 && data.employees.every(e => selected.has(e.id))
   const someSelected = selected.size > 0 && !allSelected
@@ -118,12 +164,13 @@ export function EmpleadosTable() {
   async function handleBulkDelete() {
     if (selected.size === 0) return
     setBulkDeleting(true)
-    let ok = 0, fail = 0
-    for (const id of selected) {
-      const res = await fetch(`/api/empleados/${id}`, { method: 'DELETE' })
-      if (res.ok) ok++
-      else fail++
-    }
+    const results = await Promise.all(
+      Array.from(selected).map(id =>
+        fetch(`/api/empleados/${id}`, { method: 'DELETE' }).then(r => r.ok)
+      )
+    )
+    const ok = results.filter(Boolean).length
+    const fail = results.length - ok
     setBulkDeleting(false)
     setBulkDeleteOpen(false)
     setSelected(new Set())
@@ -153,6 +200,7 @@ export function EmpleadosTable() {
   const activeFilters = [
     estado && { key: 'estado', label: estado === 'ACTIVO' ? 'Activo' : 'Inactivo', clear: () => { setEstado(''); setPage(1) } },
     categoriaId && { key: 'cat', label: cats.find(c => String(c.id) === categoriaId)?.nombre ?? '', clear: () => { setCategoriaId(''); setPage(1) } },
+    sinAcceso && { key: 'sinAcceso', label: 'Sin acceso al sistema', clear: () => { setSinAcceso(false); setPage(1) } },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[]
 
   const filterCount = activeFilters.length
@@ -244,9 +292,22 @@ export function EmpleadosTable() {
                   </div>
                 </div>
 
+                {/* Sin acceso al sistema */}
+                <div className="space-y-2 border-t pt-3">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={sinAcceso}
+                      onChange={e => { setSinAcceso(e.target.checked); setPage(1) }}
+                      className="w-3.5 h-3.5 accent-green-700"
+                    />
+                    <span className="font-medium">Solo sin acceso al sistema</span>
+                  </label>
+                </div>
+
                 {filterCount > 0 && (
                   <button
-                    onClick={() => { setEstado(''); setCategoriaId(''); setPage(1) }}
+                    onClick={() => { setEstado(''); setCategoriaId(''); setSinAcceso(false); setPage(1) }}
                     className="w-full rounded-md border border-input px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
                   >
                     Limpiar filtros
@@ -276,19 +337,32 @@ export function EmpleadosTable() {
           size="sm"
           variant="outline"
           className="shrink-0"
+          title={filterCount > 0 || qDebounced ? 'Exportar con los filtros actuales' : 'Exportar todos'}
           onClick={async () => {
-            const rows = await fetch('/api/empleados/export').then(r => r.json())
-            const ws = XLSX.utils.json_to_sheet(rows.map((e: Record<string, string>) => ({
-              'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
-              'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono,
-              'Categoría': e.categoria, 'Estado': e.estado, 'Fecha Ingreso': e.fechaIngreso,
-            })))
+            const params = new URLSearchParams()
+            if (qDebounced) params.set('q', qDebounced)
+            if (estado) params.set('estado', estado)
+            if (categoriaId) params.set('categoriaId', categoriaId)
+            const qs = params.toString()
+            const data = await fetch(`/api/empleados/export${qs ? `?${qs}` : ''}`).then(r => r.json())
+            const campos: Array<{ nombre: string }> = data.campos ?? []
+            const rows: Array<Record<string, string> & { valores?: Record<string, string> }> = data.rows ?? data ?? []
+            const ws = XLSX.utils.json_to_sheet(rows.map(e => {
+              const base: Record<string, string> = {
+                'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
+                'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono,
+                'Categoría': e.categoria, 'Estado': e.estado, 'Fecha Ingreso': e.fechaIngreso,
+              }
+              for (const c of campos) base[c.nombre] = e.valores?.[c.nombre] ?? ''
+              return base
+            }))
             const wb = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(wb, ws, 'Empleados')
-            XLSX.writeFile(wb, 'legajos.xlsx')
+            XLSX.writeFile(wb, filterCount > 0 || qDebounced ? 'legajos_filtrados.xlsx' : 'legajos.xlsx')
           }}
         >
-          <Download size={14} className="mr-1" /> Exportar
+          <Download size={14} className="mr-1" />
+          {filterCount > 0 || qDebounced ? 'Exportar filtrados' : 'Exportar'}
         </Button>
         <Button variant="outline" onClick={() => setImportOpen(true)}>
           <Upload size={14} className="mr-1" /> Importar
@@ -313,7 +387,7 @@ export function EmpleadosTable() {
             </span>
           ))}
           <button
-            onClick={() => { setEstado(''); setCategoriaId(''); setPage(1) }}
+            onClick={() => { setEstado(''); setCategoriaId(''); setSinAcceso(false); setPage(1) }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Limpiar todo
@@ -330,6 +404,7 @@ export function EmpleadosTable() {
         </div>
       ) : (
         <>
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -341,11 +416,12 @@ export function EmpleadosTable() {
                     aria-label="Seleccionar todos"
                   />
                 </TableHead>
-                <TableHead>Legajo</TableHead>
-                <TableHead>Nombre</TableHead>
+                <SortableHead campo="legajo" label="Legajo" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortableHead campo="apellido" label="Nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>CUIL</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Categoría</TableHead>
+                <SortableHead campo="categoria" label="Categoría" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <TableHead>Reporta a</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -353,7 +429,7 @@ export function EmpleadosTable() {
             <TableBody>
               {data.employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground text-sm">
                     No se encontraron empleados
                   </TableCell>
                 </TableRow>
@@ -387,26 +463,26 @@ export function EmpleadosTable() {
                       )}
                     </span>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{emp.cuil}</TableCell>
+                  <TableCell className="font-mono text-sm">{emp.cuil ? formatearCuil(emp.cuil) : ''}</TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate max-w-xs">{emp.email}</TableCell>
                   <TableCell>{emp.categoria.nombre}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground truncate max-w-[180px]">
+                    {emp.user?.manager?.employee
+                      ? `${emp.user.manager.employee.apellido}, ${emp.user.manager.employee.nombre}`
+                      : <span className="italic text-xs">—</span>}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={emp.estado === 'ACTIVO' ? 'default' : 'secondary'} className={emp.estado === 'ACTIVO' ? 'bg-green-600' : ''}>
                       {emp.estado}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-right">
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={e => { e.stopPropagation(); router.push(`/admin/empleados/${emp.id}`) }}
-                    >
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-red-600"
                       onClick={e => { e.stopPropagation(); setDeleteTarget({ id: emp.id, legajo: emp.legajo }) }}
+                      title="Eliminar"
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -415,12 +491,26 @@ export function EmpleadosTable() {
               ))}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          </div>
+          <div className="flex items-center justify-between text-sm text-muted-foreground gap-3 flex-wrap">
             <span>{data.total} empleado{data.total !== 1 ? 's' : ''}</span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>←</Button>
-              <span className="px-2">Página {page} de {data.pages}</span>
-              <Button size="sm" variant="outline" disabled={page >= data.pages} onClick={() => setPage(p => p + 1)}>→</Button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">Por página</span>
+                <Select value={String(pageSize)} onValueChange={v => { if (v) { setPageSize(Number(v)); setPage(1) } }}>
+                  <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>←</Button>
+                <span className="px-2">Página {page} de {data.pages}</span>
+                <Button size="sm" variant="outline" disabled={page >= data.pages} onClick={() => setPage(p => p + 1)}>→</Button>
+              </div>
             </div>
           </div>
         </>

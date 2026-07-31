@@ -16,9 +16,20 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q') ?? ''
   const estado = searchParams.get('estado') ?? undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const sinAcceso = searchParams.get('sinAcceso') === 'true'
   const all = searchParams.get('all') === 'true'
   const page = Number(searchParams.get('page') ?? '1')
-  const limit = 20
+  const limitRaw = Number(searchParams.get('limit') ?? '20')
+  const limit = [20, 50, 100].includes(limitRaw) ? limitRaw : 20
+  const sortBy = searchParams.get('sortBy') ?? 'apellido'
+  const sortOrder = searchParams.get('sortOrder') === 'desc' ? 'desc' : 'asc'
+  const ALLOWED_SORT: Record<string, Prisma.EmployeeOrderByWithRelationInput> = {
+    apellido: { apellido: sortOrder },
+    legajo: { legajo: sortOrder },
+    fechaIngreso: { fechaIngreso: sortOrder },
+    categoria: { categoria: { nombre: sortOrder } },
+  }
+  const orderBy = ALLOWED_SORT[sortBy] ?? { apellido: 'asc' as const }
 
   const scope = await getScopedEmployeeIds(user.userId)
   const where: Prisma.EmployeeWhereInput = {
@@ -34,6 +45,7 @@ export async function GET(req: NextRequest) {
       } : {},
       estado ? { estado } : {},
       categoriaId ? { categoriaId } : {},
+      sinAcceso ? { user: { is: null } } : {},
       scope ? { id: { in: [...scope] } } : {},
     ],
   }
@@ -57,10 +69,15 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         categoria: true,
-        user: { select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } },
+        user: {
+          select: {
+            avatarUrl: true, avatarBgColor: true, avatarTextColor: true,
+            manager: { select: { employee: { select: { nombre: true, apellido: true } } } },
+          },
+        },
         _count: { select: { solicitudesModificacion: { where: { estado: 'PENDIENTE' } } } },
       },
-      orderBy: { apellido: 'asc' },
+      orderBy,
       skip: (page - 1) * limit,
       take: limit,
     }),

@@ -4,10 +4,10 @@ import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
+import { randomBytes } from 'crypto'
 import { join } from 'path'
 import { getScopedEmployeeIds } from '@/lib/scope'
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -120,18 +120,18 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  if (buffer.length > MAX_FILE_SIZE) {
+  if (buffer.length > MAX_PDF_SIZE) {
     return NextResponse.json({ error: 'El archivo supera el límite de 10 MB' }, { status: 400 })
   }
 
-  if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+  if (!isPdfBuffer(buffer)) {
     return NextResponse.json({ error: 'El archivo no es un PDF válido' }, { status: 400 })
   }
 
   const uploadsDir = join(process.cwd(), 'uploads')
   await mkdir(uploadsDir, { recursive: true })
 
-  const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+  const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
   const filePath = join(uploadsDir, fileName)
   await writeFile(filePath, buffer)
 

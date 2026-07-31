@@ -5,9 +5,10 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { randomBytes } from 'crypto'
 import { getScopedEmployeeIds } from '@/lib/scope'
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+import { getReciboTipoId } from '@/lib/tiposDocumento'
+import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
 
 export async function GET() {
   try {
@@ -66,11 +67,8 @@ export async function POST(req: NextRequest) {
   const tipoDocumentoIdRaw = formData.get('tipoDocumentoId')
   let tipoDocumentoId = tipoDocumentoIdRaw ? Number(tipoDocumentoIdRaw) : undefined
   if (!tipoDocumentoId) {
-    const reciboTipo = await prisma.tipoDocumento.findFirst({
-      where: { nombre: 'Recibo de Sueldo' },
-      select: { id: true },
-    })
-    if (reciboTipo) tipoDocumentoId = reciboTipo.id
+    const cached = await getReciboTipoId()
+    if (cached) tipoDocumentoId = cached
   }
 
   if (!nombre || !periodo) {
@@ -100,6 +98,7 @@ export async function POST(req: NextRequest) {
 
   const uploaded: number[] = []
   const errors: string[] = []
+  const empleadosYaCargados = new Set<number>()
   let i = 0
 
   while (formData.has(`file_${i}`)) {
@@ -112,19 +111,24 @@ export async function POST(req: NextRequest) {
       continue
     }
 
+    if (empleadosYaCargados.has(employeeId)) {
+      errors.push(`${file.name}: el empleado ya tiene un recibo en este lote (se descartó el duplicado)`)
+      continue
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    if (buffer.length > MAX_FILE_SIZE) {
+    if (buffer.length > MAX_PDF_SIZE) {
       errors.push(`${file.name}: supera el límite de 10 MB`)
       continue
     }
 
-    if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+    if (!isPdfBuffer(buffer)) {
       errors.push(`${file.name}: no es un PDF válido`)
       continue
     }
 
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
     const filePath = join(uploadsDir, fileName)
     await writeFile(filePath, buffer)
 
@@ -141,6 +145,7 @@ export async function POST(req: NextRequest) {
       },
     })
     uploaded.push(doc.id)
+    empleadosYaCargados.add(employeeId)
 
     await prisma.loteEmpleado.upsert({
       where: { loteId_employeeId: { loteId: lote.id, employeeId } },

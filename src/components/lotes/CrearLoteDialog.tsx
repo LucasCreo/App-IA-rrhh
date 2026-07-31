@@ -13,19 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, X, CheckCircle2, AlertCircle, UserPlus, Search } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
+import { detectarLegajoPdf, type RecibosEntry as Entry } from '@/lib/recibosDetect'
 
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
-interface DetectedData { legajo: string | null; cuil: string | null; nombre: string | null; apellido: string | null }
-interface Entry {
-  file: File
-  empleadoId: string
-  legajoDetectado: string | null
-  cuilDetectado: string | null
-  nombreDetectado: string | null
-  apellidoDetectado: string | null
-  matched: boolean
-  detectando: boolean
-}
 interface Props { open: boolean; onClose: () => void; onSaved: () => void }
 
 const MESES = [
@@ -38,25 +28,6 @@ const MESES = [
 ]
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
-
-async function detectarLegajoPdf(file: File): Promise<DetectedData> {
-  const empty: DetectedData = { legajo: null, cuil: null, nombre: null, apellido: null }
-  try {
-    const fd = new FormData()
-    fd.append('file', file)
-    const r = await fetch('/api/lotes/detectar-legajo', { method: 'POST', body: fd })
-    if (!r.ok) return empty
-    const data = await r.json()
-    return {
-      legajo: data.legajo ?? null,
-      cuil: data.cuil ?? null,
-      nombre: data.nombre ?? null,
-      apellido: data.apellido ?? null,
-    }
-  } catch {
-    return empty
-  }
-}
 
 export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   const router = useRouter()

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
+import { randomBytes } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
+import { getScopedEmployeeIds } from '@/lib/scope'
+import { sendMailFromTemplate } from '@/lib/emailTemplates'
+import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
 
 export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -24,42 +28,85 @@ export async function POST(req: NextRequest) {
   if (!file) {
     return NextResponse.json({ error: 'El archivo es requerido' }, { status: 400 })
   }
-  if (file.size > 10 * 1024 * 1024) {
+  if (file.size > MAX_PDF_SIZE) {
     return NextResponse.json({ error: 'El archivo supera los 10 MB' }, { status: 400 })
   }
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+  if (!isPdfBuffer(buffer)) {
     return NextResponse.json({ error: 'Solo se aceptan archivos PDF' }, { status: 400 })
   }
-
-  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const fileName = `${Date.now()}-${sanitized}`
-  const filePath = path.join(process.cwd(), 'uploads', fileName)
-  await writeFile(filePath, buffer)
 
   const where: Prisma.EmployeeWhereInput = { estado: 'ACTIVO' }
   if (empleadoIds?.length) where.id = { in: empleadoIds }
   else if (categoriaId) where.categoriaId = categoriaId
 
+  const scope = await getScopedEmployeeIds(user.userId)
+  if (scope) where.id = { in: (empleadoIds ?? []).filter(id => scope.has(id)) }
+
   const empleados = await prisma.employee.findMany({ where, select: { id: true } })
   if (empleados.length === 0) {
-    return NextResponse.json({ error: 'No hay empleados activos en esa categoría' }, { status: 400 })
+    return NextResponse.json({ error: 'No hay empleados válidos para esta distribución' }, { status: 400 })
   }
 
-  await prisma.document.createMany({
-    data: empleados.map(e => ({
-      nombreArchivo: file.name,
-      filePath,
-      periodo,
-      employeeId: e.id,
-      cargadoPorId: user.userId,
-      estado: estadoDoc,
-      tipoDocumentoId,
-    })),
-  })
+  // Un archivo por empleado en disco para evitar que un DELETE borre el PDF compartido
+  const uploadsDir = path.join(process.cwd(), 'uploads')
+  await mkdir(uploadsDir, { recursive: true })
+  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
 
-  await logAction(user.userId, 'DISTRIBUCION_MASIVA', 'Documento', `${empleados.length} empleados${periodo ? ` · ${periodo}` : ''}`)
+  const created: number[] = []
+  for (const emp of empleados) {
+    const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${sanitized}`
+    const filePath = path.join(uploadsDir, fileName)
+    await writeFile(filePath, buffer)
+    const doc = await prisma.document.create({
+      data: {
+        nombreArchivo: file.name,
+        filePath,
+        periodo,
+        employeeId: emp.id,
+        cargadoPorId: user.userId,
+        estado: estadoDoc,
+        tipoDocumentoId,
+      },
+    })
+    created.push(doc.id)
+  }
 
-  return NextResponse.json({ uploaded: empleados.length })
+  await logAction(user.userId, 'DISTRIBUCION_MASIVA', 'Documento', `${created.length} empleados${periodo ? ` · ${periodo}` : ''}`)
+
+  // Si se cargan como ENVIADO_A_FIRMA, notificar por email a los destinatarios
+  if (estadoDoc === 'ENVIADO_A_FIRMA') {
+    ;(async () => {
+      try {
+        const docs = await prisma.document.findMany({
+          where: { id: { in: created } },
+          include: {
+            employee: { select: { nombre: true, email: true } },
+            tipoDocumento: { select: { nombre: true, accion: true } },
+          },
+        })
+        await Promise.all(docs
+          .filter(d => d.employee?.email)
+          .map(d => {
+            const accion = d.tipoDocumento?.accion ?? 'FIRMA'
+            const requiereFirma = accion === 'FIRMA'
+            const tipo = d.tipoDocumento?.nombre ?? 'Documento'
+            return sendMailFromTemplate('DOCUMENTO_A_FIRMA', {
+              to: d.employee.email,
+              vars: {
+                nombre: d.employee.nombre,
+                tipo,
+                titulo: requiereFirma ? 'Tenés un documento pendiente de firma' : 'Nuevo documento disponible',
+                bloquePeriodo: d.periodo ? ` (${d.periodo})` : '',
+                bloqueFirma: requiereFirma ? '<p>Requiere tu firma para completarse.</p>' : '',
+              },
+              ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/documentos`,
+            })
+          }))
+      } catch (e) { console.error('[email/masivo] fallo:', e) }
+    })()
+  }
+
+  return NextResponse.json({ uploaded: created.length })
 }

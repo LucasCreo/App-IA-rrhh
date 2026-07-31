@@ -6,7 +6,6 @@ import { AdminHeader } from '@/components/layout/AdminHeader'
 import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
 import { TabDocsSolicitudes } from '@/components/configuracion/TabDocsSolicitudes'
-import { TabFirma } from '@/components/configuracion/TabFirma'
 import { TabAuditoria } from '@/components/configuracion/TabAuditoria'
 import { TabCalendario } from '@/components/configuracion/TabCalendario'
 import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
@@ -32,7 +31,7 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
 
   const tabs = [
     { id: 'general', label: 'General' },
-    { id: 'empleados', label: 'Personal' },
+    { id: 'empleados', label: 'Legajos' },
     { id: 'docs-solicitudes', label: 'Documentos y solicitudes' },
     { id: 'calendario', label: 'Calendario' },
     ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones', label: 'Evaluaciones' }] : []),
@@ -65,7 +64,6 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
         {tab === 'general' && <TabGeneral />}
         {tab === 'empleados' && <TabEmpleados />}
         {tab === 'docs-solicitudes' && <TabDocsSolicitudes />}
-        {tab === 'firma' && <TabFirma />}
         {tab === 'calendario' && <TabCalendario />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <TabEvaluaciones />}
         {tab === 'formularios' && <TabFormularios />}

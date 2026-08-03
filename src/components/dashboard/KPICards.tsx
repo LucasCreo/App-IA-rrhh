@@ -1,17 +1,10 @@
 import Link from 'next/link'
-import { Users, FileText, Receipt, ClipboardList, ArrowUpRight } from 'lucide-react'
+import { Receipt, ClipboardList, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DashboardData {
-  totalEmpleados: number
-  activos: number
-  inactivos: number
-  totalDocs: number
-  enviadosAFirma: number
-  pendientes: number
-  rechazados: number
-  firmados: number
   totalRecibos: number
+  recibosPorEstado?: { name: string; value: number }[]
   pendingSolicitudesDoc: number
   pendingSolicitudesMod: number
   pendingAusencias: number
@@ -28,37 +21,27 @@ function Arrow() {
   )
 }
 
+function Badge({ count, title }: { count: number; title: string }) {
+  if (count <= 0) return null
+  return (
+    <span
+      className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md z-10"
+      title={title}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
 export function KPICards({ data }: { data: Record<string, any> }) {
   const d = data as unknown as DashboardData
   const totalPendientes = (d.pendingAusencias ?? 0) + (d.pendingSolicitudesDoc ?? 0) + (d.pendingSolicitudesMod ?? 0)
+  const recibosRechazados = d.recibosPorEstado?.find(r => r.name === 'Rechazados')?.value ?? 0
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-      <Link href="/admin/empleados?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
-        <Arrow />
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg shrink-0 bg-blue-50 dark:bg-blue-950/30">
-            <Users size={14} className="text-blue-500 dark:text-blue-400" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Empleados</span>
-        </div>
-        <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{d.totalEmpleados}</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">{d.activos} activos · {d.inactivos} inactivos</p>
-      </Link>
-
-      <Link href="/admin/documentos?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
-        <Arrow />
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg shrink-0 bg-purple-50 dark:bg-purple-950/30">
-            <FileText size={14} className="text-purple-500 dark:text-purple-400" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Documentos</span>
-        </div>
-        <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{d.totalDocs}</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">{d.firmados} firmados · {d.enviadosAFirma} enviados</p>
-      </Link>
-
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
       <Link href="/admin/recibos?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
+        <Badge count={recibosRechazados} title={`${recibosRechazados} recibo(s) rechazado(s)`} />
         <Arrow />
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg shrink-0 bg-green-50 dark:bg-green-950/30">
@@ -71,15 +54,16 @@ export function KPICards({ data }: { data: Record<string, any> }) {
       </Link>
 
       <Link href="/admin/solicitudes?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
+        <Badge count={totalPendientes} title={`${totalPendientes} solicitud(es) pendiente(s)`} />
         <Arrow />
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg shrink-0 bg-amber-50 dark:bg-amber-950/30">
             <ClipboardList size={14} className="text-amber-600 dark:text-amber-400" />
           </div>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Pendientes</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Solicitudes</span>
         </div>
         <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{totalPendientes}</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">solicitudes por revisar</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">pendientes de revisar</p>
       </Link>
     </div>
   )

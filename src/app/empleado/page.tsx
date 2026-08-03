@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { FileText, Clock, Send, CalendarDays, Tag, ChevronRight, ClipboardList, IdCard } from 'lucide-react'
+import { FileText, Send, CalendarDays, Tag, ChevronRight, IdCard } from 'lucide-react'
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
@@ -18,15 +18,15 @@ export default async function EmpleadoPage() {
   if (!decoded.employeeId) redirect('/login')
 
   const RECIBO_TIPO = 'Recibo de Sueldo'
-  const [employee, dbUser, totalRecibos, totalSolicitudes, totalDocumentosRecibidos, totalFormulariosPendientes, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
+  const [employee, dbUser, totalRecibos, recibosPendientes, totalSolicitudes, formulariosPendientes, ultimosRecibos, ultimasSolicitudes] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
       include: { categoria: true },
     }),
     prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } }),
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } } }),
+    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: 'ENVIADO_A_FIRMA', tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
-    prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }] } }),
     prisma.respuestaFormulario.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
     prisma.document.findMany({
       where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } },
@@ -82,26 +82,32 @@ export default async function EmpleadoPage() {
         </Link>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Link href="/empleado/recibos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <Link href="/empleado/recibos" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+            {recibosPendientes > 0 && (
+              <span
+                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
+                title={`${recibosPendientes} pendiente${recibosPendientes === 1 ? '' : 's'} de firma`}
+              >
+                {recibosPendientes > 99 ? '99+' : recibosPendientes}
+              </span>
+            )}
             <FileText size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalRecibos}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Recibos</p>
           </Link>
-          <Link href="/empleado/solicitudes" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/empleado/solicitudes" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+            {formulariosPendientes > 0 && (
+              <span
+                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
+                title={`${formulariosPendientes} formulario${formulariosPendientes === 1 ? '' : 's'} pendiente${formulariosPendientes === 1 ? '' : 's'}`}
+              >
+                {formulariosPendientes > 99 ? '99+' : formulariosPendientes}
+              </span>
+            )}
             <Send size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalSolicitudes}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Solicitudes enviadas</p>
-          </Link>
-          <Link href="/empleado/documentos" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-            <Clock size={18} className="mx-auto mb-1.5 text-muted-foreground" />
-            <p className="text-2xl font-bold">{totalDocumentosRecibidos}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Documentos recibidos</p>
-          </Link>
-          <Link href="/empleado/solicitudes?tab=formularios" className="rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-            <ClipboardList size={18} className="mx-auto mb-1.5 text-muted-foreground" />
-            <p className="text-2xl font-bold">{totalFormulariosPendientes}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Formularios pendientes</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Solicitudes</p>
           </Link>
         </div>
 

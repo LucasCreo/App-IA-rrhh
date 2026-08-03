@@ -47,6 +47,8 @@ const FILTROS = [
 ] as const
 type Filtro = typeof FILTROS[number]['value']
 
+export type MisSolicitudesVista = 'todo' | 'enviadas' | 'recibidas'
+
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
 }
@@ -74,7 +76,7 @@ const ESTADO_AUS: Record<string, { icon: React.ReactNode; className: string; lab
   RECHAZADA: { icon: <XCircle size={11} />, className: 'text-red-500 border-red-400', label: 'Rechazada' },
 }
 
-export function MisSolicitudes() {
+export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista } = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialTab = ((): Filtro => {
@@ -166,6 +168,14 @@ export function MisSolicitudes() {
   const q = busqueda.trim().toLowerCase()
 
   const filtered = items.filter(i => {
+    // Vista Enviadas: solo solicitudes propias que el empleado envió (docs/ausencias)
+    if (vista === 'enviadas') {
+      if (i.kind === 'form') return false
+    }
+    // Vista Recibidas: formularios que el admin le asignó (pendientes o completados)
+    if (vista === 'recibidas') {
+      if (i.kind !== 'form') return false
+    }
     if (filtro === 'documentos' && i.kind !== 'doc') return false
     if (filtro === 'ausencias' && i.kind !== 'ausencia') return false
     if (filtro === 'formularios' && i.kind !== 'form') return false
@@ -267,24 +277,26 @@ export function MisSolicitudes() {
       )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-1 flex-wrap">
-          {FILTROS.map(f => (
-            <button
-              key={f.value}
-              onClick={() => setFiltro(f.value)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
-                filtro === f.value
-                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              {f.label}
-              <span className="opacity-60">{counts[f.value]}</span>
-            </button>
-          ))}
-        </div>
-        {filtro !== 'formularios' && (
+        {vista === 'todo' ? (
+          <div className="flex gap-1 flex-wrap">
+            {FILTROS.map(f => (
+              <button
+                key={f.value}
+                onClick={() => setFiltro(f.value)}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+                  filtro === f.value
+                    ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {f.label}
+                <span className="opacity-60">{counts[f.value]}</span>
+              </button>
+            ))}
+          </div>
+        ) : <div />}
+        {vista !== 'recibidas' && filtro !== 'formularios' && (
           <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
             <Plus size={14} className="mr-1" /> Nueva solicitud
           </Button>

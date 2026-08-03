@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Send, RotateCcw, Save, Mail, ChevronRight } from 'lucide-react'
+import { Send, RotateCcw, Save, Mail, ChevronRight, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,20 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+
+const GRUPOS: { id: string; label: string; keys: string[] }[] = [
+  { id: 'cuenta',       label: 'Cuenta y usuarios', keys: ['EMPLEADO_BIENVENIDA', 'EMPLEADO_ESTADO_CAMBIADO', 'PASSWORD_RESET', 'EMAIL_CAMBIADO'] },
+  { id: 'documentos',   label: 'Documentos',        keys: ['DOCUMENTO_A_FIRMA', 'RECIBO_FIRMADO'] },
+  { id: 'solicitudes',  label: 'Solicitudes',       keys: ['SOLICITUD_NUEVA', 'SOLICITUD_DOC_RESUELTA', 'MODIFICACION_NUEVA', 'MODIFICACION_REVISADA'] },
+  { id: 'ausencias',    label: 'Ausencias',         keys: ['AUSENCIA_NUEVA', 'AUSENCIA_RESUELTA'] },
+  { id: 'formularios',  label: 'Formularios',       keys: ['FORMULARIO_ASIGNADO', 'FORMULARIO_COMPLETADO'] },
+  { id: 'evaluaciones', label: 'Evaluaciones',      keys: ['EVALUACION_ASIGNADA'] },
+  { id: 'avisos',       label: 'Avisos',            keys: ['POST_NUEVO', 'COMENTARIO_NUEVO_EN_POST', 'COMENTARIO_RESPONDIDO'] },
+]
+
+function grupoDeKey(key: string): string {
+  return GRUPOS.find(g => g.keys.includes(key))?.id ?? 'otros'
+}
 
 interface Variable { name: string; description: string }
 interface Template {
@@ -40,6 +54,7 @@ export function TabEmails() {
   const [testing, setTesting] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(new Set())
 
   const selected = templates.find(t => t.key === selectedKey) ?? null
 
@@ -62,6 +77,22 @@ export function TabEmails() {
       enabled: selected.enabled,
     })
   }, [selectedKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Al seleccionar un template, abrir su grupo
+  useEffect(() => {
+    if (!selectedKey) return
+    const gid = grupoDeKey(selectedKey)
+    setGruposAbiertos(prev => prev.has(gid) ? prev : new Set([...prev, gid]))
+  }, [selectedKey])
+
+  function toggleGrupo(id: string) {
+    setGruposAbiertos(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const dirty = selected && draft && (
     draft.subject !== selected.subject
@@ -141,33 +172,79 @@ export function TabEmails() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {templates.map(t => {
-              const active = t.key === selectedKey
+            {GRUPOS.map(g => {
+              const items = templates.filter(t => g.keys.includes(t.key))
+              if (items.length === 0) return null
+              const abierto = gruposAbiertos.has(g.id)
+              const customCount = items.filter(t => t.customized).length
               return (
-                <button
-                  key={t.key}
-                  onClick={() => setSelectedKey(t.key)}
-                  className={cn(
-                    'w-full text-left px-4 py-3 flex items-center gap-2 hover:bg-muted transition-colors',
-                    active && 'bg-green-50 dark:bg-green-950/20'
-                  )}
-                >
-                  <Mail size={14} className={cn('shrink-0', active ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground')} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className={cn('text-sm font-medium truncate', active && 'text-green-700 dark:text-green-400')}>{t.label}</p>
-                      {t.customized && (
-                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold" title="Editado">•</span>
-                      )}
-                      {!t.enabled && (
-                        <span className="text-[10px] px-1 rounded bg-muted text-muted-foreground">off</span>
-                      )}
+                <div key={g.id}>
+                  <button
+                    onClick={() => toggleGrupo(g.id)}
+                    className="w-full text-left px-4 py-2.5 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+                  >
+                    {abierto
+                      ? <ChevronDown size={14} className="text-muted-foreground shrink-0" />
+                      : <ChevronRight size={14} className="text-muted-foreground shrink-0" />}
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex-1">{g.label}</p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {items.length}{customCount > 0 && ` · ${customCount} editado${customCount === 1 ? '' : 's'}`}
+                    </span>
+                  </button>
+                  {abierto && (
+                    <div className="divide-y border-t bg-muted/20">
+                      {items.map(t => {
+                        const active = t.key === selectedKey
+                        return (
+                          <button
+                            key={t.key}
+                            onClick={() => setSelectedKey(t.key)}
+                            className={cn(
+                              'w-full text-left pl-8 pr-4 py-2.5 flex items-center gap-2 hover:bg-muted transition-colors',
+                              active && 'bg-green-50 dark:bg-green-950/20'
+                            )}
+                          >
+                            <Mail size={13} className={cn('shrink-0', active ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground')} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className={cn('text-sm truncate', active && 'font-medium text-green-700 dark:text-green-400')}>{t.label}</p>
+                                {t.customized && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold" title="Editado">•</span>
+                                )}
+                                {!t.enabled && (
+                                  <span className="text-[10px] px-1 rounded bg-muted text-muted-foreground">off</span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
-                  </div>
-                  <ChevronRight size={13} className="text-muted-foreground shrink-0" />
-                </button>
+                  )}
+                </div>
               )
             })}
+            {(() => {
+              const sinGrupo = templates.filter(t => !GRUPOS.some(g => g.keys.includes(t.key)))
+              if (sinGrupo.length === 0) return null
+              return (
+                <div className="py-2 px-4">
+                  <p className="text-xs text-muted-foreground mb-1">Otros</p>
+                  {sinGrupo.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setSelectedKey(t.key)}
+                      className={cn(
+                        'w-full text-left py-1.5 text-sm hover:underline',
+                        t.key === selectedKey && 'text-green-700 dark:text-green-400 font-medium'
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         </CardContent>
       </Card>

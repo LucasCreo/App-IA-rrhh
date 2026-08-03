@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, RefreshCw, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -28,6 +30,7 @@ interface EmpleadoRow {
   nombre: string
   apellido: string
   legajo: string
+  categoria?: { id: number; nombre: string } | null
   documento: Documento | null
 }
 
@@ -78,6 +81,8 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [busqueda, setBusqueda] = useState('')
+  const [filtCategoriaId, setFiltCategoriaId] = useState<string>('todas')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
@@ -243,12 +248,19 @@ if (loading) {
     { key: 'errores',    label: 'Errores',             count: stats.errores + stats.rechazados },
   ] as { key: Filtro; label: string; count: number }[]).filter(t => t.key === 'todos' || t.count > 0)
 
+  const categoriasLote = Array.from(
+    new Map(empleados.filter(e => e.categoria).map(e => [e.categoria!.id, e.categoria!])).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  const activeExtraFilters = (filtCategoriaId !== 'todas' ? 1 : 0)
+
   const q = busqueda.trim().toLowerCase()
   const filteredEmpleados = empleados.filter(e => {
     if (q) {
       const hay = `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase()
       if (!hay.includes(q)) return false
     }
+    if (filtCategoriaId !== 'todas' && String(e.categoria?.id ?? '') !== filtCategoriaId) return false
     if (filtro === 'todos') return true
     const estado = e.documento?.estado ?? 'SIN_RECIBO'
     if (filtro === 'firmados')    return estado === 'FIRMADO'
@@ -387,16 +399,55 @@ if (loading) {
           </div>
         </div>
 
-        {/* Búsqueda */}
-        <div className="relative max-w-md">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar por empleado o legajo…"
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-          />
+        {/* Búsqueda + filtros */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[220px] max-w-md">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar por empleado o legajo…"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+            />
+          </div>
+          {categoriasLote.length > 1 && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setFiltersOpen(v => !v)}
+                className={cn(activeExtraFilters > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+              >
+                <SlidersHorizontal size={14} className="mr-1.5" />
+                Filtros
+                {activeExtraFilters > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+                    {activeExtraFilters}
+                  </span>
+                )}
+              </Button>
+              {activeExtraFilters > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setFiltCategoriaId('todas')}>
+                  <X size={12} className="mr-1" /> Limpiar
+                </Button>
+              )}
+            </>
+          )}
         </div>
+
+        {filtersOpen && categoriasLote.length > 1 && (
+          <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Categoría</p>
+              <Select value={filtCategoriaId} onValueChange={v => setFiltCategoriaId(v ?? 'todas')}>
+                <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
+                  {categoriasLote.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div className="flex gap-1 flex-wrap">
@@ -590,7 +641,7 @@ if (loading) {
               disabled={sending}
               onClick={async () => { setEnvioReporteOpen(false); await enviarTodos() }}
             >
-              <RefreshCw size={13} className="mr-1" /> Reintentar fallidos
+              <Send size={13} className="mr-1" /> Reintentar fallidos
             </Button>
           </DialogFooter>
         </DialogContent>

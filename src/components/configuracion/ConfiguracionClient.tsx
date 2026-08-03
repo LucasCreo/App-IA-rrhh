@@ -6,10 +6,10 @@ import { AdminHeader } from '@/components/layout/AdminHeader'
 import { TabGeneral } from '@/components/configuracion/TabGeneral'
 import { TabEmpleados } from '@/components/configuracion/TabEmpleados'
 import { TabDocsSolicitudes } from '@/components/configuracion/TabDocsSolicitudes'
+import { TabLicencias } from '@/components/configuracion/TabLicencias'
 import { TabAuditoria } from '@/components/configuracion/TabAuditoria'
 import { TabCalendario } from '@/components/configuracion/TabCalendario'
 import { TabEvaluaciones } from '@/components/configuracion/TabEvaluaciones'
-import { TabFormularios } from '@/components/configuracion/TabFormularios'
 import { TabEmails } from '@/components/configuracion/TabEmails'
 import { UsuariosPage } from '@/components/usuarios/UsuariosPage'
 import { cn } from '@/lib/utils'
@@ -33,9 +33,9 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
     { id: 'general', label: 'General' },
     { id: 'empleados', label: 'Legajos' },
     { id: 'docs-solicitudes', label: 'Documentos y solicitudes' },
+    { id: 'licencias', label: 'Licencias' },
     { id: 'calendario', label: 'Calendario' },
     ...(EVALUACIONES_ENABLED ? [{ id: 'evaluaciones', label: 'Evaluaciones' }] : []),
-    { id: 'formularios', label: 'Formularios' },
     { id: 'emails', label: 'Emails' },
     ...(puedeGestionarUsuarios ? [{ id: 'usuarios', label: 'Usuarios' }] : []),
     ...(puedeVerAuditoria ? [{ id: 'auditoria', label: 'Auditoría' }] : []),
@@ -64,9 +64,9 @@ export function ConfiguracionClient({ puedeGestionarUsuarios, puedeVerAuditoria 
         {tab === 'general' && <TabGeneral />}
         {tab === 'empleados' && <TabEmpleados />}
         {tab === 'docs-solicitudes' && <TabDocsSolicitudes />}
+        {tab === 'licencias' && <TabLicencias />}
         {tab === 'calendario' && <TabCalendario />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <TabEvaluaciones />}
-        {tab === 'formularios' && <TabFormularios />}
         {tab === 'emails' && <TabEmails />}
         {tab === 'usuarios' && <UsuariosPage />}
         {tab === 'auditoria' && <TabAuditoria />}

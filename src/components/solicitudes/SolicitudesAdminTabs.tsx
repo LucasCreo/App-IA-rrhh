@@ -8,8 +8,8 @@ import { AsignacionesList } from '@/components/formularios/AsignacionesList'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { id: 'solicitudes', label: 'Solicitudes' },
-  { id: 'formularios', label: 'Formularios' },
+  { id: 'recibidas', label: 'Recibidas' },
+  { id: 'enviadas', label: 'Enviadas' },
   { id: 'saldos', label: 'Saldos de vacaciones' },
 ] as const
 
@@ -17,7 +17,7 @@ type Tab = typeof TABS[number]['id']
 
 export function SolicitudesAdminTabs() {
   const searchParams = useSearchParams()
-  const initial = (TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'solicitudes') as Tab
+  const initial = (TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'recibidas') as Tab
   const [tab, setTab] = useState<Tab>(initial)
 
   return (
@@ -38,8 +38,9 @@ export function SolicitudesAdminTabs() {
           </button>
         ))}
       </div>
-      {tab === 'solicitudes' && <SolicitudesUnificadas />}
-      {tab === 'formularios' && <AsignacionesList />}
+
+      {tab === 'recibidas' && <SolicitudesUnificadas />}
+      {tab === 'enviadas' && <AsignacionesList />}
       {tab === 'saldos' && <TabSaldos />}
     </>
   )

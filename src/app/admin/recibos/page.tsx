@@ -35,7 +35,7 @@ export default function RecibosPage() {
           ))}
         </div>
         {tab === 'lotes' && <LotesTable />}
-        {tab === 'individuales' && <DocumentosTable esRecibo={true} sinLote={true} />}
+        {tab === 'individuales' && <DocumentosTable esRecibo={true} />}
       </div>
     </>
   )

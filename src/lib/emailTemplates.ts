@@ -19,7 +19,6 @@ export type EmailTemplateKey =
   | 'COMENTARIO_RESPONDIDO'
   | 'RECIBO_FIRMADO'
   | 'FORMULARIO_COMPLETADO'
-  | 'DOCUMENTO_ERROR_FIRMA'
   | 'COMENTARIO_NUEVO_EN_POST'
 
 interface TemplateDef {
@@ -299,22 +298,6 @@ export const DEFAULT_TEMPLATES: Record<EmailTemplateKey, TemplateDef> = {
       { name: 'apellido', description: 'Apellido del empleado' },
       { name: 'legajo', description: 'Legajo del empleado' },
       { name: 'formulario', description: 'Nombre del formulario/asignación' },
-    ],
-  },
-  DOCUMENTO_ERROR_FIRMA: {
-    label: 'Error al enviar documento a firma',
-    description: 'Se envía a los administradores cuando el proveedor de firma electrónica devuelve un error al procesar un documento.',
-    subject: 'Error al enviar a firma: {{tipo}}',
-    title: 'Falló el envío a firma',
-    bodyHtml: `<p>Ocurrió un error al enviar el documento <strong>{{tipo}}</strong> de <strong>{{apellido}}, {{nombre}}</strong> al proveedor de firma electrónica.</p>
-<p><strong>Detalle:</strong> {{error}}</p>
-<p>Podés reintentarlo desde el portal.</p>`,
-    ctaLabel: 'Ver documento',
-    variables: [
-      { name: 'nombre', description: 'Nombre del empleado' },
-      { name: 'apellido', description: 'Apellido del empleado' },
-      { name: 'tipo', description: 'Tipo de documento' },
-      { name: 'error', description: 'Mensaje de error del proveedor' },
     ],
   },
   COMENTARIO_NUEVO_EN_POST: {

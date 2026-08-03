@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, GripVertical, UserCircle, Newspaper } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, GripVertical, UserCircle, Newspaper, Plane } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
@@ -18,6 +18,7 @@ const nav = [
   { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays, permiso: 'GESTIONAR_CALENDARIO' },
   ...(EVALUACIONES_ENABLED ? [{ href: '/admin/evaluaciones', label: 'Evaluaciones', icon: Star, permiso: 'GESTIONAR_EVALUACIONES' }] : []),
   { href: '/admin/solicitudes', label: 'Solicitudes', icon: ClipboardList, permiso: 'GESTIONAR_SOLICITUDES' },
+  { href: '/admin/licencias', label: 'Licencias', icon: Plane, permiso: 'GESTIONAR_SOLICITUDES' },
 ]
 const NAV_DASHBOARD = nav[0]
 const NAV_DRAGGABLE = nav.slice(1)

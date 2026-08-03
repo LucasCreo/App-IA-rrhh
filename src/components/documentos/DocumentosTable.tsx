@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { handleApiError } from '@/lib/apiErrors'
@@ -13,7 +14,7 @@ import { DocumentoUploadDialog } from './DocumentoUploadDialog'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { EmpleadoPicker } from './EmpleadoPicker'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Send, Trash2, Plus, Download, Search, SlidersHorizontal, X } from 'lucide-react'
+import { FileText, Send, Trash2, Plus, Download, Search, SlidersHorizontal, X, Package } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ interface Doc {
   employee: { nombre: string; apellido: string; legajo: string }
   cargadoPor: { email: string }
   tipoDocumento?: { id: number; nombre: string; accion: string } | null
+  lote?: { id: number; nombre: string } | null
 }
 
 const ESTADOS: { value: string; label: string }[] = [
@@ -62,12 +64,14 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const [filtTipoId, setFiltTipoId] = useState('todos')
   const [filtEmpleadoId, setFiltEmpleadoId] = useState('todos')
   const [filtCategoriaId, setFiltCategoriaId] = useState('todos')
+  const [filtLoteId, setFiltLoteId] = useState('todos')
   const [filtQ, setFiltQ] = useState('')
   const [filtQDebounced, setFiltQDebounced] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [tipos, setTipos] = useState<{ id: number; nombre: string }[]>([])
   const [empleados, setEmpleados] = useState<{ id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nombre: string } | null }[]>([])
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
+  const [lotes, setLotes] = useState<{ id: number; nombre: string; periodo: string }[]>([])
   const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -85,6 +89,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
     if (filtTipoId !== 'todos') params.set('tipoDocumentoId', filtTipoId)
     if (filtEmpleadoId !== 'todos') params.set('employeeId', filtEmpleadoId)
     if (filtCategoriaId !== 'todos') params.set('categoriaId', filtCategoriaId)
+    if (filtLoteId !== 'todos') params.set('loteId', filtLoteId)
     if (filtQDebounced.trim()) params.set('q', filtQDebounced.trim())
     if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
     if (employeeId) params.set('employeeId', String(employeeId))
@@ -100,7 +105,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
         setSelected(new Set())
       })
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtQDebounced, filtConformidad, esRecibo, employeeId, sinLote, page])
+  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtLoteId, filtQDebounced, filtConformidad, esRecibo, employeeId, sinLote, page])
 
   useEffect(() => { load() }, [load])
 
@@ -120,6 +125,10 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
           setEmpleados(d.employees ?? [])
         })
       fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+      // Lotes solo tienen sentido para recibos en scope global
+      if (esRecibo === true) {
+        fetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : []))
+      }
     }
     fetch('/api/configuracion/tipos-documento').then(r => r.json()).then(d => {
       const list = Array.isArray(d) ? d : []
@@ -307,6 +316,7 @@ function exportCSV() {
     filtTipoId !== 'todos' ? filtTipoId : '',
     filtEmpleadoId !== 'todos' ? filtEmpleadoId : '',
     filtCategoriaId !== 'todos' ? filtCategoriaId : '',
+    filtLoteId !== 'todos' ? filtLoteId : '',
     filtConformidad !== 'todos' ? filtConformidad : '',
     filtQDebounced.trim(),
   ].filter(Boolean).length
@@ -315,6 +325,7 @@ function exportCSV() {
     setFiltMes(''); setFiltAno('')
     setFiltEstado('todos'); setFiltTipoId('todos')
     setFiltEmpleadoId('todos'); setFiltCategoriaId('todos')
+    setFiltLoteId('todos')
     setFiltConformidad('todos')
     setFiltQ(''); setPage(1)
   }
@@ -475,6 +486,21 @@ function exportCSV() {
             </Select>
           </div>
         )}
+        {!employeeId && esRecibo === true && lotes.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Lote</p>
+            <Select value={filtLoteId} onValueChange={v => { setFiltLoteId(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="sinLote">Sin lote</SelectItem>
+                {lotes.map(l => (
+                  <SelectItem key={l.id} value={String(l.id)}>{l.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
       )}
 
@@ -560,11 +586,22 @@ function exportCSV() {
                 <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm">
                   <FileText size={14} /> <span className="truncate">{doc.nombreArchivo}</span>
                 </a>
-                {doc.tipoDocumento && (
-                  <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">
-                    {doc.tipoDocumento.nombre}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {doc.tipoDocumento && (
+                    <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 dark:bg-green-950 dark:text-green-400 dark:border-green-800">
+                      {doc.tipoDocumento.nombre}
+                    </span>
+                  )}
+                  {doc.lote && (
+                    <Link
+                      href={`/admin/lotes/${doc.lote.id}`}
+                      className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900"
+                      title={`Pertenece al lote "${doc.lote.nombre}"`}
+                    >
+                      <Package size={11} /> {doc.lote.nombre}
+                    </Link>
+                  )}
+                </div>
                 <div className="flex gap-2 pt-1">
                   <DocActions
                     doc={doc}
@@ -598,6 +635,7 @@ function exportCSV() {
                   {esRecibo !== false && <TableHead>Período</TableHead>}
                   {esRecibo !== true && <TableHead>Tipo</TableHead>}
                   <TableHead>Archivo</TableHead>
+                  {esRecibo === true && <TableHead>Lote</TableHead>}
                   <TableHead>Estado</TableHead>
                   <TableHead>Cargado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -635,6 +673,21 @@ function exportCSV() {
                         <FileText size={14} /> {doc.nombreArchivo}
                       </a>
                     </TableCell>
+                    {esRecibo === true && (
+                      <TableCell>
+                        {doc.lote ? (
+                          <Link
+                            href={`/admin/lotes/${doc.lote.id}`}
+                            className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900"
+                            title={`Ver lote "${doc.lote.nombre}"`}
+                          >
+                            <Package size={11} /> {doc.lote.nombre}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="inline-flex items-center gap-1.5 flex-wrap">
                         <StatusBadge estado={doc.estado} accion={doc.tipoDocumento?.accion} />

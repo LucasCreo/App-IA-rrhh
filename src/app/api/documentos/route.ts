@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const periodo = searchParams.get('periodo') ?? undefined
   const reciboParam = searchParams.get('recibo')
   const sinLote = searchParams.get('sinLote') === 'true'
+  const loteIdParam = searchParams.get('loteId')
   const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
   const q = searchParams.get('q')?.trim() ?? ''
@@ -75,7 +76,11 @@ export async function GET(req: NextRequest) {
       ],
     } : {}),
     ...reciboFilter,
-    ...(sinLote ? { loteId: null } : {}),
+    ...(sinLote || loteIdParam === 'sinLote'
+      ? { loteId: null }
+      : loteIdParam && loteIdParam !== 'todos'
+        ? { loteId: Number(loteIdParam) }
+        : {}),
     ...conformidadFilter,
   }
 
@@ -87,6 +92,7 @@ export async function GET(req: NextRequest) {
         employee: { select: { nombre: true, apellido: true, legajo: true } },
         cargadoPor: { select: { email: true } },
         tipoDocumento: { select: { id: true, nombre: true, accion: true } },
+        lote: { select: { id: true, nombre: true } },
       },
       orderBy: { fechaCarga: 'desc' },
       skip: (page - 1) * limit,

@@ -92,11 +92,6 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     apellido: 'García', nombre: 'Juan', legajo: '1234',
     formulario: 'Evaluación anual 2026',
   },
-  DOCUMENTO_ERROR_FIRMA: {
-    apellido: 'García', nombre: 'Juan',
-    tipo: 'Recibo de sueldo',
-    error: 'Timeout al conectar con el proveedor de firma',
-  },
   COMENTARIO_NUEVO_EN_POST: {
     nombre: 'Juan',
     autor: 'María López',

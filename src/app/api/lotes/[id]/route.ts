@@ -18,7 +18,12 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
         documentos: { orderBy: { fechaCarga: 'desc' } },
         empleados: {
           include: {
-            employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
+            employee: {
+              select: {
+                id: true, nombre: true, apellido: true, legajo: true,
+                categoria: { select: { id: true, nombre: true } },
+              },
+            },
           },
         },
       },

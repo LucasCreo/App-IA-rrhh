@@ -25,9 +25,11 @@ export async function PUT(req: NextRequest) {
   if ('soporteTel' in body) data.soporteTel = body.soporteTel?.trim() || null
   if (typeof body.avisosEmpleadosHabilitados === 'boolean') data.avisosEmpleadosHabilitados = body.avisosEmpleadosHabilitados
   if (Array.isArray(body.reciboFilenamePatterns)) {
+    // Sanitiza: quita espacios alrededor de los placeholders { ... } que pueden
+    // haber quedado por contenteditable con display:inline-flex en los chips.
     const valid = (body.reciboFilenamePatterns as unknown[])
       .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
-      .map(p => p.trim())
+      .map(p => p.trim().replace(/\s*(\{[^}]+\})\s*/g, '$1'))
       .filter(p => plantillaARegex(p) !== null)
     data.reciboFilenamePatterns = valid.length > 0 ? JSON.stringify(valid) : null
   }

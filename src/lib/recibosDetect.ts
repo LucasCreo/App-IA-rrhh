@@ -28,7 +28,9 @@ export interface RecibosEntry {
  *   "RS-{año}{mes}-{legajo}.pdf"    → /^RS-\d{4}\d{1,2}-(\d+)\.pdf$/i
  */
 export function plantillaARegex(template: string): RegExp | null {
-  if (!template.trim()) return null
+  // Normaliza: quita espacios alrededor de {placeholder} por si vienen sucios
+  template = template.trim().replace(/\s*(\{[^}]+\})\s*/g, '$1')
+  if (!template) return null
   const PLACEHOLDERS: Record<string, string> = {
     legajo: '\\d+',
     cuil: '[\\d-]{11,13}',
@@ -90,16 +92,17 @@ export function detectarLegajoDesdeFilename(
   legajosValidos: Set<string>,
   patterns: string[] = [],
 ): string | null {
+  const basename = fileName.replace(/^.*[\\/]/, '')
   for (const tpl of patterns) {
     const re = plantillaARegex(tpl)
     if (!re) continue
-    const m = fileName.match(re)
+    const m = basename.match(re)
     if (m && m[1]) {
       const legajo = matchLegajo(m[1], legajosValidos)
       if (legajo) return legajo
     }
   }
-  const nums = fileName.match(/\d{3,8}/g) ?? []
+  const nums = basename.match(/\d{3,8}/g) ?? []
   for (const n of nums) {
     const legajo = matchLegajo(n, legajosValidos)
     if (legajo) return legajo

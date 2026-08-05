@@ -5,10 +5,16 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 
-export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const body = await req.json().catch(() => ({}))
+  const rawIds = Array.isArray(body?.documentIds) ? body.documentIds : null
+  const idsFiltro = rawIds
+    ? rawIds.map(Number).filter((n: number) => Number.isInteger(n) && n > 0)
+    : null
 
   const lote = await prisma.lote.findUnique({
     where: { id: Number(id) },
@@ -17,7 +23,11 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   const accion: string = lote?.tipoDocumento?.accion ?? 'FIRMA'
 
   const docs = await prisma.document.findMany({
-    where: { loteId: Number(id), estado: { in: ['BORRADOR', 'ERROR'] } },
+    where: {
+      loteId: Number(id),
+      estado: { in: ['BORRADOR', 'ERROR'] },
+      ...(idsFiltro && idsFiltro.length > 0 ? { id: { in: idsFiltro } } : {}),
+    },
     select: { id: true },
   })
 

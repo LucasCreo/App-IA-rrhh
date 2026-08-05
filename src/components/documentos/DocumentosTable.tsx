@@ -634,7 +634,7 @@ function exportCSV() {
                   {!employeeId && <TableHead>Empleado</TableHead>}
                   {esRecibo !== false && <TableHead>Período</TableHead>}
                   {esRecibo !== true && <TableHead>Tipo</TableHead>}
-                  <TableHead>Archivo</TableHead>
+                  <TableHead className="max-w-[280px]">Archivo</TableHead>
                   {esRecibo === true && <TableHead>Lote</TableHead>}
                   <TableHead>Estado</TableHead>
                   <TableHead>Cargado</TableHead>
@@ -668,9 +668,15 @@ function exportCSV() {
                           : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                     )}
-                    <TableCell>
-                      <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm">
-                        <FileText size={14} /> {doc.nombreArchivo}
+                    <TableCell className="max-w-[280px]">
+                      <a
+                        href={`/api/documentos/${doc.id}/archivo`}
+                        target="_blank"
+                        title={doc.nombreArchivo}
+                        className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm min-w-0"
+                      >
+                        <FileText size={14} className="shrink-0" />
+                        <span className="truncate">{doc.nombreArchivo}</span>
                       </a>
                     </TableCell>
                     {esRecibo === true && (

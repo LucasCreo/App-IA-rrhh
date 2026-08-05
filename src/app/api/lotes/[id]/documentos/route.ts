@@ -65,9 +65,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const filePath = join(uploadsDir, fileName)
       await writeFile(filePath, buffer)
 
+      const nombreArchivoLimpio = file.name.replace(/^.*[\\/]/, '')
       const doc = await prisma.document.create({
         data: {
-          nombreArchivo: file.name,
+          nombreArchivo: nombreArchivoLimpio,
           filePath,
           periodo: lote.periodo,
           employeeId,

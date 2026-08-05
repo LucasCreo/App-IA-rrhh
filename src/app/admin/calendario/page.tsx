@@ -7,11 +7,22 @@ export default async function CalendarioAdminPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const empleados = await prisma.employee.findMany({
+  const empleadosRaw = await prisma.employee.findMany({
     where: { estado: 'ACTIVO' },
-    select: { id: true, nombre: true, apellido: true, legajo: true },
+    select: {
+      id: true, nombre: true, apellido: true, legajo: true,
+      categoria: { select: { id: true, nombre: true } },
+    },
     orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
   })
+  const empleados = empleadosRaw.map(e => ({
+    id: e.id,
+    nombre: e.nombre,
+    apellido: e.apellido,
+    legajo: e.legajo,
+    categoriaId: e.categoria?.id ?? null,
+    categoriaNombre: e.categoria?.nombre ?? null,
+  }))
 
   return (
     <div className="flex flex-col h-full">

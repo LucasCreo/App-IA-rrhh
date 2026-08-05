@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Plus, X, Trash2, Search, SlidersHorizontal, CalendarDays, List, LayoutGrid, Users } from 'lucide-react'
 import { Popover } from '@base-ui/react/popover'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -22,7 +23,7 @@ interface TipoEvento {
   protegido: boolean
 }
 
-interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
+interface Empleado { id: number; nombre: string; apellido: string; legajo: string; categoriaId?: number | null; categoriaNombre?: string | null }
 interface Asignado { employeeId: number; employee?: Empleado }
 interface Evento {
   id: number
@@ -86,10 +87,40 @@ function addDays(d: Date, n: number): Date {
 
 export function CalendarioView({ isAdmin = false, empleados = [], currentUserId, currentEmployeeId, googleConnected }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const now = new Date()
+
+  // Parse ?highlight= o ?range= una sola vez al montar para inicializar mes/anio y evitar race con el fetch inicial
+  const initialHighlight = (() => {
+    const h = searchParams.get('highlight')
+    const r = searchParams.get('range')
+    if (!h && !r) return null
+    let start: Date | null = null
+    let end: Date | null = null
+    if (r) {
+      const [s, e] = r.split(':')
+      if (s) start = new Date(`${s}T00:00:00`)
+      if (e) end = new Date(`${e}T00:00:00`)
+    } else if (h) {
+      start = new Date(`${h}T00:00:00`)
+      end = start
+    }
+    if (!start || isNaN(start.getTime())) return null
+    if (!end || isNaN(end.getTime())) end = start
+    const set = new Set<string>()
+    const cur = new Date(start)
+    while (cur <= end) {
+      set.add(toLocalDateStr(cur))
+      cur.setDate(cur.getDate() + 1)
+    }
+    return { start, set }
+  })()
+
   const [vista, setVista] = useState<Vista>('mes')
-  const [mes, setMes] = useState(now.getMonth() + 1)
-  const [anio, setAnio] = useState(now.getFullYear())
+  const [mes, setMes] = useState(initialHighlight ? initialHighlight.start.getMonth() + 1 : now.getMonth() + 1)
+  const [anio, setAnio] = useState(initialHighlight ? initialHighlight.start.getFullYear() : now.getFullYear())
+  const [highlightSet, setHighlightSet] = useState<Set<string>>(initialHighlight?.set ?? new Set())
+  const [highlightFading, setHighlightFading] = useState(false)
   const [semanaRef, setSemanaRef] = useState<Date>(() => inicioSemana(now))
   const [tiposOcultos, setTiposOcultos] = useState<Set<string>>(new Set())
   const [empleadosOcultos, setEmpleadosOcultos] = useState<Set<number>>(() => {
@@ -117,6 +148,10 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     employeeIds: [] as number[],
   })
   const [comentarioAdmin, setComentarioAdmin] = useState('')
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignSoloSeleccionados, setAssignSoloSeleccionados] = useState(false)
+  const [assignCategoriaId, setAssignCategoriaId] = useState<string>('')
+  const [assignFiltrosOpen, setAssignFiltrosOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savingComment, setSavingComment] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
@@ -152,6 +187,15 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   }, [mes, anio, vista, semanaRef])
 
   useEffect(() => { load() }, [load])
+
+  // Fade-out gradual del highlight: aparece → 500ms visible → fade 2s → limpiar
+  useEffect(() => {
+    if (highlightSet.size === 0) return
+    const t1 = setTimeout(() => setHighlightFading(true), 2500)
+    const t2 = setTimeout(() => { setHighlightSet(new Set()); setHighlightFading(false) }, 4800)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     fetch('/api/configuracion/tipos-evento').then(r => r.json()).then(setTipos)
@@ -269,6 +313,10 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
       todoElDia: true, tipo, subtipo: '',
       employeeIds: currentEmployeeId ? [currentEmployeeId] : [],
     })
+    setAssignSearch('')
+    setAssignSoloSeleccionados(false)
+    setAssignCategoriaId('')
+    setAssignFiltrosOpen(false)
     setDialog({ mode: 'create', fecha })
   }
 
@@ -648,12 +696,13 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
             const dateStr = day ? `${anio}-${String(mes).padStart(2, '0')}-${String(day).padStart(2, '0')}` : ''
             const isToday = dateStr === todayStr
             const isWeekend = i % 7 === 0 || i % 7 === 6
+            const isHighlighted = !!day && highlightSet.has(dateStr)
             const evs = day ? eventosDelDia(day) : []
             return (
               <div
                 key={i}
                 className={cn(
-                  'border-r border-b min-h-24 p-1.5 cursor-pointer hover:bg-muted/40 transition-colors',
+                  'relative border-r border-b min-h-24 p-1.5 cursor-pointer hover:bg-muted/40 transition-colors',
                   !day && 'bg-muted/20 cursor-default',
                   isWeekend && day && 'bg-muted/25',
                   day && dragOverDate === dateStr && 'bg-green-100 dark:bg-green-950/40 ring-2 ring-green-500 ring-inset',
@@ -663,6 +712,14 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                 onDragLeave={() => { if (dragOverDate === dateStr) setDragOverDate(null) }}
                 onDrop={ev => { if (day) { ev.preventDefault(); handleDropOn(dateStr) } }}
               >
+                {isHighlighted && (
+                  <div
+                    className={cn(
+                      'pointer-events-none absolute inset-0 bg-green-200/60 dark:bg-green-500/25 ring-2 ring-green-500/70 dark:ring-green-400/60 ring-inset transition-opacity duration-[2000ms] ease-out',
+                      highlightFading ? 'opacity-0' : 'opacity-100'
+                    )}
+                  />
+                )}
                 {day && (
                   <>
                     <span className={cn(
@@ -849,7 +906,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
 
       {/* Dialog */}
       <Dialog open={!!dialog} onOpenChange={open => { if (!open) setDialog(null) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {dialog?.mode === 'view' || dialog?.mode === 'view-employee'
@@ -1031,43 +1088,150 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
               )}
 
               {/* Employee assignment (only for non-employee-creatable tipos) */}
-              {showAssignment && (
+              {showAssignment && (() => {
+                const q = assignSearch.trim().toLowerCase()
+                const catId = assignCategoriaId ? Number(assignCategoriaId) : null
+                const categorias = Array.from(
+                  new Map(
+                    empleados
+                      .filter(e => e.categoriaId != null)
+                      .map(e => [e.categoriaId!, { id: e.categoriaId!, nombre: e.categoriaNombre ?? '—' }])
+                  ).values()
+                ).sort((a, b) => a.nombre.localeCompare(b.nombre))
+                const visibles = empleados.filter(emp => {
+                  if (assignSoloSeleccionados && !form.employeeIds.includes(emp.id)) return false
+                  if (catId != null && emp.categoriaId !== catId) return false
+                  if (!q) return true
+                  const nombre = `${emp.apellido} ${emp.nombre}`.toLowerCase()
+                  return nombre.includes(q) || emp.legajo.toLowerCase().includes(q)
+                })
+                const seleccionados = form.employeeIds.length
+                const todosVisiblesSel = visibles.length > 0 && visibles.every(emp => form.employeeIds.includes(emp.id))
+                const algunosVisiblesSel = visibles.some(emp => form.employeeIds.includes(emp.id)) && !todosVisiblesSel
+                return (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-muted-foreground">Asignar a empleados</label>
+                    <label className="text-xs text-muted-foreground">
+                      Asignar a empleados
+                      {seleccionados > 0 && <span className="ml-1 text-foreground font-medium">· {seleccionados} seleccionado{seleccionados !== 1 ? 's' : ''}</span>}
+                    </label>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                       <input
                         type="checkbox"
-                        checked={empleados.length > 0 && empleados.every(emp => form.employeeIds.includes(emp.id))}
-                        ref={el => { if (el) el.indeterminate = form.employeeIds.length > 0 && !empleados.every(emp => form.employeeIds.includes(emp.id)) }}
-                        onChange={e => setForm(f => ({
-                          ...f,
-                          employeeIds: e.target.checked ? empleados.map(emp => emp.id) : [],
-                        }))}
-                      />
-                      Todos
-                    </label>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto border rounded-md divide-y">
-                    {empleados.map(emp => (
-                      <label key={emp.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-sm">
-                        <input
-                          type="checkbox"
-                          checked={form.employeeIds.includes(emp.id)}
-                          onChange={e => setForm(f => ({
+                        checked={todosVisiblesSel}
+                        onChange={e => {
+                          const ids = visibles.map(emp => emp.id)
+                          setForm(f => ({
                             ...f,
                             employeeIds: e.target.checked
-                              ? [...f.employeeIds, emp.id]
-                              : f.employeeIds.filter(id => id !== emp.id)
-                          }))}
-                        />
-                        {emp.apellido}, {emp.nombre}
-                        <span className="text-muted-foreground text-xs">({emp.legajo})</span>
-                      </label>
-                    ))}
+                              ? Array.from(new Set([...f.employeeIds, ...ids]))
+                              : f.employeeIds.filter(id => !ids.includes(id)),
+                          }))
+                        }}
+                      />
+                      {q || assignSoloSeleccionados ? 'Todos (visibles)' : 'Todos'}
+                    </label>
+                  </div>
+                  {(() => {
+                    const filtrosActivos = (assignCategoriaId ? 1 : 0)
+                    return (
+                    <div className="mb-2 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative flex-1 min-w-[140px]">
+                          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                          <Input
+                            value={assignSearch}
+                            onChange={e => setAssignSearch(e.target.value)}
+                            placeholder="Buscar por nombre o legajo…"
+                            className="pl-7 h-8 text-xs"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAssignFiltrosOpen(v => !v)}
+                          className={cn(
+                            'text-xs px-2 py-1.5 rounded-md border transition-colors whitespace-nowrap inline-flex items-center gap-1',
+                            filtrosActivos > 0 || assignFiltrosOpen
+                              ? 'border-green-600 text-green-700 dark:text-green-400'
+                              : 'border-input text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          <SlidersHorizontal size={12} />
+                          Filtros
+                          {filtrosActivos > 0 && (
+                            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold">
+                              {filtrosActivos}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAssignSoloSeleccionados(v => !v)}
+                          disabled={seleccionados === 0}
+                          className={cn(
+                            'text-xs px-2 py-1.5 rounded-md border transition-colors whitespace-nowrap',
+                            assignSoloSeleccionados
+                              ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300'
+                              : 'border-input text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
+                          )}
+                        >
+                          Ver seleccionados
+                        </button>
+                      </div>
+                      {assignFiltrosOpen && (
+                        <div className="flex flex-wrap items-end gap-3 p-3 rounded-md border bg-muted/30">
+                          {categorias.length > 0 && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground mb-1">Categoría</p>
+                              <select
+                                value={assignCategoriaId}
+                                onChange={e => setAssignCategoriaId(e.target.value)}
+                                className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground min-w-40"
+                              >
+                                <option value="">Todas</option>
+                                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          {filtrosActivos > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setAssignCategoriaId('')}
+                              className="text-xs text-muted-foreground hover:text-foreground underline ml-auto"
+                            >
+                              Limpiar
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    )
+                  })()}
+                  <div className="max-h-40 overflow-y-auto border rounded-md divide-y">
+                    {visibles.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-xs text-muted-foreground">Sin resultados</div>
+                    ) : (
+                      visibles.map(emp => (
+                        <label key={emp.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={form.employeeIds.includes(emp.id)}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              employeeIds: e.target.checked
+                                ? [...f.employeeIds, emp.id]
+                                : f.employeeIds.filter(id => id !== emp.id)
+                            }))}
+                          />
+                          {emp.apellido}, {emp.nombre}
+                          <span className="text-muted-foreground text-xs">({emp.legajo})</span>
+                        </label>
+                      ))
+                    )}
                   </div>
                 </div>
-              )}
+                )
+              })()}
             </div>
           )}
 

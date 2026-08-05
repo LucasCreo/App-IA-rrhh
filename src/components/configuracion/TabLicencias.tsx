@@ -8,9 +8,9 @@ export function TabLicencias() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Tipos de ausencia</CardTitle>
+          <CardTitle>Tipos de licencia</CardTitle>
           <CardDescription className="mt-1">
-            Definí los tipos de ausencia (vacaciones, licencias, etc.) que pueden solicitar los empleados.
+            Definí los tipos de licencia (vacaciones, enfermedad, etc.) que pueden solicitar los empleados. Marcá cuáles requieren aprobación y cuáles afectan el saldo anual.
           </CardDescription>
         </CardHeader>
         <CardContent>

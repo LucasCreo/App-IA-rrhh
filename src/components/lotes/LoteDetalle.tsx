@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal, FileText, UserPlus, Package, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal, FileText, UserPlus, Package, MoreVertical, ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -29,7 +29,7 @@ interface Pendiente {
 }
 
 const DETECT_CONCURRENCY = 6
-const PENDIENTES_POR_PAGINA = 25
+const PENDIENTES_PAGE_SIZES = [20, 50, 100]
 
 interface Documento {
   id: number
@@ -38,6 +38,7 @@ interface Documento {
   fechaFirma: string | null
   firmaConforme: boolean | null
   firmaComentario: string | null
+  nombreArchivo?: string | null
 }
 
 interface EmpleadoRow {
@@ -95,13 +96,18 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [empleados, setEmpleados] = useState<EmpleadoRow[]>([])
   const [pendientes, setPendientes] = useState<Pendiente[]>([])
   const [filenamePatterns, setFilenamePatterns] = useState<string[]>([])
+  const [patternsLoaded, setPatternsLoaded] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
   const [asignacionPend, setAsignacionPend] = useState<Record<number, string>>({})
   const [creatingEmpForPend, setCreatingEmpForPend] = useState<{ pendId: number; legajo: string | null } | null>(null)
   const [pendBusqueda, setPendBusqueda] = useState('')
-  const [pendSoloSinDetectar, setPendSoloSinDetectar] = useState(false)
   const [pendPagina, setPendPagina] = useState(1)
+  const [pendPageSize, setPendPageSize] = useState<number>(20)
   const [autoAsignados, setAutoAsignados] = useState(0)
+  const [assignOpenId, setAssignOpenId] = useState<number | null>(null)
+  const [preview, setPreview] = useState<{ kind: 'pend' | 'doc'; id: number; nombre: string } | null>(null)
+  const [analizandoIds, setAnalizandoIds] = useState<Set<number>>(new Set())
+  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<number>>(new Set())
   const [tabActivo, setTabActivo] = useState<'recibos' | 'pendientes'>('recibos')
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -140,7 +146,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Cargar patrones de filename una sola vez
+  // Cargar patrones de filename una sola vez (bloquea la detección hasta que resuelva)
   useEffect(() => {
     fetch('/api/configuracion/general')
       .then(r => r.json())
@@ -150,6 +156,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
           setFilenamePatterns(Array.isArray(parsed) ? parsed : [])
         } catch { setFilenamePatterns([]) }
       })
+      .finally(() => setPatternsLoaded(true))
   }, [])
 
   // Auto-asignar helper: si el legajo detectado matchea un empleado que NO tiene doc en el lote, asigna
@@ -171,6 +178,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
 
   // Detección lazy: por filename (local); si no matchea y no se detectó todavía, OCR server
   useEffect(() => {
+    if (!patternsLoaded) return
     if (pendientes.length === 0 || empleados.length === 0) return
     const legajosValidos = new Set(empleados.map(e => e.legajo))
     const needsWork = pendientes.filter(p => !p.legajoDetectado && !procesadosRef.current.has(p.id))
@@ -202,13 +210,17 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
       }
       // Paso 2: OCR server para el resto (con cola)
       if (remaining.length > 0) {
-        setPendientes(prev => prev.map(x =>
-          remaining.some(r => r.id === x.id) ? { ...x, detectando: true } : x
-        ))
+        if (cancelled) return
+        const remainingIds = remaining.map(r => r.id)
+        // Marcar OCR en progreso en un set local (no muta el pendiente)
+        setAnalizandoIds(prev => {
+          const next = new Set(prev)
+          for (const id of remainingIds) next.add(id)
+          return next
+        })
         await runWithConcurrency(remaining, async (p) => {
           if (cancelled) return
           try {
-            // Descargar el PDF y pasar a detectarLegajoPdf
             const r = await fetch(`/api/lotes/${loteId}/pendientes/${p.id}/archivo`)
             if (!r.ok) throw new Error('no se pudo leer el archivo')
             const blob = await r.blob()
@@ -224,22 +236,40 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
             const auto = legajo ? await tryAutoAsignar(p.id, legajo) : false
             if (!auto) {
               setPendientes(prev => prev.map(x => x.id === p.id
-                ? { ...x, legajoDetectado: legajo, detectando: false }
+                ? { ...x, legajoDetectado: legajo }
                 : x))
             }
-          } catch {
-            setPendientes(prev => prev.map(x => x.id === p.id ? { ...x, detectando: false } : x))
+          } catch { /* silencioso — chip pasa a "sin legajo" */ }
+          finally {
+            setAnalizandoIds(prev => {
+              if (!prev.has(p.id)) return prev
+              const next = new Set(prev); next.delete(p.id); return next
+            })
           }
         }, DETECT_CONCURRENCY)
       }
     })()
     return () => { cancelled = true }
-  }, [pendientes, empleados, filenamePatterns, loteId, tryAutoAsignar])
+  }, [pendientes, empleados, filenamePatterns, loteId, tryAutoAsignar, patternsLoaded])
 
   async function enviarTodos() {
     setSending(true)
     try {
-      const r = await fetch(`/api/lotes/${loteId}/enviar-firma`, { method: 'POST' })
+      // Si hay selección, derivo los docIds enviables (solo BORRADOR/ERROR) desde los empleados seleccionados
+      let body: string
+      if (selectedEmpIds.size > 0) {
+        const docIds = empleados
+          .filter(e => selectedEmpIds.has(e.id) && e.documento && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR'))
+          .map(e => e.documento!.id)
+        body = JSON.stringify({ documentIds: docIds })
+      } else {
+        body = JSON.stringify({})
+      }
+      const r = await fetch(`/api/lotes/${loteId}/enviar-firma`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
       if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
       const errs: typeof envioErrors = Array.isArray(data.errors) ? data.errors : []
@@ -251,6 +281,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         setEnvioErrors([])
         toast.success(`${data.sent} recibo(s) enviados`)
       }
+      setSelectedEmpIds(new Set())
       await fetchData()
     } finally {
       setSending(false)
@@ -426,7 +457,8 @@ if (loading) {
   })
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full">
+      <div className="flex-1 flex flex-col min-w-0">
       <header className="h-14 border-b border-border bg-background flex items-center px-6 shrink-0">
         <Link href="/admin/lotes" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={16} />
@@ -482,7 +514,13 @@ if (loading) {
                   disabled={!canEnviarTodos || sending}
                 >
                   <Send size={13} className="mr-1.5" />
-                  {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar' : 'Enviar a firma'}
+                  {(() => {
+                    if (sending) return 'Enviando...'
+                    const label = accion === 'LECTURA' ? 'Notificar' : 'Enviar a firma'
+                    if (selectedEmpIds.size === 0) return label
+                    const enviables = empleados.filter(e => selectedEmpIds.has(e.id) && e.documento && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR')).length
+                    return `${label} (${enviables})`
+                  })()}
                 </Button>
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setAgregando(true)}>
                   <Plus size={13} className="mr-1.5" /> Agregar
@@ -582,15 +620,14 @@ if (loading) {
         {tabActivo === 'pendientes' && (pendientes.length > 0 || autoAsignados > 0) && (() => {
           const q = pendBusqueda.trim().toLowerCase()
           const filtrados = pendientes.filter(p => {
-            if (pendSoloSinDetectar && (p.legajoDetectado || p.detectando)) return false
             if (q && !p.nombreArchivo.toLowerCase().includes(q) && !(p.legajoDetectado ?? '').toLowerCase().includes(q)) return false
             return true
           })
-          const totalPag = Math.max(1, Math.ceil(filtrados.length / PENDIENTES_POR_PAGINA))
+          const totalPag = Math.max(1, Math.ceil(filtrados.length / pendPageSize))
           const paginaActual = Math.min(pendPagina, totalPag)
-          const inicio = (paginaActual - 1) * PENDIENTES_POR_PAGINA
-          const paginaItems = filtrados.slice(inicio, inicio + PENDIENTES_POR_PAGINA)
-          const sinDetectar = pendientes.filter(p => !p.legajoDetectado && !p.detectando).length
+          const inicio = (paginaActual - 1) * pendPageSize
+          const paginaItems = filtrados.slice(inicio, inicio + pendPageSize)
+          const sinDetectar = pendientes.filter(p => !p.legajoDetectado && !analizandoIds.has(p.id)).length
           return (
           <div className="rounded-xl border bg-card overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-yellow-50 dark:bg-yellow-950/20">
@@ -627,18 +664,9 @@ if (loading) {
                     onChange={e => { setPendBusqueda(e.target.value); setPendPagina(1) }}
                   />
                 </div>
-                <Button
-                  type="button"
-                  variant={pendSoloSinDetectar ? 'default' : 'outline'}
-                  size="sm"
-                  className={cn('h-8 text-xs', pendSoloSinDetectar && 'bg-yellow-600 hover:bg-yellow-700 text-white')}
-                  onClick={() => { setPendSoloSinDetectar(v => !v); setPendPagina(1) }}
-                >
-                  Solo sin detectar
-                </Button>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {filtrados.length === 0 ? '0 resultados' :
-                    `${inicio + 1}-${Math.min(inicio + PENDIENTES_POR_PAGINA, filtrados.length)} de ${filtrados.length}`}
+                    `${inicio + 1}-${Math.min(inicio + pendPageSize, filtrados.length)} de ${filtrados.length}`}
                 </span>
               </div>
             )}
@@ -649,81 +677,144 @@ if (loading) {
                   ? empleados.find(e => e.legajo === legajoDet || e.legajo.replace(/^0+/, '') === legajoDet.replace(/^0+/, ''))
                   : null
                 const empSel = asignacionPend[p.id] ?? (empSugerido ? String(empSugerido.id) : '')
+                const asignOpen = assignOpenId === p.id
+                const enOcr = analizandoIds.has(p.id)
+                // Chip corto + tooltip largo
+                let chipLabel = ''
+                let chipClass = ''
+                let tooltipText = ''
+                if (enOcr) {
+                  chipLabel = 'analizando'
+                  chipClass = 'bg-muted text-muted-foreground'
+                  tooltipText = 'Analizando el contenido del archivo…'
+                } else if (empSugerido) {
+                  chipLabel = `sugerido: ${empSugerido.apellido}`
+                  chipClass = 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300'
+                  tooltipText = `Sugerido: ${empSugerido.apellido}, ${empSugerido.nombre} — legajo ${p.legajoDetectado}`
+                } else if (p.legajoDetectado) {
+                  chipLabel = `legajo ${p.legajoDetectado} inexistente`
+                  chipClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300'
+                  tooltipText = `Se detectó el legajo ${p.legajoDetectado} pero no existe ningún empleado con ese legajo.`
+                } else {
+                  chipLabel = 'sin legajo'
+                  chipClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300'
+                  tooltipText = 'No se pudo detectar un legajo válido en el nombre del archivo.'
+                }
                 return (
-                  <div key={p.id} className="px-4 py-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {p.detectando
-                          ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin" />
-                          : empSugerido
-                            ? <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-                            : <AlertCircle size={14} className="text-yellow-500 shrink-0" />
-                        }
-                        <a
-                          href={`/api/lotes/${loteId}/pendientes/${p.id}/archivo`}
-                          target="_blank"
-                          className="text-xs font-medium truncate text-green-700 dark:text-green-400 hover:underline"
-                        >
-                          <FileText size={11} className="inline mr-1" />{p.nombreArchivo}
-                        </a>
-                        {p.detectando ? (
-                          <span className="text-xs text-muted-foreground shrink-0">detectando…</span>
-                        ) : empSugerido ? (
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            legajo detectado: {p.legajoDetectado}
-                          </span>
-                        ) : p.legajoDetectado ? (
-                          <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">
-                            legajo {p.legajoDetectado ?? ''} no existe
-                          </span>
-                        ) : (
-                          <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">sin legajo</span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => eliminarPendiente(p.id)}
-                        className="text-muted-foreground hover:text-destructive shrink-0"
-                        title="Descartar archivo"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Select
-                        value={empSel}
-                        onValueChange={v => setAsignacionPend(prev => ({ ...prev, [p.id]: v ?? '' }))}
-                      >
-                        <SelectTrigger className="h-8 text-xs flex-1">
-                          <SelectValue placeholder="Seleccioná el empleado…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {empleados.map(e => (
-                            <SelectItem key={e.id} value={String(e.id)}>
-                              {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {!empSugerido && p.legajoDetectado && !p.detectando && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs shrink-0"
-                          onClick={() => setCreatingEmpForPend({ pendId: p.id, legajo: p.legajoDetectado })}
-                        >
-                          <UserPlus size={12} className="mr-1" /> Crear empleado
-                        </Button>
+                  <div key={p.id} className="px-4 py-2.5 space-y-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {enOcr ? (
+                        <span
+                          className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin"
+                          title={tooltipText}
+                        />
+                      ) : empSugerido ? (
+                        <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                      ) : (
+                        <span className="shrink-0 inline-flex" title={tooltipText}>
+                          <AlertCircle size={14} className="text-yellow-500" />
+                        </span>
                       )}
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs shrink-0 bg-green-700 hover:bg-green-800"
-                        disabled={!empSel}
-                        onClick={() => empSel && asignarPendiente(p.id, Number(empSel))}
-                      >
-                        Asignar
-                      </Button>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <FileText size={12} className="text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate" title={p.nombreArchivo}>{p.nombreArchivo}</span>
+                        <span
+                          className={cn('shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded', chipClass)}
+                          title={tooltipText}
+                        >
+                          {chipLabel}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPreview(
+                            preview?.kind === 'pend' && preview.id === p.id
+                              ? null
+                              : { kind: 'pend', id: p.id, nombre: p.nombreArchivo }
+                          )}
+                          className={cn(
+                            'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
+                            preview?.kind === 'pend' && preview.id === p.id
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                              : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                          )}
+                          title={preview?.kind === 'pend' && preview.id === p.id ? 'Cerrar vista' : 'Ver archivo'}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => eliminarPendiente(p.id)}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                          title="Eliminar archivo"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <Button
+                          size="sm"
+                          className={cn(
+                            'h-8 text-xs text-white',
+                            asignOpen
+                              ? 'bg-green-800 hover:bg-green-900'
+                              : 'bg-green-700 hover:bg-green-800'
+                          )}
+                          onClick={() => setAssignOpenId(asignOpen ? null : p.id)}
+                        >
+                          Asignar
+                          <ChevronDown size={12} className={cn('ml-1 transition-transform', asignOpen && 'rotate-180')} />
+                        </Button>
+                      </div>
                     </div>
+                    {asignOpen && (
+                      <div className="flex gap-2 pl-6 pt-1">
+                        <Select
+                          value={empSel}
+                          onValueChange={v => setAsignacionPend(prev => ({ ...prev, [p.id]: v ?? '' }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs flex-1">
+                            <SelectValue placeholder="Seleccioná el empleado…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {empleados.map(e => (
+                              <SelectItem key={e.id} value={String(e.id)}>
+                                {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!empSugerido && p.legajoDetectado && !enOcr && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs shrink-0"
+                            onClick={() => setCreatingEmpForPend({ pendId: p.id, legajo: p.legajoDetectado })}
+                          >
+                            <UserPlus size={12} className="mr-1" /> Crear empleado
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs shrink-0 bg-green-700 hover:bg-green-800"
+                          disabled={!empSel}
+                          onClick={() => {
+                            if (!empSel) return
+                            asignarPendiente(p.id, Number(empSel))
+                            setAssignOpenId(null)
+                          }}
+                        >
+                          Confirmar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs shrink-0"
+                          onClick={() => setAssignOpenId(null)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -733,31 +824,25 @@ if (loading) {
                 </div>
               )}
             </div>
-            {totalPag > 1 && (
-              <div className="flex items-center justify-between gap-2 px-4 py-2 border-t bg-muted/20">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={paginaActual <= 1}
-                  onClick={() => setPendPagina(p => Math.max(1, p - 1))}
-                >
-                  Anterior
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Página {paginaActual} de {totalPag}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={paginaActual >= totalPag}
-                  onClick={() => setPendPagina(p => Math.min(totalPag, p + 1))}
-                >
-                  Siguiente
-                </Button>
+            {filtrados.length > 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-2 border-t bg-muted/20 text-xs text-muted-foreground">
+                <span>{filtrados.length} archivo{filtrados.length !== 1 ? 's' : ''}</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span>Por página</span>
+                    <Select value={String(pendPageSize)} onValueChange={v => { if (v) { setPendPageSize(Number(v)); setPendPagina(1) } }}>
+                      <SelectTrigger className="w-20 h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PENDIENTES_PAGE_SIZES.map(s => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="h-7 px-2" disabled={paginaActual <= 1} onClick={() => setPendPagina(p => Math.max(1, p - 1))}>←</Button>
+                    <span className="px-1">Página {paginaActual} de {totalPag}</span>
+                    <Button size="sm" variant="outline" className="h-7 px-2" disabled={paginaActual >= totalPag} onClick={() => setPendPagina(p => Math.min(totalPag, p + 1))}>→</Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -837,6 +922,28 @@ if (loading) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
+                <th className="w-10 text-left py-3 px-4">
+                  {filteredEmpleados.length > 0 && (() => {
+                    const visIds = filteredEmpleados.map(e => e.id)
+                    const allSel = visIds.length > 0 && visIds.every(id => selectedEmpIds.has(id))
+                    return (
+                      <input
+                        type="checkbox"
+                        checked={allSel}
+                        onChange={e => {
+                          setSelectedEmpIds(prev => {
+                            const next = new Set(prev)
+                            if (e.target.checked) visIds.forEach(id => next.add(id))
+                            else visIds.forEach(id => next.delete(id))
+                            return next
+                          })
+                        }}
+                        className="cursor-pointer accent-green-700"
+                        title="Seleccionar todos los visibles"
+                      />
+                    )
+                  })()}
+                </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Empleado</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Legajo</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Estado</th>
@@ -849,7 +956,7 @@ if (loading) {
             <tbody>
               {filteredEmpleados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                     <Users size={24} className="mx-auto mb-2 opacity-30" />
                     Sin empleados en este filtro
                   </td>
@@ -868,6 +975,21 @@ if (loading) {
                     key={emp.id}
                     className={`border-b border-border last:border-0 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}
                   >
+                    <td className="py-3 px-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedEmpIds.has(emp.id)}
+                        onChange={e => {
+                          setSelectedEmpIds(prev => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(emp.id)
+                            else next.delete(emp.id)
+                            return next
+                          })
+                        }}
+                        className="cursor-pointer accent-green-700"
+                      />
+                    </td>
                     <td className="py-3 px-4 font-medium">{emp.apellido}, {emp.nombre}</td>
                     <td className="py-3 px-4 text-muted-foreground font-mono text-xs hidden sm:table-cell">{emp.legajo}</td>
                     <td className="py-3 px-4">
@@ -908,15 +1030,23 @@ if (loading) {
                     <td className="py-3 px-4 text-right">
                       {docId && (
                         <div className="inline-flex items-center gap-0.5">
-                          <a
-                            href={`/api/documentos/${docId}/archivo`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            title="Ver recibo"
+                          <button
+                            type="button"
+                            onClick={() => setPreview(
+                              preview?.kind === 'doc' && preview.id === docId
+                                ? null
+                                : { kind: 'doc', id: docId, nombre: emp.documento?.nombreArchivo ?? `${emp.apellido}, ${emp.nombre}` }
+                            )}
+                            className={cn(
+                              'p-1.5 rounded transition-colors',
+                              preview?.kind === 'doc' && preview.id === docId
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            )}
+                            title={preview?.kind === 'doc' && preview.id === docId ? 'Cerrar vista' : 'Ver recibo'}
                           >
                             <Eye size={14} />
-                          </a>
+                          </button>
                           {estadoKey !== 'FIRMADO' && (
                             <button
                               onClick={() => abrirReemplazo(docId)}
@@ -955,6 +1085,40 @@ if (loading) {
         </div>
         </>}
       </div>
+      </div>
+
+      {/* Panel lateral derecho de preview (empuja el contenido a la izquierda) */}
+      {preview !== null && (() => {
+        const src = preview.kind === 'pend'
+          ? `/api/lotes/${loteId}/pendientes/${preview.id}/archivo`
+          : `/api/documentos/${preview.id}/archivo`
+        return (
+          <aside className="w-full sm:w-[420px] lg:w-[520px] shrink-0 border-l bg-card flex flex-col h-full">
+            <div className="h-12 flex items-center justify-between px-4 border-b bg-muted/30 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText size={14} className="text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium truncate" title={preview.nombre}>
+                  {preview.nombre}
+                </span>
+              </div>
+              <button
+                onClick={() => setPreview(null)}
+                className="p-1.5 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
+                title="Cerrar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <iframe
+              key={`${preview.kind}-${preview.id}`}
+              src={src}
+              className="flex-1 w-full bg-muted"
+              title={preview.nombre}
+            />
+          </aside>
+        )
+      })()}
+
       <ConfirmDialog
         open={confirmDelete}
         title={`¿Eliminar el lote "${lote?.nombre}"?`}

@@ -74,19 +74,35 @@ export function LotesTable() {
   async function handleBulkDelete() {
     if (selected.size === 0) return
     setBulkDeleting(true)
-    const results = await Promise.all(
-      Array.from(selected).map(id =>
-        fetch(`/api/lotes/${id}`, { method: 'DELETE' }).then(r => r.ok)
-      )
-    )
-    const ok = results.filter(Boolean).length
-    const fail = results.length - ok
-    setBulkDeleting(false)
-    setBulkDeleteOpen(false)
-    setSelected(new Set())
-    if (ok > 0) toast.success(`${ok} lote(s) eliminado(s)`)
-    if (fail > 0) toast.error(`${fail} no se pudo(ieron) eliminar`)
-    fetchLotes()
+    try {
+      const res = await fetch('/api/lotes/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const ok: number = data?.deleted ?? 0
+      const errors: Array<{ id: number; error: string }> = data?.errors ?? []
+      const total = selected.size
+      if (ok > 0) toast.success(ok === 1 ? '1 lote eliminado' : `${ok} lotes eliminados`)
+      if (errors.length > 0) {
+        const primero = errors[0]?.error ?? 'Error desconocido'
+        const msg = errors.length === 1
+          ? `No se pudo eliminar 1 lote: ${primero}`
+          : `${errors.length} lotes no se pudieron eliminar. Primer error: ${primero}`
+        toast.error(msg, { duration: 8000 })
+      }
+      if (!res.ok && ok === 0 && errors.length === 0) {
+        toast.error(data?.error ?? `No se pudieron eliminar los ${total} lotes`)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de red al eliminar los lotes')
+    } finally {
+      setBulkDeleting(false)
+      setBulkDeleteOpen(false)
+      setSelected(new Set())
+      fetchLotes()
+    }
   }
 
   return (

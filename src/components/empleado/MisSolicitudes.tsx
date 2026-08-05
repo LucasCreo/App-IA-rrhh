@@ -8,9 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Upload, Paperclip, FileText, CalendarOff, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Clock, Search } from 'lucide-react'
-import { handleApiError } from '@/lib/apiErrors'
+import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
@@ -18,30 +16,21 @@ import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/For
 
 interface CampoSolicitud { nombre: string; label: string; tipo: 'texto' | 'numero' | 'fecha'; requerido: boolean }
 interface TipoSolicitud { id: number; nombre: string; descripcion?: string; requiereAprobacion: boolean; campos: CampoSolicitud[] }
-interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
 
 interface SolicitudDoc {
   id: number; nombreArchivo?: string; estado: string
   descripcion?: string; comentario?: string; comentarioVisible: boolean
   metadata?: string; createdAt: string; tipo: TipoSolicitud
 }
-interface SolicitudAusencia {
-  id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
-  fechaInicio: string; fechaFin: string; createdAt: string
-  tipoAusencia: { nombre: string; color: string }
-}
-interface Saldo { diasTotales: number; diasUsados: number }
 
 type ItemBase = { key: string; fecha: string; estado: string; pendiente: boolean }
 type ItemDoc = ItemBase & { kind: 'doc'; data: SolicitudDoc }
-type ItemAus = ItemBase & { kind: 'ausencia'; data: SolicitudAusencia }
 type ItemForm = ItemBase & { kind: 'form'; data: FormularioRespuesta }
-type Item = ItemDoc | ItemAus | ItemForm
+type Item = ItemDoc | ItemForm
 
 const FILTROS = [
   { value: 'todos', label: 'Todos' },
   { value: 'documentos', label: 'Documentos' },
-  { value: 'ausencias', label: 'Ausencias' },
   { value: 'formularios', label: 'Formularios' },
   { value: 'pendientes', label: 'Pendientes' },
 ] as const
@@ -53,44 +42,17 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
 }
 
-function diasHabiles(desde: string, hasta: string): number {
-  if (!desde || !hasta) return 0
-  const [yA, mA, dA] = desde.split('-').map(Number)
-  const [yB, mB, dB] = hasta.split('-').map(Number)
-  const a = new Date(yA, mA - 1, dA)
-  const b = new Date(yB, mB - 1, dB)
-  if (b < a) return 0
-  let n = 0
-  const cur = new Date(a)
-  while (cur <= b) {
-    const dow = cur.getDay()
-    if (dow !== 0 && dow !== 6) n++
-    cur.setDate(cur.getDate() + 1)
-  }
-  return n
-}
-
-const ESTADO_AUS: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
-  PENDIENTE: { icon: <Clock size={11} />, className: 'text-yellow-600 border-yellow-400', label: 'Pendiente' },
-  APROBADA: { icon: <CheckCircle2 size={11} />, className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Aprobada' },
-  RECHAZADA: { icon: <XCircle size={11} />, className: 'text-red-500 border-red-400', label: 'Rechazada' },
-}
-
 export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista } = {}) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const initialTab = ((): Filtro => {
     const t = searchParams.get('tab')
     return FILTROS.some(f => f.value === t) ? (t as Filtro) : 'todos'
   })()
   const [docs, setDocs] = useState<SolicitudDoc[]>([])
-  const [ausencias, setAusencias] = useState<SolicitudAusencia[]>([])
   const [forms, setForms] = useState<FormularioRespuesta[]>([])
   const [editForm, setEditForm] = useState<FormularioRespuesta | null>(null)
   const [viewForm, setViewForm] = useState<FormularioRespuesta | null>(null)
-  const [saldo, setSaldo] = useState<Saldo | null>(null)
   const [tiposSol, setTiposSol] = useState<TipoSolicitud[]>([])
-  const [tiposAus, setTiposAus] = useState<TipoAusencia[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>(initialTab)
   const [busqueda, setBusqueda] = useState('')
@@ -98,62 +60,48 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [detalle, setDetalle] = useState<Item | null>(null)
 
   const [nuevaOpen, setNuevaOpen] = useState(false)
-  const [tipoSel, setTipoSel] = useState<string>('')
+  const [tipoSel, setTipoSel] = useState<TipoSolicitud | null>(null)
   const [saving, setSaving] = useState(false)
 
   const [descripcion, setDescripcion] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [campoValues, setCampoValues] = useState<Record<string, string>>({})
-  const [ausForm, setAusForm] = useState({ fechaInicio: '', fechaFin: '', motivo: '' })
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const _router = useRouter()
 
   function load() {
     setLoading(true)
     Promise.all([
       fetch('/api/solicitudes').then(r => r.json()).catch(() => []),
-      fetch('/api/empleado/ausencias').then(r => r.json()).catch(() => ({ solicitudes: [], saldo: null })),
       fetch('/api/empleado/formularios').then(r => r.json()).catch(() => []),
-    ]).then(([d, a, f]) => {
+    ]).then(([d, f]) => {
       setDocs(Array.isArray(d) ? d : [])
-      setAusencias(a?.solicitudes ?? [])
-      setSaldo(a?.saldo ?? null)
       setForms(Array.isArray(f) ? f : [])
     }).finally(() => setLoading(false))
   }
 
   useEffect(() => {
     fetch('/api/solicitudes/tipos').then(r => r.json()).then(t => setTiposSol(Array.isArray(t) ? t : [])).catch(() => {})
-    fetch('/api/ausencias/tipos').then(r => r.json()).then(t => setTiposAus(Array.isArray(t) ? t.filter((x: TipoAusencia) => x.activo) : [])).catch(() => {})
     load()
-    // Marca las solicitudes como vistas para limpiar el badge del sidebar
     fetch('/api/badges/solicitudes-seen', { method: 'POST' }).catch(() => {})
   }, [])
 
-  const parsed = (() => {
-    if (!tipoSel) return null
-    const [kind, id] = tipoSel.split(':')
-    if (kind === 'doc') return { kind: 'doc' as const, tipo: tiposSol.find(t => String(t.id) === id) }
-    if (kind === 'aus') return { kind: 'ausencia' as const, tipo: tiposAus.find(t => String(t.id) === id) }
-    return null
-  })()
-
   useEffect(() => {
     setCampoValues({})
-    setAusForm({ fechaInicio: '', fechaFin: '', motivo: '' })
     setDescripcion('')
     setFile(null)
     if (fileRef.current) fileRef.current.value = ''
-    if (parsed?.kind === 'doc' && parsed.tipo) {
+    if (tipoSel) {
       const d: Record<string, string> = {}
-      for (const c of parsed.tipo.campos) d[c.nombre] = ''
+      for (const c of tipoSel.campos) d[c.nombre] = ''
       setCampoValues(d)
     }
-  }, [tipoSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tipoSel])
 
   const items: Item[] = [
     ...docs.map<ItemDoc>(d => ({ kind: 'doc', key: `d-${d.id}`, fecha: d.createdAt, estado: d.estado, pendiente: d.estado === 'PENDIENTE', data: d })),
-    ...ausencias.map<ItemAus>(a => ({ kind: 'ausencia', key: `a-${a.id}`, fecha: a.createdAt, estado: a.estado, pendiente: a.estado === 'PENDIENTE', data: a })),
     ...forms.map<ItemForm>(f => ({ kind: 'form', key: `f-${f.id}`, fecha: f.updatedAt, estado: f.estado, pendiente: f.estado === 'PENDIENTE', data: f })),
   ]
 
@@ -168,28 +116,17 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const q = busqueda.trim().toLowerCase()
 
   const filtered = items.filter(i => {
-    // Vista Enviadas: solo solicitudes propias que el empleado envió (docs/ausencias)
-    if (vista === 'enviadas') {
-      if (i.kind === 'form') return false
-    }
-    // Vista Recibidas: formularios que el admin le asignó (pendientes o completados)
-    if (vista === 'recibidas') {
-      if (i.kind !== 'form') return false
-    }
+    if (vista === 'enviadas' && i.kind === 'form') return false
+    if (vista === 'recibidas' && i.kind !== 'form') return false
     if (filtro === 'documentos' && i.kind !== 'doc') return false
-    if (filtro === 'ausencias' && i.kind !== 'ausencia') return false
     if (filtro === 'formularios' && i.kind !== 'form') return false
     if (filtro === 'pendientes' && !i.pendiente) return false
     if (!estadoMatch(i.estado, estadoFiltro)) return false
     if (q) {
       const nombre =
         i.kind === 'doc' ? i.data.tipo.nombre
-        : i.kind === 'ausencia' ? i.data.tipoAusencia.nombre
         : `${i.data.asignacion.nombre} ${i.data.asignacion.plantilla.nombre}`
-      const desc =
-        i.kind === 'doc' ? (i.data.descripcion ?? '')
-        : i.kind === 'ausencia' ? (i.data.motivo ?? '')
-        : ''
+      const desc = i.kind === 'doc' ? (i.data.descripcion ?? '') : ''
       if (!nombre.toLowerCase().includes(q) && !desc.toLowerCase().includes(q)) return false
     }
     return true
@@ -201,14 +138,13 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const counts = {
     todos: items.length,
     documentos: items.filter(i => i.kind === 'doc').length,
-    ausencias: items.filter(i => i.kind === 'ausencia').length,
     formularios: items.filter(i => i.kind === 'form').length,
     pendientes: items.filter(i => i.pendiente).length,
   }
 
   async function enviarDoc() {
-    if (parsed?.kind !== 'doc' || !parsed.tipo) return
-    const camposValidos = parsed.tipo.campos.every(c => !c.requerido || campoValues[c.nombre]?.trim())
+    if (!tipoSel) return
+    const camposValidos = tipoSel.campos.every(c => !c.requerido || campoValues[c.nombre]?.trim())
     if (!camposValidos) { toast.error('Completá los campos requeridos'); return }
     setSaving(true)
     try {
@@ -220,7 +156,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         fileName = (await up.json()).fileName
       }
       const metadata: Record<string, string> = {}
-      for (const c of parsed.tipo.campos) {
+      for (const c of tipoSel.campos) {
         const v = campoValues[c.nombre]?.trim()
         if (v) metadata[c.nombre] = v
       }
@@ -228,7 +164,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tipoId: parsed.tipo.id,
+          tipoId: tipoSel.id,
           nombreArchivo: fileName,
           descripcion,
           metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
@@ -236,46 +172,13 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
       })
       if (!res.ok) { toast.error('Error al enviar'); return }
       toast.success('Solicitud enviada')
-      setNuevaOpen(false); setTipoSel('')
+      setNuevaOpen(false); setTipoSel(null)
       load()
     } finally { setSaving(false) }
   }
 
-  async function enviarAusencia() {
-    if (parsed?.kind !== 'ausencia' || !parsed.tipo) return
-    if (!ausForm.fechaInicio || !ausForm.fechaFin) { toast.error('Completá las fechas'); return }
-    setSaving(true)
-    const fd = new FormData()
-    fd.append('tipoAusenciaId', String(parsed.tipo.id))
-    fd.append('fechaInicio', ausForm.fechaInicio)
-    fd.append('fechaFin', ausForm.fechaFin)
-    if (ausForm.motivo) fd.append('motivo', ausForm.motivo)
-    if (file) fd.append('archivo', file)
-    const res = await fetch('/api/empleado/ausencias', { method: 'POST', body: fd })
-    setSaving(false)
-    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
-    toast.success('Solicitud enviada')
-    setNuevaOpen(false); setTipoSel('')
-    load()
-  }
-
-  const restantes = saldo ? saldo.diasTotales - saldo.diasUsados : null
-
   return (
     <div className="space-y-4">
-      {saldo && (
-        <div className="rounded-xl border bg-green-50 dark:bg-green-950/20 p-4 flex items-center gap-6">
-          <div className="text-center">
-            <p className="text-3xl font-bold text-green-700 dark:text-green-400">{restantes}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">días restantes</p>
-          </div>
-          <div className="flex-1 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Días totales</span><span>{saldo.diasTotales}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Días usados</span><span>{saldo.diasUsados}</span></div>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center gap-2 flex-wrap">
         {vista === 'todo' && (
           <div className="flex gap-1 flex-wrap">
@@ -340,17 +243,12 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
           {filtered.map(item => (
             <div key={item.key} className="flex items-start gap-3 px-4 py-3 bg-card">
               {item.kind === 'doc' && <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />}
-              {item.kind === 'ausencia' && <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />}
               {item.kind === 'form' && <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">
                   {item.kind === 'doc' && item.data.tipo.nombre}
-                  {item.kind === 'ausencia' && item.data.tipoAusencia.nombre}
                   {item.kind === 'form' && item.data.asignacion.nombre}
                 </p>
-                {item.kind === 'ausencia' && (
-                  <p className="text-xs text-muted-foreground">{fmt(item.data.fechaInicio)} – {fmt(item.data.fechaFin)} · {item.data.dias} día{item.data.dias !== 1 ? 's' : ''}</p>
-                )}
                 {item.kind === 'doc' && item.data.descripcion && (
                   <p className="text-xs text-muted-foreground truncate">{item.data.descripcion}</p>
                 )}
@@ -360,11 +258,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
                 {item.kind === 'doc' && <StatusBadge estado={item.estado} />}
-                {item.kind === 'ausencia' && (
-                  <Badge variant="outline" className={cn('gap-1', ESTADO_AUS[item.estado]?.className)}>
-                    {ESTADO_AUS[item.estado]?.icon} {ESTADO_AUS[item.estado]?.label ?? item.estado}
-                  </Badge>
-                )}
                 {item.kind === 'form' && (() => {
                   const vencido = item.estado === 'PENDIENTE' && item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
                   if (vencido) return (
@@ -412,53 +305,23 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
       )}
 
       {/* Nueva solicitud */}
-      <Dialog open={nuevaOpen} onOpenChange={v => { if (!v) { setNuevaOpen(false); setTipoSel('') } }}>
+      <Dialog open={nuevaOpen} onOpenChange={v => { if (!v) { setNuevaOpen(false); setTipoSel(null) } }}>
         <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0"><DialogTitle>Nueva solicitud</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-2">
-            {tiposAus.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <CalendarOff size={11} /> Ausencias
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {tiposAus.map(t => {
-                    const val = `aus:${t.id}`
-                    const sel = tipoSel === val
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setTipoSel(val)}
-                        className={cn(
-                          'flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors',
-                          sel
-                            ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
-                            : 'border-border hover:border-green-400 hover:bg-muted/50'
-                        )}
-                      >
-                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: t.color }} />
-                        <span className="truncate">{t.nombre}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
             {tiposSol.length > 0 && (
               <div>
                 <p className="text-[10px] font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <FileText size={11} /> Documentos
+                  <FileText size={11} /> Tipo
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {tiposSol.map(t => {
-                    const val = `doc:${t.id}`
-                    const sel = tipoSel === val
+                    const sel = tipoSel?.id === t.id
                     return (
                       <button
                         key={t.id}
                         type="button"
-                        onClick={() => setTipoSel(val)}
+                        onClick={() => setTipoSel(t)}
                         className={cn(
                           'flex items-center gap-2 px-3 py-2 rounded-md border text-sm text-left transition-colors',
                           sel
@@ -475,12 +338,12 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
               </div>
             )}
 
-            {parsed?.kind === 'doc' && parsed.tipo && (
+            {tipoSel && (
               <>
-                {parsed.tipo.descripcion && <p className="text-xs text-muted-foreground">{parsed.tipo.descripcion}</p>}
-                {parsed.tipo.campos.length > 0 && (
+                {tipoSel.descripcion && <p className="text-xs text-muted-foreground">{tipoSel.descripcion}</p>}
+                {tipoSel.campos.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {parsed.tipo.campos.map(c => (
+                    {tipoSel.campos.map(c => (
                       <div key={c.nombre}>
                         <p className="text-xs text-muted-foreground mb-1">
                           {c.label}{c.requerido && <span className="text-destructive ml-0.5">*</span>}
@@ -516,58 +379,13 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                 />
               </>
             )}
-
-            {parsed?.kind === 'ausencia' && parsed.tipo && (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Fecha inicio *</p>
-                    <Input type="date" value={ausForm.fechaInicio} onChange={e => setAusForm(f => ({ ...f, fechaInicio: e.target.value }))} className="h-8 text-sm" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Fecha fin *</p>
-                    <Input type="date" value={ausForm.fechaFin} onChange={e => setAusForm(f => ({ ...f, fechaFin: e.target.value }))} className="h-8 text-sm" />
-                  </div>
-                </div>
-                {(() => {
-                  if (!parsed.tipo.afectaSaldo || !saldo) return null
-                  const solicitados = diasHabiles(ausForm.fechaInicio, ausForm.fechaFin)
-                  if (solicitados === 0) return null
-                  const restantes = saldo.diasTotales - saldo.diasUsados
-                  if (solicitados <= restantes) {
-                    return <p className="text-xs text-muted-foreground">{solicitados} día{solicitados !== 1 ? 's' : ''} hábiles · te quedarían {restantes - solicitados}</p>
-                  }
-                  return (
-                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
-                      Estás solicitando {solicitados} días hábiles pero solo te quedan {restantes}. Podés enviar la solicitud igual; queda a criterio del administrador aprobarla.
-                    </div>
-                  )
-                })()}
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Motivo (opcional)</p>
-                  <Input value={ausForm.motivo} onChange={e => setAusForm(f => ({ ...f, motivo: e.target.value }))} className="h-8 text-sm" placeholder="Ej: vacaciones familiares" />
-                </div>
-                <div>
-                  <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2 font-normal"
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {file
-                      ? <><Paperclip size={14} className="shrink-0" /><span className="truncate text-sm">{file.name}</span></>
-                      : <><Upload size={14} className="shrink-0 text-muted-foreground" /><span className="text-muted-foreground">Adjuntar archivo (opcional)…</span></>}
-                  </Button>
-                </div>
-              </>
-            )}
           </div>
           <DialogFooter className="shrink-0 border-t border-border pt-4">
-            <Button variant="outline" onClick={() => { setNuevaOpen(false); setTipoSel('') }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setNuevaOpen(false); setTipoSel(null) }}>Cancelar</Button>
             <Button
               className="bg-green-700 hover:bg-green-800"
-              disabled={!parsed || saving}
-              onClick={() => parsed?.kind === 'doc' ? enviarDoc() : enviarAusencia()}
+              disabled={!tipoSel || saving}
+              onClick={enviarDoc}
             >
               {saving ? 'Enviando…' : 'Enviar'}
             </Button>
@@ -580,34 +398,9 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {detalle?.kind === 'doc' ? detalle.data.tipo.nombre : detalle?.kind === 'ausencia' ? detalle.data.tipoAusencia.nombre : ''}
+              {detalle?.kind === 'doc' ? detalle.data.tipo.nombre : ''}
             </DialogTitle>
           </DialogHeader>
-          {detalle?.kind === 'ausencia' && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">{fmt(detalle.data.fechaInicio)} – {fmt(detalle.data.fechaFin)} · {detalle.data.dias} día{detalle.data.dias !== 1 ? 's' : ''}</p>
-              {detalle.data.motivo && (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  <p className="text-xs text-muted-foreground mb-0.5">Tu motivo</p>
-                  <p>{detalle.data.motivo}</p>
-                </div>
-              )}
-              {detalle.data.comentarioAdmin && (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  <p className="text-xs text-muted-foreground mb-0.5">Comentario de RRHH</p>
-                  <p>{detalle.data.comentarioAdmin}</p>
-                </div>
-              )}
-              {detalle.data.archivoUrl && (
-                <button
-                  onClick={() => setPreview({ url: detalle.data.archivoUrl!, filename: detalle.data.archivoUrl!.split('/').pop() ?? undefined })}
-                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
-                >
-                  <Paperclip size={13} /> Ver adjunto
-                </button>
-              )}
-            </div>
-          )}
           {detalle?.kind === 'doc' && (() => {
             const s = detalle.data
             const meta = (() => { try { return JSON.parse(s.metadata ?? '{}') as Record<string, string> } catch { return {} } })()
@@ -647,6 +440,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                     <p>{s.comentario}</p>
                   </div>
                 )}
+                <p className="text-[10px] text-muted-foreground mt-2">Solicitado el {fmt(s.createdAt)}</p>
               </div>
             )
           })()}

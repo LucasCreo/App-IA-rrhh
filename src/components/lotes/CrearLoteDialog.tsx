@@ -72,7 +72,12 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
       if (data.errors?.length > 0) {
         toast.warning(`Lote creado con ${data.uploaded} archivo(s). ${data.errors.length} rechazado(s): ${data.errors[0]}`, { duration: 8000 })
       } else if (data.uploaded > 0) {
-        toast.success(`Lote creado — ${data.uploaded} archivo(s) subido(s). Asignalos desde el detalle.`)
+        const auto = data.asignados ?? 0
+        const pend = data.uploaded - auto
+        const msg = auto > 0
+          ? `Lote creado — ${auto} auto-asignado(s)${pend > 0 ? `, ${pend} pendiente(s)` : ''}`
+          : `Lote creado — ${data.uploaded} archivo(s). Asignalos desde el detalle.`
+        toast.success(msg)
       } else {
         toast.success('Lote creado')
       }

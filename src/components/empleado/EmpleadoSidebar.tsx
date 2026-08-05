@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical, IdCard } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical, IdCard, Plane } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -16,6 +16,7 @@ const NAV_DRAGGABLE = [
   { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
   { href: '/empleado/solicitudes', label: 'Solicitudes', icon: ClipboardList },
+  { href: '/empleado/licencias', label: 'Licencias', icon: Plane },
 ]
 
 interface Props {

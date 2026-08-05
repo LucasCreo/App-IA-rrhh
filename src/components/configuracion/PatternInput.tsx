@@ -51,7 +51,8 @@ export function PatternInput({ value, onChange, placeholder, className }: Props)
 
   function handleInput() {
     if (!ref.current) return
-    onChange(ref.current.innerText)
+    // textContent (no innerText) para evitar espacios agregados alrededor de los chips (inline-flex)
+    onChange(ref.current.textContent ?? '')
   }
 
   function insertAtCursor(text: string) {

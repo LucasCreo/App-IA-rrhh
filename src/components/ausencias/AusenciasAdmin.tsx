@@ -209,17 +209,15 @@ export function TabTipos() {
                   </button>
                 </td>
                 <td className="px-4 py-3 text-right space-x-1">
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditTarget(t); setEditForm({ nombre: t.nombre, color: t.color, requiereAprobacion: t.requiereAprobacion, afectaSaldo: t.afectaSaldo }) }}>
+                    <Pencil size={13} />
+                  </Button>
                   {t.protegido ? (
-                    <span title="Tipo protegido" className="inline-flex items-center px-2 text-muted-foreground/50"><Lock size={13} /></span>
+                    <span title="Tipo protegido — no se puede eliminar" className="inline-flex items-center px-2 text-muted-foreground/50 h-7"><Lock size={13} /></span>
                   ) : (
-                    <>
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setEditTarget(t); setEditForm({ nombre: t.nombre, color: t.color, requiereAprobacion: t.requiereAprobacion, afectaSaldo: t.afectaSaldo }) }}>
-                        <Pencil size={13} />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-red-600 hover:text-red-700" onClick={() => setDeleteTarget(t)}>
-                        <Trash2 size={13} />
-                      </Button>
-                    </>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-red-600 hover:text-red-700" onClick={() => setDeleteTarget(t)}>
+                      <Trash2 size={13} />
+                    </Button>
                   )}
                 </td>
               </tr>

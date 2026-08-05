@@ -22,6 +22,7 @@ export async function GET() {
       tipoDocumento: { select: { id: true, nombre: true } },
       documentos: { select: { estado: true, employeeId: true } },
       empleados: { select: { employeeId: true } },
+      pendientes: { select: { id: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -47,6 +48,7 @@ export async function GET() {
         errores: docs.filter(d => d.estado === 'ERROR').length,
         rechazados: docs.filter(d => d.estado === 'RECHAZADO').length,
         sinRecibo: empleadosIds.filter(id => !empleadosConDoc.has(id)).length,
+        pendientes: l.pendientes.length,
       },
     }
   }))
@@ -75,11 +77,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
-  const employeeIdsRaw = formData.get('employeeIds') as string | null
-  const employeeIds: number[] = employeeIdsRaw
-    ? (JSON.parse(employeeIdsRaw) as unknown[]).map(Number).filter(n => Number.isInteger(n))
-    : []
-
   const lote = await prisma.lote.create({
     data: {
       nombre,
@@ -87,9 +84,6 @@ export async function POST(req: NextRequest) {
       periodo,
       creadoPorId: user.userId,
       ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
-      ...(employeeIds.length > 0 ? {
-        empleados: { create: employeeIds.map(employeeId => ({ employeeId })) },
-      } : {}),
     },
   })
 
@@ -98,31 +92,18 @@ export async function POST(req: NextRequest) {
 
   const uploaded: number[] = []
   const errors: string[] = []
-  const empleadosYaCargados = new Set<number>()
   let i = 0
 
   while (formData.has(`file_${i}`)) {
     const file = formData.get(`file_${i}`) as File
-    const employeeId = Number(formData.get(`employeeId_${i}`))
     i++
-
-    if (!file || !employeeId) {
-      errors.push(`Archivo ${i}: datos incompletos`)
-      continue
-    }
-
-    if (empleadosYaCargados.has(employeeId)) {
-      errors.push(`${file.name}: el empleado ya tiene un recibo en este lote (se descartó el duplicado)`)
-      continue
-    }
+    if (!file) continue
 
     const buffer = Buffer.from(await file.arrayBuffer())
-
     if (buffer.length > MAX_PDF_SIZE) {
       errors.push(`${file.name}: supera el límite de 10 MB`)
       continue
     }
-
     if (!isPdfBuffer(buffer)) {
       errors.push(`${file.name}: no es un PDF válido`)
       continue
@@ -132,29 +113,17 @@ export async function POST(req: NextRequest) {
     const filePath = join(uploadsDir, fileName)
     await writeFile(filePath, buffer)
 
-    const doc = await prisma.document.create({
+    const pendiente = await prisma.loteArchivoPendiente.create({
       data: {
-        nombreArchivo: file.name,
-        filePath,
-        periodo,
-        employeeId,
-        cargadoPorId: user.userId,
-        estado: 'BORRADOR',
         loteId: lote.id,
-        ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+        filePath,
+        nombreArchivo: file.name,
       },
     })
-    uploaded.push(doc.id)
-    empleadosYaCargados.add(employeeId)
-
-    await prisma.loteEmpleado.upsert({
-      where: { loteId_employeeId: { loteId: lote.id, employeeId } },
-      create: { loteId: lote.id, employeeId },
-      update: {},
-    })
+    uploaded.push(pendiente.id)
   }
 
-  await logAction(user.userId, 'CREAR_LOTE', 'Lote', `${nombre} — ${uploaded.length} docs`)
+  await logAction(user.userId, 'CREAR_LOTE', 'Lote', `${nombre} — ${uploaded.length} pendiente(s)`)
   return NextResponse.json({ loteId: lote.id, uploaded: uploaded.length, errors }, { status: 201 })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })

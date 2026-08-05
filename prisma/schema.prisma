@@ -183,10 +183,11 @@ model Lote {
   creadoPorId     Int
   createdAt       DateTime @default(now())
 
-  tipoDocumento TipoDocumento? @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cargadoPor    User           @relation("LotesCargados", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipoDocumento TipoDocumento?         @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cargadoPor    User                   @relation("LotesCargados", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documentos    Document[]
   empleados     LoteEmpleado[]
+  pendientes    LoteArchivoPendiente[]
 }
 
 model LoteEmpleado {
@@ -199,6 +200,18 @@ model LoteEmpleado {
   @@id([loteId, employeeId])
 }
 
+model LoteArchivoPendiente {
+  id               Int      @id @default(autoincrement())
+  loteId           Int
+  filePath         String
+  nombreArchivo    String
+  legajoDetectado  String?
+  detectando       Boolean  @default(false)
+  uploadedAt       DateTime @default(now())
+
+  lote Lote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+}
+
 model GeneralConfig {
   id                         Int      @id @default(autoincrement())
   appName                    String   @default("RRHH")
@@ -208,6 +221,7 @@ model GeneralConfig {
   soporteEmail               String?
   soporteTel                 String?
   avisosEmpleadosHabilitados Boolean  @default(true)
+  reciboFilenamePatterns     String?  @db.NVarChar(Max)
   updatedAt                  DateTime @updatedAt
 }
 

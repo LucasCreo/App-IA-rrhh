@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, FolderOpen, CalendarDays, ChevronLeft, ChevronRight, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical, IdCard } from 'lucide-react'
+import { LayoutDashboard, FileText, FolderOpen, CalendarDays, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, ClipboardList, GripVertical, IdCard } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
@@ -137,7 +137,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           className="hidden md:block p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
           title={collapsed ? 'Expandir' : 'Colapsar'}
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
         <button
           onClick={() => setMobileOpen(false)}
@@ -162,7 +162,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
                 'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                 collapsed && 'justify-center',
                 active
-                  ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
+                  ? 'bg-muted text-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -178,8 +178,8 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           let badge = 0
           let badgeColor = 'bg-blue-500'
           if (href === '/empleado/portal') badge = avisosUnread
-          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-yellow-500' }
-          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-yellow-500' }
+          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-blue-500' }
+          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-blue-500' }
           else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
           return (
             <div
@@ -201,7 +201,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
                   'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group',
                   collapsed && 'justify-center',
                   active
-                    ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
+                    ? 'bg-muted text-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >

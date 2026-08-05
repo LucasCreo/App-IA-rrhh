@@ -172,7 +172,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
             className={cn(
               'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
               filtro === f.value
-                ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >

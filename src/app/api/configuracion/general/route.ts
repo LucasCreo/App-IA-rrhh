@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { invalidateConfigCache } from '@/lib/config'
+import { plantillaARegex } from '@/lib/recibosDetect'
 
 export async function GET() {
   const config = await prisma.generalConfig.findFirst()
@@ -23,6 +24,13 @@ export async function PUT(req: NextRequest) {
   if ('soporteEmail' in body) data.soporteEmail = body.soporteEmail?.trim() || null
   if ('soporteTel' in body) data.soporteTel = body.soporteTel?.trim() || null
   if (typeof body.avisosEmpleadosHabilitados === 'boolean') data.avisosEmpleadosHabilitados = body.avisosEmpleadosHabilitados
+  if (Array.isArray(body.reciboFilenamePatterns)) {
+    const valid = (body.reciboFilenamePatterns as unknown[])
+      .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+      .map(p => p.trim())
+      .filter(p => plantillaARegex(p) !== null)
+    data.reciboFilenamePatterns = valid.length > 0 ? JSON.stringify(valid) : null
+  }
   try {
     const config = existing
       ? await prisma.generalConfig.update({ where: { id: existing.id }, data })

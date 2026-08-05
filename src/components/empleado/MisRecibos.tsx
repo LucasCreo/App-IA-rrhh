@@ -124,7 +124,7 @@ export function MisRecibos({ employeeId }: Props) {
             className={cn(
               'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500/50',
               filtro === c.key
-                ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             )}
           >

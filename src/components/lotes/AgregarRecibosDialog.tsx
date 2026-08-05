@@ -8,14 +8,18 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, X, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react'
 import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
-import { detectarLegajoPdf, type RecibosEntry as Entry } from '@/lib/recibosDetect'
+import { detectarLegajoPdf, detectarLegajoDesdeFilename, runWithConcurrency, type RecibosEntry as Entry } from '@/lib/recibosDetect'
+
+const DETECT_CONCURRENCY = 6
 
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
 interface Props { open: boolean; loteId: number; onClose: () => void; onSaved: () => void }
 
 export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
+  const [filenamePatterns, setFilenamePatterns] = useState<string[]>([])
   const [entries, setEntries] = useState<Entry[]>([])
+  const [detectProgress, setDetectProgress] = useState<{ done: number; total: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const [creatingEmp, setCreatingEmp] = useState<{ entryIndex: number; prefill: any } | null>(null)
@@ -36,29 +40,59 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
     fetch('/api/empleados?all=true&estado=ACTIVO')
       .then(r => r.json())
       .then(d => setEmpleados(d.employees ?? []))
+    fetch('/api/configuracion/general')
+      .then(r => r.json())
+      .then(cfg => {
+        try {
+          const parsed = cfg?.reciboFilenamePatterns ? JSON.parse(cfg.reciboFilenamePatterns) : []
+          setFilenamePatterns(Array.isArray(parsed) ? parsed : [])
+        } catch { setFilenamePatterns([]) }
+      })
     setEntries([])
   }, [open])
 
-  function addFiles(files: File[], currentEmpleados: Empleado[]) {
+  async function addFiles(files: File[], currentEmpleados: Empleado[]) {
     const startIndex = entries.length
-    setEntries(prev => [
-      ...prev,
-      ...files.map(file => ({
-        file, legajoDetectado: null, cuilDetectado: null, nombreDetectado: null, apellidoDetectado: null,
-        empleadoId: '', matched: false, detectando: true,
-      })),
-    ])
+    const validSet = new Set(currentEmpleados.map(e => e.legajo))
+    const initial: Entry[] = files.map(file => {
+      const legajoFromName = detectarLegajoDesdeFilename(file.name, validSet, filenamePatterns)
+      if (legajoFromName) {
+        const emp = currentEmpleados.find(e => e.legajo === legajoFromName)!
+        return {
+          file,
+          empleadoId: String(emp.id),
+          legajoDetectado: legajoFromName,
+          cuilDetectado: null,
+          nombreDetectado: null,
+          apellidoDetectado: null,
+          matched: true,
+          detectando: false,
+        }
+      }
+      return {
+        file, empleadoId: '', legajoDetectado: null, cuilDetectado: null,
+        nombreDetectado: null, apellidoDetectado: null, matched: false, detectando: true,
+      }
+    })
+    setEntries(prev => [...prev, ...initial])
 
-    files.forEach((file, i) => {
-      const targetIndex = startIndex + i
-      detectarLegajoPdf(file).then(detected => {
+    const pending = initial
+      .map((e, i) => ({ entry: e, offset: startIndex + i }))
+      .filter(x => x.entry.detectando)
+    if (pending.length === 0) return
+
+    setDetectProgress({ done: 0, total: pending.length })
+    await runWithConcurrency(
+      pending,
+      async ({ entry, offset }) => {
+        const detected = await detectarLegajoPdf(entry.file)
         const emp = detected.legajo
           ? currentEmpleados.find(e => e.legajo === detected.legajo)
           : undefined
-        setEntries(prev => prev.map((entry, idx) => {
-          if (idx !== targetIndex) return entry
+        setEntries(prev => prev.map((e, idx) => {
+          if (idx !== offset) return e
           return {
-            ...entry,
+            ...e,
             legajoDetectado: detected.legajo,
             cuilDetectado: detected.cuil,
             nombreDetectado: detected.nombre,
@@ -68,8 +102,11 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
             detectando: false,
           }
         }))
-      })
-    })
+      },
+      DETECT_CONCURRENCY,
+      (done, total) => setDetectProgress({ done, total }),
+    )
+    setDetectProgress(null)
   }
 
   function setEntryEmpleado(index: number, empleadoId: string) {
@@ -130,7 +167,9 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
             >
               <Upload size={20} className="mx-auto mb-1 text-green-600 dark:text-green-400" />
               <p className="text-sm text-muted-foreground">Click para agregar PDFs</p>
-              <p className="text-xs text-muted-foreground mt-0.5">El legajo se detecta automáticamente del contenido del PDF</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Se detecta el legajo del nombre del archivo (ej: <span className="font-mono">1234_recibo.pdf</span>) o del contenido del PDF.
+              </p>
               <input
                 ref={fileRef}
                 type="file"
@@ -143,6 +182,12 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
                 }}
               />
             </div>
+            {detectProgress && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="h-3 w-3 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin shrink-0" />
+                Detectando legajo del PDF: {detectProgress.done} / {detectProgress.total}
+              </div>
+            )}
           </div>
 
           {entries.length > 0 && (

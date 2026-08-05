@@ -10,12 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Upload, X, CheckCircle2, AlertCircle, UserPlus, Search } from 'lucide-react'
-import { Checkbox } from '@/components/ui/checkbox'
-import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
-import { detectarLegajoPdf, type RecibosEntry as Entry } from '@/lib/recibosDetect'
+import { Upload, X, FileText } from 'lucide-react'
 
-interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
 interface Props { open: boolean; onClose: () => void; onSaved: () => void }
 
 const MESES = [
@@ -31,85 +27,32 @@ const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
 export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
   const router = useRouter()
-  const [empleados, setEmpleados] = useState<Empleado[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [empFilter, setEmpFilter] = useState('')
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, '0'))
   const [ano, setAno] = useState(String(new Date().getFullYear()))
-  const [entries, setEntries] = useState<Entry[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [creatingEmp, setCreatingEmp] = useState<{ entryIndex: number; prefill: any } | null>(null)
-
-  async function refreshEmpleadosAndAssign(entryIndex: number, legajo: string | null) {
-    const r = await fetch('/api/empleados?all=true&estado=ACTIVO')
-    const d = await r.json()
-    const list: Empleado[] = d.employees ?? []
-    setEmpleados(list)
-    const nuevo = legajo ? list.find(e => e.legajo === legajo) : undefined
-    if (nuevo) {
-      setEntries(prev => prev.map((e, i) => i !== entryIndex ? e : { ...e, empleadoId: String(nuevo.id), matched: true }))
-    }
-  }
+  const folderRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
-    fetch('/api/empleados?all=true&estado=ACTIVO')
-      .then(r => r.json())
-      .then(d => setEmpleados(d.employees ?? []))
     setNombre('')
     setDescripcion('')
-    setEntries([])
-    setSelectedIds(new Set())
-    setEmpFilter('')
+    setFiles([])
   }, [open])
 
-  function addFiles(files: File[], currentEmpleados: Empleado[]) {
-    const startIndex = entries.length
-    setEntries(prev => [
-      ...prev,
-      ...files.map(file => ({
-        file, legajoDetectado: null, cuilDetectado: null, nombreDetectado: null, apellidoDetectado: null,
-        empleadoId: '', matched: false, detectando: true,
-      })),
-    ])
-
-    files.forEach((file, i) => {
-      const targetIndex = startIndex + i
-      detectarLegajoPdf(file).then(detected => {
-        const emp = detected.legajo
-          ? currentEmpleados.find(e => e.legajo === detected.legajo)
-          : undefined
-        setEntries(prev => prev.map((entry, idx) => {
-          if (idx !== targetIndex) return entry
-          return {
-            ...entry,
-            legajoDetectado: detected.legajo,
-            cuilDetectado: detected.cuil,
-            nombreDetectado: detected.nombre,
-            apellidoDetectado: detected.apellido,
-            empleadoId: emp ? String(emp.id) : '',
-            matched: !!emp,
-            detectando: false,
-          }
-        }))
-      })
-    })
+  function addFiles(newFiles: File[]) {
+    setFiles(prev => [...prev, ...newFiles])
   }
 
-  function setEntryEmpleado(index: number, empleadoId: string) {
-    setEntries(prev => prev.map((e, i) => {
-      if (i !== index) return e
-      return { ...e, empleadoId, matched: empleados.some(em => String(em.id) === empleadoId), detectando: false }
-    }))
+  function removeFile(i: number) {
+    setFiles(prev => prev.filter((_, j) => j !== i))
   }
 
   async function handleSubmit() {
     if (!nombre.trim()) { toast.error('Ingresá un nombre para el lote'); return }
-    const invalid = entries.filter(e => !e.empleadoId)
-    if (invalid.length > 0) { toast.error(`${invalid.length} archivo(s) sin empleado asignado`); return }
 
     setLoading(true)
     try {
@@ -117,13 +60,7 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
       fd.append('nombre', nombre.trim())
       if (descripcion.trim()) fd.append('descripcion', descripcion.trim())
       fd.append('periodo', `${ano}-${mes}`)
-      const rosterIds = new Set(selectedIds)
-      entries.forEach(e => { if (e.empleadoId) rosterIds.add(Number(e.empleadoId)) })
-      fd.append('employeeIds', JSON.stringify([...rosterIds]))
-      entries.forEach((e, i) => {
-        fd.append(`file_${i}`, e.file)
-        fd.append(`employeeId_${i}`, e.empleadoId)
-      })
+      files.forEach((f, i) => { fd.append(`file_${i}`, f) })
 
       const r = await fetch('/api/lotes', { method: 'POST', body: fd })
       if (!r.ok) {
@@ -133,9 +70,11 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
       const data = await r.json()
 
       if (data.errors?.length > 0) {
-        toast.warning(`Lote creado con ${data.uploaded} recibo(s). ${data.errors.length} no pudieron subirse: ${data.errors[0]}`, { duration: 8000 })
+        toast.warning(`Lote creado con ${data.uploaded} archivo(s). ${data.errors.length} rechazado(s): ${data.errors[0]}`, { duration: 8000 })
+      } else if (data.uploaded > 0) {
+        toast.success(`Lote creado — ${data.uploaded} archivo(s) subido(s). Asignalos desde el detalle.`)
       } else {
-        toast.success(`Lote creado — ${data.uploaded} recibo(s) cargados`)
+        toast.success('Lote creado')
       }
       onSaved()
     } catch (e) {
@@ -145,24 +84,16 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
     }
   }
 
-  const detectandoCount = entries.filter(e => e.detectando).length
-  const rosterSize = new Set([
-    ...selectedIds,
-    ...entries.filter(e => e.empleadoId).map(e => Number(e.empleadoId)),
-  ]).size
-  const canSubmit = !!nombre.trim() && entries.every(e => e.empleadoId) && !loading && detectandoCount === 0 && rosterSize > 0
-  const pendingCount = entries.filter(e => !e.empleadoId && !e.detectando).length
+  const canSubmit = !!nombre.trim() && !loading
 
   return (
-    <>
-    <Dialog open={open && !creatingEmp} onOpenChange={v => { if (!v && !creatingEmp) onClose() }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
       <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>Nuevo Lote de Recibos</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 px-1">
-          {/* Nombre */}
           <div>
             <Label className="mb-1.5">Nombre del lote</Label>
             <Input
@@ -173,7 +104,6 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Descripcion */}
           <div>
             <Label className="mb-1.5">Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>
             <Textarea
@@ -185,7 +115,6 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Periodo */}
           <div>
             <Label className="mb-1.5">Período</Label>
             <div className="flex gap-2 mt-1">
@@ -204,76 +133,22 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Empleados */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <Label className="mb-1.5">Empleados del lote</Label>
-              <span className="text-xs text-muted-foreground">{selectedIds.size} de {empleados.length}</span>
-            </div>
-            <div className="border border-border rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border bg-muted/30">
-                <Checkbox
-                  checked={empleados.length > 0 && selectedIds.size === empleados.length}
-                  onCheckedChange={v => {
-                    if (v) setSelectedIds(new Set(empleados.map(e => e.id)))
-                    else setSelectedIds(new Set())
-                  }}
-                />
-                <span className="text-xs font-medium">Todos</span>
-                <div className="relative flex-1 ml-2">
-                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-7 pl-7 text-xs"
-                    placeholder="Buscar por nombre o legajo…"
-                    value={empFilter}
-                    onChange={e => setEmpFilter(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="max-h-52 overflow-y-auto">
-                {empleados
-                  .filter(e => {
-                    if (!empFilter) return true
-                    const q = empFilter.toLowerCase()
-                    return `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase().includes(q)
-                  })
-                  .map(emp => {
-                    const checked = selectedIds.has(emp.id)
-                    return (
-                      <label
-                        key={emp.id}
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 cursor-pointer border-b border-border last:border-0"
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={v => setSelectedIds(prev => {
-                            const next = new Set(prev)
-                            if (v) next.add(emp.id); else next.delete(emp.id)
-                            return next
-                          })}
-                        />
-                        <span className="font-mono text-muted-foreground shrink-0">{emp.legajo}</span>
-                        <span className="truncate">{emp.apellido}, {emp.nombre}</span>
-                      </label>
-                    )
-                  })}
-                {empleados.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No hay empleados activos</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Upload area */}
           <div>
             <Label className="mb-1.5">Archivos PDF <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-            <div
-              className="mt-1 border-2 border-dashed border-green-300 dark:border-green-800 rounded-lg p-4 text-center cursor-pointer hover:border-green-500 dark:hover:border-green-600 transition-colors"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload size={20} className="mx-auto mb-1 text-green-600 dark:text-green-400" />
-              <p className="text-sm text-muted-foreground">Click para agregar PDFs</p>
-              <p className="text-xs text-muted-foreground mt-0.5">El legajo se detecta automáticamente del contenido del PDF</p>
+            <div className="mt-1 border-2 border-dashed border-green-300 dark:border-green-800 rounded-lg p-6 text-center">
+              <Upload size={24} className="mx-auto mb-2 text-green-600 dark:text-green-400" />
+              <p className="text-sm text-muted-foreground mb-3">Elegí archivos sueltos o una carpeta entera</p>
+              <div className="flex gap-2 justify-center">
+                <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                  Elegir archivos
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => folderRef.current?.click()}>
+                  Elegir carpeta
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Los recibos entran como pendientes. Asigná cada uno a su empleado desde el detalle del lote.
+              </p>
               <input
                 ref={fileRef}
                 type="file"
@@ -281,98 +156,54 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
                 multiple
                 className="hidden"
                 onChange={e => {
-                  addFiles(Array.from(e.target.files ?? []), empleados)
+                  const list = Array.from(e.target.files ?? []).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
+                  addFiles(list)
+                  e.target.value = ''
+                }}
+              />
+              <input
+                ref={folderRef}
+                type="file"
+                accept="application/pdf"
+                multiple
+                // @ts-expect-error webkitdirectory no está en los tipos estándar
+                webkitdirectory=""
+                className="hidden"
+                onChange={e => {
+                  const list = Array.from(e.target.files ?? []).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
+                  addFiles(list)
                   e.target.value = ''
                 }}
               />
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Solo se toman los PDFs.
+            </p>
           </div>
 
-          {/* File entries */}
-          {entries.length > 0 && (
-            <div className="space-y-2">
-              {pendingCount > 0 && (
-                <p className="text-xs text-yellow-600 dark:text-yellow-500">
-                  {pendingCount} archivo(s) sin empleado asignado — revisalos antes de continuar
-                </p>
-              )}
-              {entries.map((entry, i) => (
-                <div key={i} className="bg-muted/40 rounded-lg px-3 py-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {entry.detectando
-                        ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin" />
-                        : entry.empleadoId
-                          ? <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-                          : <AlertCircle size={14} className="text-yellow-500 shrink-0" />
-                      }
-                      <span className="text-xs font-medium truncate">{entry.file.name}</span>
-                      {entry.detectando ? (
-                        <span className="text-xs text-muted-foreground shrink-0">detectando legajo…</span>
-                      ) : entry.legajoDetectado && entry.matched ? (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          legajo detectado: {entry.legajoDetectado}
-                        </span>
-                      ) : entry.legajoDetectado ? (
-                        <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">
-                          legajo {entry.legajoDetectado} no existe en el sistema
-                        </span>
-                      ) : (
-                        <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">sin legajo detectado</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setEntries(prev => prev.filter((_, j) => j !== i))}
-                      className="text-muted-foreground hover:text-destructive shrink-0"
-                    >
-                      <X size={14} />
+          {files.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">{files.length} archivo(s) listo(s) para subir</p>
+              <div className="max-h-52 overflow-y-auto border rounded-md divide-y">
+                {files.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 text-xs">
+                    <FileText size={13} className="text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1">{f.name}</span>
+                    <span className="text-muted-foreground shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
+                    <button onClick={() => removeFile(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                      <X size={12} />
                     </button>
                   </div>
-                  <div className="flex gap-2">
-                    <Select value={entry.empleadoId} onValueChange={v => setEntryEmpleado(i, v ?? '')}>
-                      <SelectTrigger className="h-8 text-xs flex-1">
-                        <SelectValue placeholder="Seleccioná el empleado…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {empleados.map(e => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {!entry.detectando && entry.legajoDetectado && !entry.matched && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs shrink-0"
-                        onClick={() => setCreatingEmp({
-                          entryIndex: i,
-                          prefill: {
-                            legajo: entry.legajoDetectado ?? '',
-                            cuil: '', nombre: '', apellido: '',
-                            email: '', telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
-                          },
-                        })}
-                      >
-                        <UserPlus size={12} className="mr-1" /> Crear empleado
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
 
         <DialogFooter className="shrink-0 border-t border-border pt-4 flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          {!canSubmit && !loading && (
+          {!nombre.trim() && !loading && (
             <p className="text-xs text-muted-foreground sm:mr-auto text-left">
-              {!nombre.trim() && 'Ingresá un nombre. '}
-              {detectandoCount > 0 && `Detectando legajo (${detectandoCount})… `}
-              {pendingCount > 0 && `${pendingCount} archivo(s) sin empleado. `}
-              {rosterSize === 0 && nombre.trim() && detectandoCount === 0 && pendingCount === 0 && 'Seleccioná al menos 1 empleado.'}
+              Ingresá un nombre para continuar.
             </p>
           )}
           <div className="flex gap-2 justify-end">
@@ -382,26 +213,11 @@ export function CrearLoteDialog({ open, onClose, onSaved }: Props) {
               onClick={handleSubmit}
               disabled={!canSubmit}
             >
-              {loading ? 'Creando...' : entries.length > 0 ? `Crear Lote (${entries.length} recibo${entries.length !== 1 ? 's' : ''})` : 'Crear Lote'}
+              {loading ? 'Creando...' : files.length > 0 ? `Crear Lote (${files.length} archivo${files.length !== 1 ? 's' : ''})` : 'Crear Lote'}
             </Button>
           </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-    {creatingEmp && (
-      <EmpleadoDialog
-        open={true}
-        onClose={() => setCreatingEmp(null)}
-        onSaved={() => {
-          const legajo = creatingEmp.prefill.legajo || null
-          const idx = creatingEmp.entryIndex
-          setCreatingEmp(null)
-          refreshEmpleadosAndAssign(idx, legajo)
-        }}
-        empleado={creatingEmp.prefill}
-      />
-    )}
-    </>
   )
 }

@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { TabDocumentos } from './TabDocumentos'
 import { TabSolicitudes } from './TabSolicitudes'
+import { TabRecibos } from './TabRecibos'
 import { cn } from '@/lib/utils'
 
 const SUB_TABS = [
   { id: 'documentos', label: 'Documentos' },
+  { id: 'recibos', label: 'Recibos' },
   { id: 'solicitudes', label: 'Solicitudes' },
 ] as const
 
@@ -34,6 +36,7 @@ export function TabDocsSolicitudes() {
         ))}
       </div>
       {sub === 'documentos' && <TabDocumentos />}
+      {sub === 'recibos' && <TabRecibos />}
       {sub === 'solicitudes' && <TabSolicitudes />}
     </div>
   )

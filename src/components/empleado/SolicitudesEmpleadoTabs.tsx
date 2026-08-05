@@ -16,7 +16,7 @@ export function SolicitudesEmpleadoTabs() {
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-      <div className="flex border-b overflow-x-auto whitespace-nowrap px-5">
+      <div className="flex border-b px-5">
         {TABS.map(t => (
           <button
             key={t.id}
@@ -24,7 +24,7 @@ export function SolicitudesEmpleadoTabs() {
             className={cn(
               'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === t.id
-                ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >

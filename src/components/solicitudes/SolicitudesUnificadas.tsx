@@ -234,7 +234,7 @@ export function SolicitudesUnificadas() {
             className={cn(
               'cursor-pointer px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               estadoFiltro === f.value
-                ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
@@ -261,7 +261,7 @@ export function SolicitudesUnificadas() {
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
                 tipoFiltro === f.value
-                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                  ? 'bg-muted text-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -291,7 +291,7 @@ export function SolicitudesUnificadas() {
             <Button
               size="sm"
               variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30 h-8"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 h-8"
               onClick={() => { setBulkReview('RECHAZADO'); setBulkComentario('') }}
             >
               <X size={14} className="mr-1" /> Rechazar {selectedResolvables.length}

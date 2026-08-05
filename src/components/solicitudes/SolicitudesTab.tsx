@@ -105,7 +105,7 @@ export function SolicitudesTab() {
             className={cn(
               'cursor-pointer px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               filtro === f.value
-                ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400'
+                ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >

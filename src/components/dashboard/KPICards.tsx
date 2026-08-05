@@ -25,7 +25,7 @@ function Badge({ count, title }: { count: number; title: string }) {
   if (count <= 0) return null
   return (
     <span
-      className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md z-10"
+      className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md z-10"
       title={title}
     >
       {count > 99 ? '99+' : count}

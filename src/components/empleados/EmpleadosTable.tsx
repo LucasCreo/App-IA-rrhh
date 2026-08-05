@@ -326,7 +326,7 @@ export function EmpleadosTable() {
             <Button
               size="sm"
               variant="outline"
-              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30"
               onClick={() => setBulkDeleteOpen(true)}
             >
               <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}

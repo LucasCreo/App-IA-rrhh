@@ -86,7 +86,7 @@ export default async function EmpleadoPage() {
           <Link href="/empleado/recibos" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             {recibosPendientes > 0 && (
               <span
-                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
+                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
                 title={`${recibosPendientes} pendiente${recibosPendientes === 1 ? '' : 's'} de firma`}
               >
                 {recibosPendientes > 99 ? '99+' : recibosPendientes}
@@ -99,7 +99,7 @@ export default async function EmpleadoPage() {
           <Link href="/empleado/solicitudes" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
             {formulariosPendientes > 0 && (
               <span
-                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
+                className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
                 title={`${formulariosPendientes} formulario${formulariosPendientes === 1 ? '' : 's'} pendiente${formulariosPendientes === 1 ? '' : 's'}`}
               >
                 {formulariosPendientes > 99 ? '99+' : formulariosPendientes}

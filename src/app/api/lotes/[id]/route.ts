@@ -26,20 +26,29 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
             },
           },
         },
+        pendientes: { orderBy: { uploadedAt: 'asc' } },
       },
     })
 
     if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
 
     const scope = await getScopedEmployeeIds(user.userId)
-    if (scope && !lote.empleados.some(le => scope.has(le.employeeId))) {
+    if (scope && lote.empleados.length > 0 && !lote.empleados.some(le => scope.has(le.employeeId))) {
       return NextResponse.json({ error: 'No autorizado sobre este lote' }, { status: 403 })
     }
 
-    const empleados = lote.empleados
-      .filter(le => !scope || scope.has(le.employeeId))
-      .map(le => le.employee)
-      .sort((a, b) => a.apellido.localeCompare(b.apellido) || a.nombre.localeCompare(b.nombre))
+    // Roster implícito: empleados activos (scopeados) - los ya asignados aparecen con su doc
+    const activos = await prisma.employee.findMany({
+      where: {
+        estado: 'ACTIVO',
+        ...(scope ? { id: { in: [...scope] } } : {}),
+      },
+      select: {
+        id: true, nombre: true, apellido: true, legajo: true,
+        categoria: { select: { id: true, nombre: true } },
+      },
+      orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
+    })
 
     const docByEmployee = new Map<number, any>()
     for (const doc of lote.documentos) {
@@ -48,24 +57,25 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       }
     }
 
-    const empleadosConEstado = empleados.map(e => ({
+    const empleadosConEstado = activos.map(e => ({
       ...e,
       documento: docByEmployee.get(e.id) ?? null,
     }))
 
     const allDocs = [...docByEmployee.values()]
     const stats = {
-      total: empleados.length,
+      total: activos.length,
       firmados: allDocs.filter(d => d.estado === 'FIRMADO').length,
       enFirma: allDocs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length,
       borradores: allDocs.filter(d => d.estado === 'BORRADOR').length,
       errores: allDocs.filter(d => d.estado === 'ERROR').length,
       rechazados: allDocs.filter(d => d.estado === 'RECHAZADO').length,
-      sinRecibo: empleados.filter(e => !docByEmployee.has(e.id)).length,
+      sinRecibo: activos.filter(e => !docByEmployee.has(e.id)).length,
+      pendientes: lote.pendientes.length,
     }
 
-    const { documentos: _omit, empleados: _omit2, ...loteInfo } = lote
-    return NextResponse.json({ lote: loteInfo, empleados: empleadosConEstado, stats })
+    const { documentos: _omit, empleados: _omit2, pendientes, ...loteInfo } = lote
+    return NextResponse.json({ lote: loteInfo, empleados: empleadosConEstado, pendientes, stats })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
   }

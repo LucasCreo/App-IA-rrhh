@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal, FileText, UserPlus, Package, MoreVertical } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -14,7 +15,21 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AgregarRecibosDialog } from './AgregarRecibosDialog'
+import { EmpleadoDialog } from '@/components/empleados/EmpleadoDialog'
 import { handleApiError } from '@/lib/apiErrors'
+import { detectarLegajoDesdeFilename, detectarLegajoPdf, runWithConcurrency } from '@/lib/recibosDetect'
+
+interface Pendiente {
+  id: number
+  filePath: string
+  nombreArchivo: string
+  legajoDetectado: string | null
+  detectando: boolean
+  uploadedAt: string
+}
+
+const DETECT_CONCURRENCY = 6
+const PENDIENTES_POR_PAGINA = 25
 
 interface Documento {
   id: number
@@ -42,6 +57,7 @@ interface Stats {
   errores: number
   rechazados: number
   sinRecibo: number
+  pendientes: number
 }
 
 interface LoteInfo {
@@ -77,7 +93,16 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const router = useRouter()
   const [lote, setLote] = useState<LoteInfo | null>(null)
   const [empleados, setEmpleados] = useState<EmpleadoRow[]>([])
+  const [pendientes, setPendientes] = useState<Pendiente[]>([])
+  const [filenamePatterns, setFilenamePatterns] = useState<string[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [asignacionPend, setAsignacionPend] = useState<Record<number, string>>({})
+  const [creatingEmpForPend, setCreatingEmpForPend] = useState<{ pendId: number; legajo: string | null } | null>(null)
+  const [pendBusqueda, setPendBusqueda] = useState('')
+  const [pendSoloSinDetectar, setPendSoloSinDetectar] = useState(false)
+  const [pendPagina, setPendPagina] = useState(1)
+  const [autoAsignados, setAutoAsignados] = useState(0)
+  const [tabActivo, setTabActivo] = useState<'recibos' | 'pendientes'>('recibos')
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [busqueda, setBusqueda] = useState('')
@@ -96,6 +121,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [replaceTargetDocId, setReplaceTargetDocId] = useState<number | null>(null)
   const [deleteDoc, setDeleteDoc] = useState<{ id: number; empleado: string } | null>(null)
   const replaceFileRef = useRef<HTMLInputElement>(null)
+  const procesadosRef = useRef<Set<number>>(new Set())
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -105,6 +131,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
       const data = await r.json()
       setLote(data.lote)
       setEmpleados(data.empleados)
+      setPendientes(data.pendientes ?? [])
       setStats(data.stats)
     } finally {
       setLoading(false)
@@ -112,6 +139,102 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   }, [loteId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Cargar patrones de filename una sola vez
+  useEffect(() => {
+    fetch('/api/configuracion/general')
+      .then(r => r.json())
+      .then(cfg => {
+        try {
+          const parsed = cfg?.reciboFilenamePatterns ? JSON.parse(cfg.reciboFilenamePatterns) : []
+          setFilenamePatterns(Array.isArray(parsed) ? parsed : [])
+        } catch { setFilenamePatterns([]) }
+      })
+  }, [])
+
+  // Auto-asignar helper: si el legajo detectado matchea un empleado que NO tiene doc en el lote, asigna
+  const tryAutoAsignar = useCallback(async (pendId: number, legajo: string) => {
+    const emp = empleados.find(e =>
+      e.legajo === legajo || e.legajo.replace(/^0+/, '') === legajo.replace(/^0+/, '')
+    )
+    if (!emp || emp.documento) return false
+    const r = await fetch(`/api/lotes/${loteId}/pendientes/${pendId}/asignar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId: emp.id }),
+    })
+    if (!r.ok) return false
+    setPendientes(prev => prev.filter(p => p.id !== pendId))
+    setAutoAsignados(n => n + 1)
+    return true
+  }, [empleados, loteId])
+
+  // Detección lazy: por filename (local); si no matchea y no se detectó todavía, OCR server
+  useEffect(() => {
+    if (pendientes.length === 0 || empleados.length === 0) return
+    const legajosValidos = new Set(empleados.map(e => e.legajo))
+    const needsWork = pendientes.filter(p => !p.legajoDetectado && !procesadosRef.current.has(p.id))
+    if (needsWork.length === 0) return
+    // Marcar como procesados ANTES de iniciar el async, para que setPendientes
+    // optimistas no re-disparen el efecto sobre los mismos items.
+    needsWork.forEach(p => procesadosRef.current.add(p.id))
+
+    let cancelled = false
+    ;(async () => {
+      // Paso 1: intento por filename para todos
+      const remaining: Pendiente[] = []
+      for (const p of needsWork) {
+        const local = detectarLegajoDesdeFilename(p.nombreArchivo, legajosValidos, filenamePatterns)
+        if (local) {
+          await fetch(`/api/lotes/${loteId}/pendientes/${p.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ legajoDetectado: local }),
+          })
+          if (cancelled) return
+          const auto = await tryAutoAsignar(p.id, local)
+          if (!auto) {
+            setPendientes(prev => prev.map(x => x.id === p.id ? { ...x, legajoDetectado: local, detectando: false } : x))
+          }
+        } else {
+          remaining.push(p)
+        }
+      }
+      // Paso 2: OCR server para el resto (con cola)
+      if (remaining.length > 0) {
+        setPendientes(prev => prev.map(x =>
+          remaining.some(r => r.id === x.id) ? { ...x, detectando: true } : x
+        ))
+        await runWithConcurrency(remaining, async (p) => {
+          if (cancelled) return
+          try {
+            // Descargar el PDF y pasar a detectarLegajoPdf
+            const r = await fetch(`/api/lotes/${loteId}/pendientes/${p.id}/archivo`)
+            if (!r.ok) throw new Error('no se pudo leer el archivo')
+            const blob = await r.blob()
+            const asFile = new File([blob], p.nombreArchivo, { type: 'application/pdf' })
+            const detected = await detectarLegajoPdf(asFile)
+            const legajo = detected.legajo && legajosValidos.has(detected.legajo) ? detected.legajo : null
+            if (cancelled) return
+            await fetch(`/api/lotes/${loteId}/pendientes/${p.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ legajoDetectado: legajo }),
+            })
+            const auto = legajo ? await tryAutoAsignar(p.id, legajo) : false
+            if (!auto) {
+              setPendientes(prev => prev.map(x => x.id === p.id
+                ? { ...x, legajoDetectado: legajo, detectando: false }
+                : x))
+            }
+          } catch {
+            setPendientes(prev => prev.map(x => x.id === p.id ? { ...x, detectando: false } : x))
+          }
+        }, DETECT_CONCURRENCY)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pendientes, empleados, filenamePatterns, loteId, tryAutoAsignar])
 
   async function enviarTodos() {
     setSending(true)
@@ -202,6 +325,35 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     }
   }
 
+  async function asignarPendiente(pendId: number, employeeId: number) {
+    const r = await fetch(`/api/lotes/${loteId}/pendientes/${pendId}/asignar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId }),
+    })
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}))
+      toast.error(d?.error ?? 'No se pudo asignar')
+      return
+    }
+    toast.success('Asignado')
+    setPendientes(prev => prev.filter(p => p.id !== pendId))
+    setAsignacionPend(prev => {
+      const next = { ...prev }
+      delete next[pendId]
+      return next
+    })
+    await fetchData()
+  }
+
+  async function eliminarPendiente(pendId: number) {
+    const r = await fetch(`/api/lotes/${loteId}/pendientes/${pendId}`, { method: 'DELETE' })
+    if (!r.ok) { toast.error('No se pudo eliminar'); return }
+    toast.success('Archivo descartado')
+    setPendientes(prev => prev.filter(p => p.id !== pendId))
+    await fetchData()
+  }
+
   async function doDeleteDoc() {
     if (!deleteDoc) return
     const docId = deleteDoc.id
@@ -284,8 +436,8 @@ if (loading) {
 
       <div className="flex-1 overflow-auto p-6 space-y-5">
         {/* Stats card */}
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-          {/* Name / description (editable) */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          {/* Header: nombre + acciones */}
           {editing ? (
             <div className="space-y-2">
               <Input
@@ -310,41 +462,76 @@ if (loading) {
               </div>
             </div>
           ) : (
-            <div className="flex items-start justify-between gap-2 group">
-              <div className="min-w-0">
-                <h2 className="font-semibold text-foreground leading-tight">{lote.nombre}</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {formatPeriodo(lote.periodo)}{lote.tipoDocumento ? ` · ${lote.tipoDocumento.nombre}` : ''}
-                </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h2 className="font-semibold text-foreground leading-tight truncate">{lote.nombre}</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {formatPeriodo(lote.periodo)}{lote.tipoDocumento ? ` · ${lote.tipoDocumento.nombre}` : ''}
+                  </span>
+                </div>
                 {lote.descripcion && (
-                  <p className="text-xs text-muted-foreground mt-1">{lote.descripcion}</p>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">{lote.descripcion}</p>
                 )}
               </div>
-              <button
-                onClick={startEditing}
-                className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                title="Editar"
-              >
-                <Pencil size={13} />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="sm"
+                  className="bg-green-700 hover:bg-green-800 text-white h-8"
+                  onClick={enviarTodos}
+                  disabled={!canEnviarTodos || sending}
+                >
+                  <Send size={13} className="mr-1.5" />
+                  {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar' : 'Enviar a firma'}
+                </Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setAgregando(true)}>
+                  <Plus size={13} className="mr-1.5" /> Agregar
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    aria-label="Más acciones"
+                  >
+                    <MoreVertical size={15} />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={startEditing}>
+                      <Pencil size={13} className="mr-2" /> Editar lote
+                    </DropdownMenuItem>
+                    {(stats?.total ?? 0) > 0 && (
+                      <DropdownMenuItem onClick={() => { window.location.href = `/api/lotes/${loteId}/descargar-zip` }}>
+                        <Download size={13} className="mr-2" /> Descargar ZIP
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+                    >
+                      <Trash2 size={13} className="mr-2" /> Eliminar lote
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           )}
 
-          {/* Progress */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-foreground">
-                {stats.firmados} de {stats.total} empleados {accion === 'LECTURA' ? 'leyeron' : 'firmaron'}
-              </p>
-              <span className="text-sm font-bold text-green-600 dark:text-green-400">{pct}%</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
+          {/* Progress inline */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500 rounded-full transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+            <span className="text-xs font-medium text-foreground shrink-0">
+              {stats.firmados}/{stats.total} {accion === 'LECTURA' ? 'leyeron' : 'firmaron'}
+            </span>
+            <span className="text-xs font-bold text-green-600 dark:text-green-400 shrink-0">{pct}%</span>
+          </div>
+
+          {(stats.enFirma > 0 || stats.sinRecibo > 0 || (stats.errores + stats.rechazados) > 0) && (
+            <div className="flex gap-3 text-xs flex-wrap">
               {stats.enFirma > 0 && (
                 <span className="text-blue-600 dark:text-blue-400">{stats.enFirma} en firma</span>
               )}
@@ -355,50 +542,229 @@ if (loading) {
                 <span className="text-red-600 dark:text-red-400">{stats.errores + stats.rechazados} con error</span>
               )}
             </div>
-          </div>
-
-          {/* Action bar */}
-          <div className="flex items-center gap-2 flex-wrap pt-4 border-t border-border">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAgregando(true)}
-            >
-              <Plus size={14} className="mr-1.5" />
-              Agregar recibos
-            </Button>
-            <Button
-              size="sm"
-              className="bg-green-700 hover:bg-green-800 text-white"
-              onClick={enviarTodos}
-              disabled={!canEnviarTodos || sending}
-            >
-              <Send size={14} className="mr-1.5" />
-              {sending ? 'Enviando...' : accion === 'LECTURA' ? 'Notificar a todos' : 'Enviar todos a firma'}
-            </Button>
-            {(stats?.total ?? 0) > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                title="Descargar todos los recibos del lote como ZIP"
-                onClick={() => { window.location.href = `/api/lotes/${loteId}/descargar-zip` }}
-              >
-                <Download size={14} className="mr-1.5" />
-                Descargar ZIP
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900 dark:hover:bg-red-950/30"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              Eliminar lote
-            </Button>
-          </div>
+          )}
         </div>
 
+        {/* Tabs Recibos / Pendientes */}
+        <div className="flex gap-1 border-b border-border">
+          <button
+            onClick={() => setTabActivo('recibos')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              tabActivo === 'recibos'
+                ? 'border-green-600 text-green-700 dark:text-green-400'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Recibos
+          </button>
+          {(pendientes.length > 0 || autoAsignados > 0) && (
+            <button
+              onClick={() => setTabActivo('pendientes')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                tabActivo === 'pendientes'
+                  ? 'border-yellow-600 text-yellow-700 dark:text-yellow-400'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Pendientes
+              {pendientes.length > 0 && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-yellow-500 text-white text-[10px] font-semibold">
+                  {pendientes.length}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Archivos sin asignar */}
+        {tabActivo === 'pendientes' && (pendientes.length > 0 || autoAsignados > 0) && (() => {
+          const q = pendBusqueda.trim().toLowerCase()
+          const filtrados = pendientes.filter(p => {
+            if (pendSoloSinDetectar && (p.legajoDetectado || p.detectando)) return false
+            if (q && !p.nombreArchivo.toLowerCase().includes(q) && !(p.legajoDetectado ?? '').toLowerCase().includes(q)) return false
+            return true
+          })
+          const totalPag = Math.max(1, Math.ceil(filtrados.length / PENDIENTES_POR_PAGINA))
+          const paginaActual = Math.min(pendPagina, totalPag)
+          const inicio = (paginaActual - 1) * PENDIENTES_POR_PAGINA
+          const paginaItems = filtrados.slice(inicio, inicio + PENDIENTES_POR_PAGINA)
+          const sinDetectar = pendientes.filter(p => !p.legajoDetectado && !p.detectando).length
+          return (
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-yellow-50 dark:bg-yellow-950/20">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Package size={15} className="text-yellow-700 dark:text-yellow-400" />
+                  <span className="text-sm font-semibold text-yellow-900 dark:text-yellow-300">
+                    Archivos sin asignar ({pendientes.length})
+                  </span>
+                </div>
+                {autoAsignados > 0 && (
+                  <span className="text-xs text-green-700 dark:text-green-400 font-medium">
+                    ✓ {autoAsignados} auto-asignado{autoAsignados !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {sinDetectar > 0 && (
+                  <span className="text-xs text-yellow-700 dark:text-yellow-500 font-medium">
+                    ⚠ {sinDetectar} sin detectar
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Los detectados se asignan automáticamente.
+              </span>
+            </div>
+            {pendientes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b bg-muted/30">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    className="pl-8 h-8 text-xs"
+                    placeholder="Buscar archivo o legajo…"
+                    value={pendBusqueda}
+                    onChange={e => { setPendBusqueda(e.target.value); setPendPagina(1) }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant={pendSoloSinDetectar ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn('h-8 text-xs', pendSoloSinDetectar && 'bg-yellow-600 hover:bg-yellow-700 text-white')}
+                  onClick={() => { setPendSoloSinDetectar(v => !v); setPendPagina(1) }}
+                >
+                  Solo sin detectar
+                </Button>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {filtrados.length === 0 ? '0 resultados' :
+                    `${inicio + 1}-${Math.min(inicio + PENDIENTES_POR_PAGINA, filtrados.length)} de ${filtrados.length}`}
+                </span>
+              </div>
+            )}
+            <div className="divide-y">
+              {paginaItems.map(p => {
+                const legajoDet = p.legajoDetectado
+                const empSugerido = legajoDet
+                  ? empleados.find(e => e.legajo === legajoDet || e.legajo.replace(/^0+/, '') === legajoDet.replace(/^0+/, ''))
+                  : null
+                const empSel = asignacionPend[p.id] ?? (empSugerido ? String(empSugerido.id) : '')
+                return (
+                  <div key={p.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {p.detectando
+                          ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted-foreground/30 border-t-green-600 animate-spin" />
+                          : empSugerido
+                            ? <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                            : <AlertCircle size={14} className="text-yellow-500 shrink-0" />
+                        }
+                        <a
+                          href={`/api/lotes/${loteId}/pendientes/${p.id}/archivo`}
+                          target="_blank"
+                          className="text-xs font-medium truncate text-green-700 dark:text-green-400 hover:underline"
+                        >
+                          <FileText size={11} className="inline mr-1" />{p.nombreArchivo}
+                        </a>
+                        {p.detectando ? (
+                          <span className="text-xs text-muted-foreground shrink-0">detectando…</span>
+                        ) : empSugerido ? (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            legajo detectado: {p.legajoDetectado}
+                          </span>
+                        ) : p.legajoDetectado ? (
+                          <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">
+                            legajo {p.legajoDetectado ?? ''} no existe
+                          </span>
+                        ) : (
+                          <span className="text-xs text-yellow-600 dark:text-yellow-500 shrink-0">sin legajo</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => eliminarPendiente(p.id)}
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        title="Descartar archivo"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Select
+                        value={empSel}
+                        onValueChange={v => setAsignacionPend(prev => ({ ...prev, [p.id]: v ?? '' }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue placeholder="Seleccioná el empleado…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {empleados.map(e => (
+                            <SelectItem key={e.id} value={String(e.id)}>
+                              {`${e.legajo} — ${e.apellido}, ${e.nombre}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!empSugerido && p.legajoDetectado && !p.detectando && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs shrink-0"
+                          onClick={() => setCreatingEmpForPend({ pendId: p.id, legajo: p.legajoDetectado })}
+                        >
+                          <UserPlus size={12} className="mr-1" /> Crear empleado
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs shrink-0 bg-green-700 hover:bg-green-800"
+                        disabled={!empSel}
+                        onClick={() => empSel && asignarPendiente(p.id, Number(empSel))}
+                      >
+                        Asignar
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+              {paginaItems.length === 0 && pendientes.length > 0 && (
+                <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                  Sin resultados para el filtro actual.
+                </div>
+              )}
+            </div>
+            {totalPag > 1 && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2 border-t bg-muted/20">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={paginaActual <= 1}
+                  onClick={() => setPendPagina(p => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Página {paginaActual} de {totalPag}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={paginaActual >= totalPag}
+                  onClick={() => setPendPagina(p => Math.min(totalPag, p + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
+          </div>
+          )
+        })()}
+
+        {tabActivo === 'recibos' && <>
         {/* Búsqueda + filtros */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px] max-w-md">
@@ -457,7 +823,7 @@ if (loading) {
               onClick={() => setFiltro(tab.key)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 filtro === tab.key
-                  ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                  ? 'bg-muted text-foreground'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
@@ -587,6 +953,7 @@ if (loading) {
             </tbody>
           </table>
         </div>
+        </>}
       </div>
       <ConfirmDialog
         open={confirmDelete}
@@ -646,6 +1013,30 @@ if (loading) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {creatingEmpForPend && (
+        <EmpleadoDialog
+          open={true}
+          onClose={() => setCreatingEmpForPend(null)}
+          onSaved={async () => {
+            const pendId = creatingEmpForPend.pendId
+            setCreatingEmpForPend(null)
+            await fetchData()
+            // Buscar el empleado recién creado por legajo y proponerlo en el pendiente
+            const created = creatingEmpForPend.legajo
+            if (created) {
+              const legNorm = created.replace(/^0+/, '')
+              const emp = empleados.find(e => e.legajo === created || e.legajo.replace(/^0+/, '') === legNorm)
+              if (emp) setAsignacionPend(prev => ({ ...prev, [pendId]: String(emp.id) }))
+            }
+          }}
+          empleado={{
+            legajo: creatingEmpForPend.legajo ?? '',
+            cuil: '', nombre: '', apellido: '',
+            email: '', telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
+          } as any}
+        />
+      )}
     </div>
   )
 }

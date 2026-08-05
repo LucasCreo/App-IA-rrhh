@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, FileText, Settings, ClipboardList, ChevronLeft, ChevronRight, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, GripVertical, UserCircle, Newspaper, Plane } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, ClipboardList, PanelLeftClose, PanelLeftOpen, Receipt, CalendarDays, LogOut, Sun, Moon, Star, Menu, X, GripVertical, UserCircle, Newspaper, Plane } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { EVALUACIONES_ENABLED } from '@/lib/features'
@@ -147,7 +147,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
             className="hidden md:block p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
             title={collapsed ? 'Expandir' : 'Colapsar'}
           >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
           <button
             onClick={() => setMobileOpen(false)}
@@ -169,7 +169,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                 className={cn(
                   'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                   collapsed && 'justify-center',
-                  active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  active ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
                 <Icon size={16} className="shrink-0" />
@@ -198,26 +198,26 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                   className={cn(
                     'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors group',
                     collapsed && 'justify-center',
-                    active ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    active ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
                   <Icon size={16} className="shrink-0" />
                   {!collapsed && <span className="flex-1">{label}</span>}
                   {!collapsed && href === '/admin/empleados' && pendingModificaciones > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 text-yellow-900 text-xs font-bold px-1">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1">
                       {pendingModificaciones}
                     </span>
                   )}
                   {collapsed && href === '/admin/empleados' && pendingModificaciones > 0 && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                   )}
                   {!collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 text-yellow-900 text-xs font-bold px-1">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1">
                       {pendingSolicitudes}
                     </span>
                   )}
                   {collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-yellow-400" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                   )}
                   {!collapsed && href === '/admin/portal' && avisosUnread > 0 && (
                     <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1.5">
@@ -230,20 +230,20 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                     </span>
                   )}
                   {!collapsed && href === '/admin/documentos' && (badges.documentos ?? 0) > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1.5" title="Documentos con error o rechazados">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1.5" title="Documentos con error o rechazados">
                       {badges.documentos! > 99 ? '99+' : badges.documentos}
                     </span>
                   )}
                   {collapsed && href === '/admin/documentos' && (badges.documentos ?? 0) > 0 && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                   )}
                   {!collapsed && href === '/admin/recibos' && (badges.recibos ?? 0) > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1.5" title="Lotes con documentos en error">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1.5" title="Lotes con documentos en error">
                       {badges.recibos! > 99 ? '99+' : badges.recibos}
                     </span>
                   )}
                   {collapsed && href === '/admin/recibos' && (badges.recibos ?? 0) > 0 && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                   )}
                   {!collapsed && (
                     <GripVertical size={14} className="opacity-0 group-hover:opacity-30 shrink-0 cursor-grab active:cursor-grabbing" />
@@ -266,7 +266,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                     'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
                     collapsed && 'justify-center',
                     active
-                      ? 'bg-green-100 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300'
+                      ? 'bg-muted text-foreground font-medium'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >

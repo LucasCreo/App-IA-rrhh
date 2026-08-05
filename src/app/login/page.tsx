@@ -6,13 +6,15 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Users, FileText, PenLine, ShieldCheck } from 'lucide-react'
+import { Users, Receipt, PenLine, ClipboardList, Newspaper, Plane } from 'lucide-react'
 
 const FEATURES = [
-  { icon: Users,       title: 'Gestión de empleados',  desc: 'Legajos, categorías y campos personalizados.' },
-  { icon: FileText,    title: 'Recibos digitales',      desc: 'Carga masiva y entrega automática.' },
-  { icon: PenLine,     title: 'Firma electrónica',      desc: 'Conformidad sin papel, con trazabilidad.' },
-  { icon: ShieldCheck, title: 'Auditoría completa',     desc: 'Registro de cada acción en el sistema.' },
+  { icon: Users,         title: 'Empleados' },
+  { icon: Receipt,       title: 'Recibos y lotes' },
+  { icon: PenLine,       title: 'Firma electrónica' },
+  { icon: ClipboardList, title: 'Solicitudes y formularios' },
+  { icon: Newspaper,     title: 'Avisos y comunicados' },
+  { icon: Plane,         title: 'Licencias y ausencias' },
 ]
 
 export default function LoginPage() {
@@ -82,41 +84,36 @@ export default function LoginPage() {
             </div>
             <span className="text-2xl font-bold tracking-wide">LPA</span>
           </div>
-          <p className="text-green-300 text-sm">Recursos Humanos</p>
+          <p className="text-green-100/90 text-sm">Recursos Humanos</p>
         </div>
 
         {/* Center: headline + features */}
-        <div className="relative space-y-8">
+        <div className="relative space-y-6">
           <div className="fade-in-up" style={{ animationDelay: '120ms' }}>
             <h2 className="text-4xl font-bold leading-tight mb-3">
               Toda la gestión<br />de tu equipo,<br />en un solo lugar.
             </h2>
-            <p className="text-green-300 text-base max-w-xs leading-relaxed">
+            <p className="text-white/90 text-base max-w-xs leading-relaxed">
               Simplificá la administración de personal con firma digital y documentación centralizada.
             </p>
           </div>
 
-          <ul className="space-y-4">
-            {FEATURES.map(({ icon: Icon, title, desc }, i) => (
+          <ul className="grid grid-cols-2 gap-2.5">
+            {FEATURES.map(({ icon: Icon, title }, i) => (
               <li
                 key={title}
-                className="flex items-start gap-3 fade-in-up group"
-                style={{ animationDelay: `${260 + i * 100}ms` }}
+                className="flex items-center gap-2.5 rounded-lg bg-white/10 px-3 py-2 fade-in-up transition-colors hover:bg-white/15"
+                style={{ animationDelay: `${260 + i * 70}ms` }}
               >
-                <div className="mt-0.5 w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:bg-white/20 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(134,239,172,0.35)]">
-                  <Icon size={15} className="text-green-300 transition-colors group-hover:text-green-200" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold leading-tight">{title}</p>
-                  <p className="text-xs text-green-400 leading-snug mt-0.5">{desc}</p>
-                </div>
+                <Icon size={16} className="text-white shrink-0" />
+                <span className="text-xs font-medium text-white leading-tight">{title}</span>
               </li>
             ))}
           </ul>
         </div>
 
         {/* Bottom: tagline */}
-        <p className="relative text-xs text-green-500 fade-in-up" style={{ animationDelay: '700ms' }}>© {new Date().getFullYear()} LPA · Sistema interno</p>
+        <p className="relative text-xs text-white/60 fade-in-up" style={{ animationDelay: '820ms' }}>© {new Date().getFullYear()} LPA · Sistema interno</p>
       </div>
 
       {/* Right panel - form */}

@@ -227,8 +227,8 @@ export function AsignacionesList() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
               <Select value={editPlantillaId} onValueChange={v => { if (v) { setEditPlantillaId(v); setEditDatosAdmin({}) } }}>
-                <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -306,8 +306,8 @@ export function AsignacionesList() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
               <Select value={plantillaId} onValueChange={v => { if (v) { setPlantillaId(v); setDatosAdmin({}) } }}>
-                <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>

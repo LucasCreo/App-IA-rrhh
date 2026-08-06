@@ -171,8 +171,8 @@ export function RondasList() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
               <Select value={plantillaId} onValueChange={v => v && setPlantillaId(v)}>
-                <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>

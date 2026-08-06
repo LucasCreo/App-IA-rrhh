@@ -113,7 +113,7 @@ export function AsignacionDetalle({ id }: { id: number }) {
     <div className="space-y-6">
       <div>
         <Link href="/admin/solicitudes?tab=formularios" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3">
-          <ChevronLeft size={13} /> Formularios
+          <ChevronLeft size={13} /> Solicitudes
         </Link>
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-semibold">{asignacion.nombre}</h2>
@@ -196,8 +196,8 @@ export function AsignacionDetalle({ id }: { id: number }) {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
               <Select value={editPlantillaId} onValueChange={v => { if (v) { setEditPlantillaId(v); setEditDatosAdmin({}) } }}>
-                <SelectTrigger><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una plantilla" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>

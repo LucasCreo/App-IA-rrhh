@@ -234,7 +234,7 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
                       <SelectTrigger className="h-8 text-xs flex-1">
                         <SelectValue placeholder="Seleccioná el empleado…" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent side="bottom" alignItemWithTrigger={false}>
                         {empleados.map(e => (
                           <SelectItem key={e.id} value={String(e.id)}>
                             {`${e.legajo} — ${e.apellido}, ${e.nombre}`}

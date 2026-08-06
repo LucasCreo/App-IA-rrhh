@@ -331,12 +331,12 @@ export default function EmpleadoDetailPage() {
               <div>
                 <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
                 <Select value={form.categoriaId ? String(form.categoriaId) : ''} onValueChange={v => { if (v) { setField('categoriaId')(v); clearError('categoria') } }}>
-                  <SelectTrigger className={cn('mt-1', err('categoria') && 'border-red-500 focus:ring-red-500')}>
+                  <SelectTrigger className={cn('mt-1 w-full', err('categoria') && 'border-red-500 focus:ring-red-500')}>
                     <SelectValue placeholder="Seleccionar">
                       {cats.find(c => c.id === Number(form.categoriaId))?.nombre ?? 'Seleccionar'}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" alignItemWithTrigger={false}>
                     {cats.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -346,8 +346,8 @@ export default function EmpleadoDetailPage() {
               <div>
                 <Label className="mb-1.5">Estado</Label>
                 <Select value={form.estado} onValueChange={v => v && setField('estado')(v)}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent side="bottom" alignItemWithTrigger={false}>
                     <SelectItem value="ACTIVO">Activo</SelectItem>
                     <SelectItem value="INACTIVO">Inactivo</SelectItem>
                   </SelectContent>

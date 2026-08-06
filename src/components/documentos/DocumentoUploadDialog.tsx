@@ -223,8 +223,8 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
             <div>
               <Label className="mb-1.5">Tipo de documento</Label>
               <Select value={tipoId} onValueChange={v => setTipoId(v ?? '')}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Sin tipo (opcional)" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="mt-1 w-full"><SelectValue placeholder="Sin tipo (opcional)" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   <SelectItem value="">Sin tipo</SelectItem>
                   {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
                 </SelectContent>
@@ -278,7 +278,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
                               onValueChange={v => v && setCampoValue(i, `${campo.nombre}__mes`, v)}
                             >
                               <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="Mes" /></SelectTrigger>
-                              <SelectContent>
+                              <SelectContent side="bottom" alignItemWithTrigger={false}>
                                 {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                               </SelectContent>
                             </Select>
@@ -287,7 +287,7 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
                               onValueChange={v => v && setCampoValue(i, `${campo.nombre}__ano`, v)}
                             >
                               <SelectTrigger className="w-20 h-8 text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
-                              <SelectContent>
+                              <SelectContent side="bottom" alignItemWithTrigger={false}>
                                 {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                               </SelectContent>
                             </Select>

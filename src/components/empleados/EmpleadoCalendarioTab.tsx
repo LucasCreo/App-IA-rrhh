@@ -116,8 +116,8 @@ function NuevoEventoDialog({
           <div>
             <Label className="mb-1.5">Tipo <span className="text-red-500">*</span></Label>
             <Select value={tipo} onValueChange={v => v && setTipo(v)}>
-              <SelectTrigger><SelectValue placeholder="Elegir…" /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Elegir…" /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
                 {tipos.map(t => (
                   <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>
                 ))}

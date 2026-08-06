@@ -163,8 +163,8 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
                   </p>
                 ) : campo.tipo === 'seleccion' ? (
                   <Select value={form[campo.nombre] ?? ''} onValueChange={v => setField(campo.nombre, v ?? '')}>
-                    <SelectTrigger><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
+                    <SelectContent side="bottom" alignItemWithTrigger={false}>
                       {(campo.opciones ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
                         <SelectItem key={o} value={o}>{o}</SelectItem>
                       ))}

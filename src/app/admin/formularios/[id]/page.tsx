@@ -10,7 +10,7 @@ export default async function AsignacionPage({ params }: { params: Promise<{ id:
   const { id } = await params
   return (
     <>
-      <AdminHeader title="Formularios" />
+      <AdminHeader title="Solicitudes" />
       <div className="p-4 sm:p-6">
         <AsignacionDetalle id={Number(id)} />
       </div>

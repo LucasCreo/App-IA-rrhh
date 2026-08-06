@@ -420,14 +420,14 @@ if (loading) {
   const conformesCount = empleados.filter(e => e.documento?.estado === 'FIRMADO' && e.documento.firmaConforme === true).length
   const noConformesCount = empleados.filter(e => e.documento?.estado === 'FIRMADO' && e.documento.firmaConforme === false).length
 
+  const asignadosCount = empleados.filter(e => !!e.documento).length
   const filtroTabs = ([
-    { key: 'todos' as Filtro,     label: 'Todos',              count: empleados.length },
+    { key: 'todos' as Filtro,     label: 'Todos',              count: asignadosCount },
     { key: 'firmados',   label: 'Firmados',            count: stats.firmados },
     { key: 'conformes',  label: 'Conformes',           count: conformesCount },
     { key: 'noConformes',label: 'No conformes',        count: noConformesCount },
     { key: 'enFirma',    label: 'Pendientes de firma', count: stats.enFirma },
     { key: 'borradores', label: 'Borrador',            count: stats.borradores },
-    { key: 'sinRecibo',  label: 'Sin Recibo',          count: stats.sinRecibo },
     { key: 'errores',    label: 'Errores',             count: stats.errores + stats.rechazados },
   ] as { key: Filtro; label: string; count: number }[]).filter(t => t.key === 'todos' || t.count > 0)
 
@@ -439,6 +439,7 @@ if (loading) {
 
   const q = busqueda.trim().toLowerCase()
   const filteredEmpleados = empleados.filter(e => {
+    if (!e.documento) return false
     if (q) {
       const hay = `${e.apellido} ${e.nombre} ${e.legajo}`.toLowerCase()
       if (!hay.includes(q)) return false
@@ -583,7 +584,7 @@ if (loading) {
           )}
         </div>
 
-        {/* Tabs Recibos / Pendientes */}
+        {/* Tabs Asignados / A revisión */}
         <div className="flex gap-1 border-b border-border">
           <button
             onClick={() => setTabActivo('recibos')}
@@ -594,30 +595,48 @@ if (loading) {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            Recibos
+            Asignados
           </button>
-          {(pendientes.length > 0 || autoAsignados > 0) && (
-            <button
-              onClick={() => setTabActivo('pendientes')}
-              className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-                tabActivo === 'pendientes'
-                  ? 'border-yellow-600 text-yellow-700 dark:text-yellow-400'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              Pendientes
-              {pendientes.length > 0 && (
-                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-yellow-500 text-white text-[10px] font-semibold">
-                  {pendientes.length}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => setTabActivo('pendientes')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+              tabActivo === 'pendientes'
+                ? 'border-yellow-600 text-yellow-700 dark:text-yellow-400'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            A revisión
+            {pendientes.length > 0 && (
+              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-yellow-500 text-white text-[10px] font-semibold">
+                {pendientes.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Archivos sin asignar */}
-        {tabActivo === 'pendientes' && (pendientes.length > 0 || autoAsignados > 0) && (() => {
+        {tabActivo === 'pendientes' && pendientes.length === 0 && (
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-yellow-50 dark:bg-yellow-950/20">
+              <div className="flex items-center gap-2">
+                <Package size={15} className="text-yellow-700 dark:text-yellow-400" />
+                <span className="text-sm font-semibold text-yellow-900 dark:text-yellow-300">
+                  Archivos a revisión (0)
+                </span>
+              </div>
+              {autoAsignados > 0 && (
+                <span className="text-xs text-green-700 dark:text-green-400 font-medium">
+                  ✓ {autoAsignados} auto-asignado{autoAsignados !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+              No hay archivos pendientes de revisión.
+            </div>
+          </div>
+        )}
+        {tabActivo === 'pendientes' && pendientes.length > 0 && (() => {
           const q = pendBusqueda.trim().toLowerCase()
           const filtrados = pendientes.filter(p => {
             if (q && !p.nombreArchivo.toLowerCase().includes(q) && !(p.legajoDetectado ?? '').toLowerCase().includes(q)) return false

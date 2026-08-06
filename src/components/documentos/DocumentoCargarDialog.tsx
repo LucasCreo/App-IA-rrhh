@@ -191,8 +191,8 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Tipo de documento (opcional)</p>
               <Select value={tipoDocumentoId} onValueChange={v => setTipoDocumentoId(!v || v === 'none' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Sin tipo" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Sin tipo" /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
                   <SelectItem value="none">Sin tipo</SelectItem>
                   {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
                 </SelectContent>
@@ -238,13 +238,13 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
               <div className="flex gap-2">
                 <Select value={mes} onValueChange={v => { if (v) setMes(v) }}>
                   <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" alignItemWithTrigger={false}>
                     {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={ano} onValueChange={v => { if (v) setAno(v) }}>
                   <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="bottom" alignItemWithTrigger={false}>
                     {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                   </SelectContent>
                 </Select>

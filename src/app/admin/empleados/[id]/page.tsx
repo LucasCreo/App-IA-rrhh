@@ -264,7 +264,7 @@ export default function EmpleadoDetailPage() {
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'solicitudes' && <EmpleadoSolicitudesTab employeeId={form.id} />}
         {tab === 'calendario' && <EmpleadoCalendarioTab employeeId={form.id} />}
-        {tab === 'datos' && <div className="max-w-3xl space-y-6">
+        {tab === 'datos' && <div className="max-w-4xl space-y-6">
 
         {/* Datos personales */}
         <div className="rounded-xl border bg-card shadow-sm p-5">

@@ -12,7 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import Link from 'next/link'
-import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Upload, XCircle } from 'lucide-react'
+import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, Upload, XCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
 interface SolicitudAusencia {
@@ -63,6 +64,8 @@ export function MisLicencias() {
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState<'todos' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('todos')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -107,12 +110,33 @@ export function MisLicencias() {
   }
 
   const restantes = saldo ? saldo.diasTotales - saldo.diasUsados : null
-  const sorted = [...ausencias].sort((a, b) => {
+  const q = busqueda.trim().toLowerCase()
+  const filtradas = ausencias.filter(s => {
+    if (estadoFiltro !== 'todos' && s.estado !== estadoFiltro) return false
+    if (q) {
+      const hay = `${s.tipoAusencia.nombre} ${s.motivo ?? ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
+  const sorted = [...filtradas].sort((a, b) => {
     const aP = a.estado === 'PENDIENTE' ? 0 : 1
     const bP = b.estado === 'PENDIENTE' ? 0 : 1
     if (aP !== bP) return aP - bP
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
+  const counts = {
+    todos: ausencias.length,
+    PENDIENTE: ausencias.filter(a => a.estado === 'PENDIENTE').length,
+    APROBADA: ausencias.filter(a => a.estado === 'APROBADA').length,
+    RECHAZADA: ausencias.filter(a => a.estado === 'RECHAZADA').length,
+  }
+  const chips: { key: typeof estadoFiltro; label: string }[] = [
+    { key: 'todos', label: 'Todas' },
+    { key: 'PENDIENTE', label: 'Pendientes' },
+    { key: 'APROBADA', label: 'Aprobadas' },
+    { key: 'RECHAZADA', label: 'Rechazadas' },
+  ]
 
   return (
     <div className="space-y-4">
@@ -129,10 +153,46 @@ export function MisLicencias() {
         </div>
       )}
 
-      <div className="flex items-center justify-end">
-        <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
-          <Plus size={14} className="mr-1" /> Nueva licencia
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por tipo o motivo…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Select value={estadoFiltro} onValueChange={v => v && setEstadoFiltro(v as typeof estadoFiltro)}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todos">Todos los estados</SelectItem>
+            <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+            <SelectItem value="APROBADA">Aprobada</SelectItem>
+            <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
+          <Plus size={16} className="mr-1" /> Nueva licencia
         </Button>
+      </div>
+
+      <div className="flex gap-1 flex-wrap">
+        {chips.map(c => (
+          <button
+            key={c.key}
+            onClick={() => setEstadoFiltro(c.key)}
+            className={cn(
+              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+              estadoFiltro === c.key
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            {c.label}
+            <span className="opacity-60">{counts[c.key]}</span>
+          </button>
+        ))}
       </div>
 
       {loading ? (

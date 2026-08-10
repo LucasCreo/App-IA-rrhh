@@ -80,6 +80,7 @@ export async function GET() {
   return NextResponse.json({
     recibos: recibosPendientes,
     documentos: docsPendientes,
-    solicitudes: solicitudesResueltas + ausenciasResueltas,
+    solicitudes: solicitudesResueltas,
+    licencias: ausenciasResueltas,
   })
 }

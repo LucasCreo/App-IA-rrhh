@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { cn } from '@/lib/utils'
 
@@ -97,6 +98,27 @@ export function MisDocumentos({ employeeId }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por título…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(v === 'todos' ? '' : (v as typeof estadoFiltro))}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todos">Todos los estados</SelectItem>
+            <SelectItem value="pendiente">Pendiente</SelectItem>
+            <SelectItem value="firmado">Firmado / Completado</SelectItem>
+            <SelectItem value="rechazado">Rechazado</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex gap-1 flex-wrap">
         {FILTROS.map(f => (
           <button
@@ -114,30 +136,6 @@ export function MisDocumentos({ employeeId }: Props) {
           </button>
         ))}
       </div>
-
-      {filtro === 'todos' && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8 h-8 text-xs"
-              placeholder="Buscar por título…"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-            />
-          </div>
-          <select
-            value={estadoFiltro}
-            onChange={e => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
-            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
-          >
-            <option value="">Todos los estados</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="firmado">Firmado / Completado</option>
-            <option value="rechazado">Rechazado</option>
-          </select>
-        </div>
-      )}
 
       {loading ? (
         <div className="space-y-2">

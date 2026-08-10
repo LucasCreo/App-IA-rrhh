@@ -67,7 +67,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   const [avisosUnread, setAvisosUnread] = useState(0)
-  const [badges, setBadges] = useState<{ recibos?: number; documentos?: number; solicitudes?: number }>({})
+  const [badges, setBadges] = useState<{ recibos?: number; documentos?: number; solicitudes?: number; licencias?: number }>({})
   useEffect(() => {
     let cancel = false
     const load = () => {
@@ -182,6 +182,7 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-blue-500' }
           else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-blue-500' }
           else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
+          else if (href === '/empleado/licencias') { badge = badges.licencias ?? 0; badgeColor = 'bg-blue-500' }
           return (
             <div
               key={href}

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { FileText, Send, CalendarDays, Tag, ChevronRight, IdCard } from 'lucide-react'
+import { FileText, Send, CalendarDays, Tag, ChevronRight, IdCard, ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
@@ -83,7 +83,7 @@ export default async function EmpleadoPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <Link href="/empleado/recibos" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/empleado/recibos" className="group relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md hover:border-green-500/60 transition-all">
             {recibosPendientes > 0 && (
               <span
                 className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
@@ -92,11 +92,12 @@ export default async function EmpleadoPage() {
                 {recibosPendientes > 99 ? '99+' : recibosPendientes}
               </span>
             )}
+            <ArrowUpRight size={14} className="absolute top-3 right-3 text-muted-foreground/40 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
             <FileText size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalRecibos}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Recibos</p>
           </Link>
-          <Link href="/empleado/solicitudes" className="relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+          <Link href="/empleado/solicitudes" className="group relative rounded-xl border bg-card p-4 text-center shadow-sm hover:shadow-md hover:border-green-500/60 transition-all">
             {formulariosPendientes > 0 && (
               <span
                 className="absolute -top-2 -right-2 min-w-6 h-6 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold inline-flex items-center justify-center shadow-md"
@@ -105,6 +106,7 @@ export default async function EmpleadoPage() {
                 {formulariosPendientes > 99 ? '99+' : formulariosPendientes}
               </span>
             )}
+            <ArrowUpRight size={14} className="absolute top-3 right-3 text-muted-foreground/40 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
             <Send size={18} className="mx-auto mb-1.5 text-muted-foreground" />
             <p className="text-2xl font-bold">{totalSolicitudes}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Solicitudes</p>

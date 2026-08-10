@@ -50,14 +50,18 @@ type ItemAus = { kind: 'aus'; key: string; fecha: string; pendiente: boolean; es
 type ItemForm = { kind: 'form'; key: string; fecha: string; pendiente: boolean; estado: string; data: RespuestaForm }
 type Item = ItemDoc | ItemAus | ItemForm
 
-const FILTROS = [
+const FILTROS_RECIBIDAS = [
   { value: 'todos', label: 'Todos' },
   { value: 'doc', label: 'Documentos' },
   { value: 'aus', label: 'Ausencias' },
-  { value: 'form', label: 'Formularios' },
   { value: 'pendientes', label: 'Pendientes' },
 ] as const
-type Filtro = typeof FILTROS[number]['value']
+const FILTROS_ENVIADAS = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'pendientes', label: 'Pendientes' },
+] as const
+type Filtro = 'todos' | 'doc' | 'aus' | 'pendientes'
+type Direccion = 'recibidas' | 'enviadas'
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
@@ -76,6 +80,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
   const [forms, setForms] = useState<RespuestaForm[]>([])
   const [viewForm, setViewForm] = useState<RespuestaForm | null>(null)
   const [loading, setLoading] = useState(true)
+  const [direccion, setDireccion] = useState<Direccion>('recibidas')
   const [filtro, setFiltro] = useState<Filtro>('todos')
 
   const [reviewDoc, setReviewDoc] = useState<{
@@ -135,16 +140,18 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
     load()
   }
 
-  const items: Item[] = [
+  const recibidas: Item[] = [
     ...docs.map<ItemDoc>(d => ({ kind: 'doc', key: `d-${d.id}`, fecha: d.createdAt, pendiente: d.estado === 'PENDIENTE', estado: d.estado, data: d })),
     ...ausencias.map<ItemAus>(a => ({ kind: 'aus', key: `a-${a.id}`, fecha: a.createdAt, pendiente: a.estado === 'PENDIENTE', estado: a.estado, data: a })),
-    ...forms.map<ItemForm>(f => ({ kind: 'form', key: `f-${f.id}`, fecha: f.updatedAt, pendiente: f.estado === 'PENDIENTE', estado: f.estado, data: f })),
   ]
+  const enviadas: Item[] = forms.map<ItemForm>(f => ({ kind: 'form', key: `f-${f.id}`, fecha: f.updatedAt, pendiente: f.estado === 'PENDIENTE', estado: f.estado, data: f }))
 
-  const filtered = items.filter(i => {
+  const activos = direccion === 'recibidas' ? recibidas : enviadas
+  const FILTROS = direccion === 'recibidas' ? FILTROS_RECIBIDAS : FILTROS_ENVIADAS
+
+  const filtered = activos.filter(i => {
     if (filtro === 'doc') return i.kind === 'doc'
     if (filtro === 'aus') return i.kind === 'aus'
-    if (filtro === 'form') return i.kind === 'form'
     if (filtro === 'pendientes') return i.pendiente
     return true
   }).sort((a, b) => {
@@ -152,18 +159,46 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
     return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
   })
 
-  const counts = {
-    todos: items.length,
-    doc: items.filter(i => i.kind === 'doc').length,
-    aus: items.filter(i => i.kind === 'aus').length,
-    form: items.filter(i => i.kind === 'form').length,
-    pendientes: items.filter(i => i.pendiente).length,
+  const counts: Record<Filtro, number> = {
+    todos: activos.length,
+    doc: activos.filter(i => i.kind === 'doc').length,
+    aus: activos.filter(i => i.kind === 'aus').length,
+    pendientes: activos.filter(i => i.pendiente).length,
   }
+  const totalRecibidas = recibidas.length
+  const totalEnviadas = enviadas.length
+  const pendientesRecibidas = recibidas.filter(i => i.pendiente).length
+  const pendientesEnviadas = enviadas.filter(i => i.pendiente).length
 
   const esAprobacionDoc = reviewDoc?.estado === 'APROBADO'
 
   return (
     <div className="space-y-4">
+      <div className="inline-flex gap-1 border-b border-border w-fit">
+        {([
+          { key: 'recibidas' as const, label: 'Recibidas', pend: pendientesRecibidas },
+          { key: 'enviadas' as const, label: 'Enviadas', pend: pendientesEnviadas },
+        ]).map(d => (
+          <button
+            key={d.key}
+            onClick={() => { setDireccion(d.key); setFiltro('todos') }}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors inline-flex items-center gap-2',
+              direccion === d.key
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {d.label}
+            {d.pend > 0 && (
+              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-blue-500 text-white text-[10px] font-semibold">
+                {d.pend}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="flex gap-1 flex-wrap">
         {FILTROS.map(f => (
           <button

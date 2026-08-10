@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search } from 'lucide-react'
@@ -179,55 +180,51 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 flex-wrap">
-        {vista === 'todo' && (
-          <div className="flex gap-1 flex-wrap">
-            {FILTROS.map(f => (
-              <button
-                key={f.value}
-                onClick={() => setFiltro(f.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
-                  filtro === f.value
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                {f.label}
-                <span className="opacity-60">{counts[f.value]}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {filtro === 'todos' && (
-          <>
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-8 h-8 text-xs"
-                placeholder="Buscar por tipo o descripción…"
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-              />
-            </div>
-            <select
-              value={estadoFiltro}
-              onChange={e => setEstadoFiltro(e.target.value as typeof estadoFiltro)}
-              className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
-            >
-              <option value="">Todos los estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="aprobada">Aprobada</option>
-              <option value="rechazada">Rechazada</option>
-            </select>
-          </>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por tipo o descripción…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(v === 'todos' ? '' : (v as typeof estadoFiltro))}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todos">Todos los estados</SelectItem>
+            <SelectItem value="pendiente">Pendiente</SelectItem>
+            <SelectItem value="aprobada">Aprobada</SelectItem>
+            <SelectItem value="rechazada">Rechazada</SelectItem>
+          </SelectContent>
+        </Select>
         {vista !== 'recibidas' && filtro !== 'formularios' && (
-          <Button size="sm" className="bg-green-700 hover:bg-green-800 ml-auto" onClick={() => setNuevaOpen(true)}>
-            <Plus size={14} className="mr-1" /> Nueva solicitud
+          <Button className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
+            <Plus size={16} className="mr-1" /> Nueva solicitud
           </Button>
         )}
       </div>
+
+      {vista === 'todo' && (
+        <div className="flex gap-1 flex-wrap">
+          {FILTROS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setFiltro(f.value)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+                filtro === f.value
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              {f.label}
+              <span className="opacity-60">{counts[f.value]}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">

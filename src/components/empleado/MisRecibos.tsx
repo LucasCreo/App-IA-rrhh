@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Download, BookOpen, Pen, Search, X } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { cn } from '@/lib/utils'
 
@@ -115,8 +116,48 @@ export function MisRecibos({ employeeId }: Props) {
   }
 
   return (
-    <>
-      <div className="flex gap-1 flex-wrap mb-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por período o archivo…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todos">Todos los años</SelectItem>
+            {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={mes || 'todos'} onValueChange={v => setMes(!v || v === 'todos' ? '' : v)}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todos">Todos los meses</SelectItem>
+            {MESES.map((m, idx) => (
+              <SelectItem key={m} value={String(idx + 1).padStart(2, '0')}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={orden} onValueChange={v => v && setOrden(v as Orden)}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="DESC">Más nuevos primero</SelectItem>
+            <SelectItem value="ASC">Más viejos primero</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
+      </div>
+
+      <div className="flex gap-1 flex-wrap">
         {chips.map(c => (
           <button
             key={c.key}
@@ -134,66 +175,21 @@ export function MisRecibos({ employeeId }: Props) {
         ))}
       </div>
 
-      {filtro === 'TODOS' && (
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8 h-8 text-xs"
-              placeholder="Buscar por período o archivo…"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-            />
-          </div>
-          <select
-            value={anio}
-            onChange={e => setAnio(e.target.value)}
-            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
-          >
-            <option value="">Todos los años</option>
-            {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <select
-            value={mes}
-            onChange={e => setMes(e.target.value)}
-            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
-          >
-            <option value="">Todos los meses</option>
-            {MESES.map((m, idx) => (
-              <option key={m} value={String(idx + 1).padStart(2, '0')}>{m}</option>
-            ))}
-          </select>
-          <select
-            value={orden}
-            onChange={e => setOrden(e.target.value as Orden)}
-            className="h-8 text-xs px-2 rounded-md border border-input bg-background text-foreground"
-          >
-            <option value="DESC">Más nuevos primero</option>
-            <option value="ASC">Más viejos primero</option>
-          </select>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 h-8 rounded-md"
-            >
-              <X size={12} /> Limpiar
-            </button>
-          )}
-        </div>
-      )}
-
       {loading ? (
         <div className="space-y-2">
           {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
         </div>
       ) : filteredDocs.length === 0 ? (
-        <div className="text-center text-sm text-muted-foreground py-12">
-          {docs.length === 0
-            ? 'No tenés recibos cargados aún.'
-            : filtro === 'PENDIENTES' ? 'No tenés recibos pendientes de firma.'
-            : filtro === 'CONFORMES' ? 'No firmaste ningún recibo como conforme aún.'
-            : filtro === 'NO_CONFORMES' ? 'No hay recibos firmados como no conformes.'
-            : 'Sin resultados para los filtros aplicados.'}
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+          <FileText size={32} strokeWidth={1.2} />
+          <p className="text-sm">
+            {docs.length === 0
+              ? 'No tenés recibos cargados aún.'
+              : filtro === 'PENDIENTES' ? 'No tenés recibos pendientes de firma.'
+              : filtro === 'CONFORMES' ? 'No firmaste ningún recibo como conforme aún.'
+              : filtro === 'NO_CONFORMES' ? 'No hay recibos firmados como no conformes.'
+              : 'Sin resultados para los filtros aplicados.'}
+          </p>
         </div>
       ) : (
         <>
@@ -325,6 +321,6 @@ export function MisRecibos({ employeeId }: Props) {
         onClose={() => setFirmaDoc(null)}
         onFirmado={load}
       />
-    </>
+    </div>
   )
 }

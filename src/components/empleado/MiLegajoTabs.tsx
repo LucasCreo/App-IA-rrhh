@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { User, FolderOpen, ClipboardList } from 'lucide-react'
+import { User, FolderOpen, ClipboardList, FileText, Plane } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MiLegajoDatos } from './MiLegajoDatos'
 import { MisDocumentos } from './MisDocumentos'
-import { MisSolicitudes } from './MisSolicitudes'
+import { MisRecibos } from './MisRecibos'
+import { MisLicencias } from './MisLicencias'
+import { SolicitudesEmpleadoTabs } from './SolicitudesEmpleadoTabs'
 
 interface Props {
   employee: React.ComponentProps<typeof MiLegajoDatos>['employee']
@@ -18,8 +20,10 @@ interface Props {
 
 const TABS = [
   { id: 'datos', label: 'Datos', icon: User },
+  { id: 'recibos', label: 'Recibos', icon: FileText },
   { id: 'documentos', label: 'Documentos', icon: FolderOpen },
   { id: 'solicitudes', label: 'Solicitudes', icon: ClipboardList },
+  { id: 'licencias', label: 'Licencias', icon: Plane },
 ] as const
 type Tab = typeof TABS[number]['id']
 
@@ -60,12 +64,10 @@ export function MiLegajoTabs({ employee, employeeId, avatarUrl, avatarBgColor, a
           avatarTextColor={avatarTextColor}
         />
       )}
-      {tab === 'documentos' && (
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden p-4">
-          <MisDocumentos employeeId={employeeId} />
-        </div>
-      )}
-      {tab === 'solicitudes' && <MisSolicitudes />}
+      {tab === 'recibos' && <MisRecibos employeeId={employeeId} />}
+      {tab === 'documentos' && <MisDocumentos employeeId={employeeId} />}
+      {tab === 'solicitudes' && <SolicitudesEmpleadoTabs />}
+      {tab === 'licencias' && <MisLicencias />}
     </>
   )
 }

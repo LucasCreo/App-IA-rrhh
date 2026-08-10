@@ -108,16 +108,17 @@ export function LotesTable() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end gap-2">
-        {selected.size > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30"
-            onClick={() => setBulkDeleteOpen(true)}
-          >
-            <Trash2 size={14} className="mr-1" /> Eliminar {selected.size}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
+          onClick={() => setBulkDeleteOpen(true)}
+          disabled={selected.size === 0}
+          title={selected.size === 0 ? 'Seleccioná uno o más lotes para eliminar' : undefined}
+        >
+          <Trash2 size={14} className="mr-1" />
+          {selected.size > 0 ? `Eliminar ${selected.size}` : 'Eliminar'}
+        </Button>
         <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
           <Plus size={16} className="mr-1.5" />Nuevo Lote
         </Button>

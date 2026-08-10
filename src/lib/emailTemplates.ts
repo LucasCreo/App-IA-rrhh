@@ -20,6 +20,7 @@ export type EmailTemplateKey =
   | 'RECIBO_FIRMADO'
   | 'FORMULARIO_COMPLETADO'
   | 'COMENTARIO_NUEVO_EN_POST'
+  | 'INVITACION_USUARIO'
 
 interface TemplateDef {
   label: string
@@ -215,6 +216,19 @@ export const DEFAULT_TEMPLATES: Record<EmailTemplateKey, TemplateDef> = {
     ctaLabel: 'Ver mi perfil',
     variables: [
       { name: 'nombre', description: 'Nombre del empleado' },
+    ],
+  },
+  INVITACION_USUARIO: {
+    label: 'Invitación para crear cuenta',
+    description: 'Se envía al empleado para que cree su propia contraseña vía un link temporal (7 días).',
+    subject: 'Te invitamos al portal de RRHH',
+    title: '¡Bienvenido/a, {{nombre}}!',
+    bodyHtml: `<p>Se creó tu cuenta en el portal de RRHH.</p>
+<p>Hacé clic en el botón para elegir tu usuario y contraseña de acceso. El link vence el <strong>{{expira}}</strong>.</p>`,
+    ctaLabel: 'Crear mi contraseña',
+    variables: [
+      { name: 'nombre', description: 'Nombre del empleado' },
+      { name: 'expira', description: 'Fecha de vencimiento del link' },
     ],
   },
   EMPLEADO_BIENVENIDA: {

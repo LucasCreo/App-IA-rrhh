@@ -1,10 +1,12 @@
 import Link from 'next/link'
-import { Receipt, ClipboardList, ArrowUpRight } from 'lucide-react'
+import { Receipt, ClipboardList, FolderOpen, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DashboardData {
   totalRecibos: number
   recibosPorEstado?: { name: string; value: number }[]
+  totalDocs: number
+  rechazados: number
   pendingSolicitudesDoc: number
   pendingSolicitudesMod: number
   pendingAusencias: number
@@ -39,7 +41,7 @@ export function KPICards({ data }: { data: Record<string, any> }) {
   const recibosRechazados = d.recibosPorEstado?.find(r => r.name === 'Rechazados')?.value ?? 0
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
       <Link href="/admin/recibos?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
         <Badge count={recibosRechazados} title={`${recibosRechazados} recibo(s) rechazado(s)`} />
         <Arrow />
@@ -50,6 +52,19 @@ export function KPICards({ data }: { data: Record<string, any> }) {
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Recibos</span>
         </div>
         <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{d.totalRecibos ?? 0}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">acumulado histórico</p>
+      </Link>
+
+      <Link href="/admin/documentos?from=dashboard" className={cn(cardBase, 'bg-card border-border')}>
+        <Badge count={d.rechazados ?? 0} title={`${d.rechazados ?? 0} documento(s) rechazado(s)`} />
+        <Arrow />
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg shrink-0 bg-blue-50 dark:bg-blue-950/30">
+            <FolderOpen size={14} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Documentos</span>
+        </div>
+        <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{d.totalDocs ?? 0}</p>
         <p className="text-xs text-muted-foreground leading-relaxed">acumulado histórico</p>
       </Link>
 

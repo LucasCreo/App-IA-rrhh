@@ -51,7 +51,9 @@ export default function EmpleadoDetailPage() {
   const [existingUser, setExistingUser] = useState<{ id: number; email: string; username: string | null; avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null } | null>(null)
   const [username, setUsername] = useState('')
   const [crearUsuario, setCrearUsuario] = useState(false)
+  const [modoAcceso, setModoAcceso] = useState<'password' | 'invitacion'>('invitacion')
   const [password, setPassword] = useState('')
+  const [sendingInvite, setSendingInvite] = useState(false)
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -62,6 +64,15 @@ export default function EmpleadoDetailPage() {
   const [subordinados, setSubordinados] = useState<Array<{ id: number; label: string; sub: string }>>([])
   const [orgLoading, setOrgLoading] = useState(false)
   const [confirmEmailChange, setConfirmEmailChange] = useState<{ from: string; to: string } | null>(null)
+  const [misPermisos, setMisPermisos] = useState<string[] | null | undefined>(undefined)
+  const puedeGestionarOrg = misPermisos === null || (Array.isArray(misPermisos) && misPermisos.includes('GESTIONAR_ORGANIGRAMA'))
+
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setMisPermisos(d?.permisos ?? null))
+      .catch(() => setMisPermisos(null))
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -168,7 +179,7 @@ export default function EmpleadoDetailPage() {
       if (c.tipo === 'booleano') continue
       if (!val || val.trim() === '') errs.add(`custom_${c.id}`)
     }
-    if (crearUsuario && !password) errs.add('password')
+    if (crearUsuario && modoAcceso === 'password' && !password) errs.add('password')
     setErrors(errs)
     return errs.size === 0
   }
@@ -191,12 +202,26 @@ export default function EmpleadoDetailPage() {
     const camposPersonalizados = Object.entries(valoresCustom)
       .filter(([, v]) => v.trim() !== '')
       .map(([campoId, valor]) => ({ campoId: Number(campoId), valor }))
-    const payload = { ...form, camposPersonalizados, username, crearUsuario, password: crearUsuario ? password : undefined }
+    const crearConPassword = crearUsuario && modoAcceso === 'password'
+    const payload = { ...form, camposPersonalizados, username, crearUsuario: crearConPassword, password: crearConPassword ? password : undefined }
     const res = await fetch(`/api/empleados/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
+    // Si eligió invitación, la disparamos aparte
+    if (res.ok && crearUsuario && modoAcceso === 'invitacion') {
+      const inv = await fetch('/api/invitaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: Number(id) }),
+      })
+      if (inv.ok) toast.success('Invitación enviada por email')
+      else {
+        const err = await inv.json().catch(() => ({}))
+        toast.error(err?.error ?? 'No se pudo enviar la invitación')
+      }
+    }
     setSaving(false)
     if (!res.ok) {
       const payloadErr = await parseApiError(res)
@@ -444,9 +469,11 @@ export default function EmpleadoDetailPage() {
                     <p className="text-sm italic text-muted-foreground">Sin superior (en la cima del organigrama)</p>
                   )}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setManagerOpen(true)}>
-                  <Network size={13} className="mr-1.5" /> {manager ? 'Cambiar' : 'Asignar'} superior
-                </Button>
+                {puedeGestionarOrg && (
+                  <Button variant="outline" size="sm" onClick={() => setManagerOpen(true)}>
+                    <Network size={13} className="mr-1.5" /> {manager ? 'Cambiar' : 'Asignar'} superior
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -473,9 +500,11 @@ export default function EmpleadoDetailPage() {
                     </ul>
                   )}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setSubordinadosOpen(true)}>
-                  <Network size={13} className="mr-1.5" /> Configurar
-                </Button>
+                {puedeGestionarOrg && (
+                  <Button variant="outline" size="sm" onClick={() => setSubordinadosOpen(true)}>
+                    <Network size={13} className="mr-1.5" /> Configurar
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -502,21 +531,88 @@ export default function EmpleadoDetailPage() {
                 <Label htmlFor="crearUsuario" className="cursor-pointer">Crear acceso al sistema</Label>
               </div>
               {crearUsuario && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="mb-1.5">Nombre de usuario</Label>
-                    <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Opcional" className="mt-1" />
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setModoAcceso('invitacion')}
+                      className={cn(
+                        'flex-1 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                        modoAcceso === 'invitacion'
+                          ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                          : 'border-border hover:border-green-400 hover:bg-muted/50',
+                      )}
+                    >
+                      Enviar invitación por email
+                      <p className={cn('text-xs mt-0.5 font-normal', modoAcceso === 'invitacion' ? 'text-green-700/80 dark:text-green-400/70' : 'text-muted-foreground')}>
+                        El empleado elige su usuario y contraseña.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoAcceso('password')}
+                      className={cn(
+                        'flex-1 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                        modoAcceso === 'password'
+                          ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                          : 'border-border hover:border-green-400 hover:bg-muted/50',
+                      )}
+                    >
+                      Setear contraseña ahora
+                      <p className={cn('text-xs mt-0.5 font-normal', modoAcceso === 'password' ? 'text-green-700/80 dark:text-green-400/70' : 'text-muted-foreground')}>
+                        Recibe email con credenciales.
+                      </p>
+                    </button>
                   </div>
-                  <div>
-                    <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
-                    <Input
-                      type="password"
-                      value={password}
-                      onChange={e => { setPassword(e.target.value); clearError('password') }}
-                      placeholder="Contraseña inicial"
-                      className={cn('mt-1', err('password') && 'border-red-500 focus-visible:ring-red-500')}
-                    />
-                  </div>
+                  {modoAcceso === 'password' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="mb-1.5">Nombre de usuario</Label>
+                        <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Opcional" className="mt-1" />
+                      </div>
+                      <div>
+                        <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
+                        <Input
+                          type="password"
+                          value={password}
+                          onChange={e => { setPassword(e.target.value); clearError('password') }}
+                          placeholder="Contraseña inicial"
+                          className={cn('mt-1', err('password') && 'border-red-500 focus-visible:ring-red-500')}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {modoAcceso === 'invitacion' && (
+                    <p className="text-xs text-muted-foreground">
+                      Al guardar, se enviará un email a <strong>{form.email || '—'}</strong> con un link válido por 7 días.
+                    </p>
+                  )}
+                </div>
+              )}
+              {!crearUsuario && form.email && (
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={sendingInvite}
+                    onClick={async () => {
+                      setSendingInvite(true)
+                      const inv = await fetch('/api/invitaciones', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ employeeId: Number(id) }),
+                      })
+                      setSendingInvite(false)
+                      if (inv.ok) toast.success('Invitación enviada por email')
+                      else {
+                        const err = await inv.json().catch(() => ({}))
+                        toast.error(err?.error ?? 'No se pudo enviar la invitación')
+                      }
+                    }}
+                  >
+                    {sendingInvite ? 'Enviando…' : 'Enviar invitación por email'}
+                  </Button>
                 </div>
               )}
             </>

@@ -59,7 +59,10 @@ export default function AdminDashboard() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
 
   useEffect(() => {
-    const load = () => fetch('/api/dashboard').then(r => r.json()).then(setData)
+    const load = () => fetch('/api/dashboard').then(async r => {
+      if (!r.ok) { setData({ unauthorized: true }); return }
+      setData(await r.json())
+    })
     load()
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
@@ -106,7 +109,11 @@ export default function AdminDashboard() {
       } />
       <div className="p-4 sm:p-6">
 
-        {data ? (
+        {data?.unauthorized ? (
+          <div className="rounded-xl border bg-card p-8 text-center">
+            <p className="text-sm text-muted-foreground">No tenés permisos para ver el dashboard. Contactá a un administrador para solicitar acceso.</p>
+          </div>
+        ) : data ? (
           <div className="space-y-6">
             {data.me && <WelcomeCard me={data.me} />}
             {widgetOrder.map(id => {
@@ -173,7 +180,7 @@ export default function AdminDashboard() {
                     </div>
                     <Link href="/admin/empleados?from=dashboard" className="text-xs text-green-700 dark:text-green-400 hover:underline">Ver todos</Link>
                   </div>
-                  {data.recentEmpleados.length === 0 ? (
+                  {(!data.recentEmpleados || data.recentEmpleados.length === 0) ? (
                     <p className="text-sm text-muted-foreground text-center py-8">Sin empleados registrados</p>
                   ) : (
                     <ul className="divide-y">

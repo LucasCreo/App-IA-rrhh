@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowLeft, Send, CheckCircle2, Clock, FileX, AlertCircle, FileQuestion, Users, Pencil, Check, X, Trash2, Plus, Eye, Upload, Search, Download, SlidersHorizontal, FileText, UserPlus, Package, MoreVertical, ChevronDown } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -526,6 +526,14 @@ if (loading) {
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setAgregando(true)}>
                   <Plus size={13} className="mr-1.5" /> Agregar
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 size={13} className="mr-1.5" /> Eliminar
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -542,13 +550,6 @@ if (loading) {
                         <Download size={13} className="mr-2" /> Descargar ZIP
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => setConfirmDelete(true)}
-                      className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
-                    >
-                      <Trash2 size={13} className="mr-2" /> Eliminar lote
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

@@ -47,6 +47,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [crearUsuario, setCrearUsuario] = useState(false)
+  const [modoAcceso, setModoAcceso] = useState<'password' | 'invitacion'>('invitacion')
   const [existingUser, setExistingUser] = useState<{ id: number; email: string; username: string | null } | null>(null)
   const [errors, setErrors] = useState<Set<string>>(new Set())
   const [showAdicional, setShowAdicional] = useState(false)
@@ -62,6 +63,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     setPassword('')
     setUsername('')
     setCrearUsuario(false)
+    setModoAcceso('invitacion')
     setExistingUser(null)
     setErrors(new Set())
     if (empleado?.id) {
@@ -116,7 +118,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   function validateStep1() {
     const errs = new Set<string>()
     if (!form.email.trim()) errs.add('email')
-    if (!password) errs.add('password')
+    if (modoAcceso === 'password' && !password) errs.add('password')
     setErrors(errs)
     return errs.size === 0
   }
@@ -164,7 +166,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   }
 
   function handleNext() {
-    if (!validateStep1()) { toast.error('Completá email y contraseña'); return }
+    if (!validateStep1()) { toast.error(modoAcceso === 'password' ? 'Completá email y contraseña' : 'Completá el email'); return }
     setStep(2)
   }
 
@@ -185,9 +187,12 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
       .filter(([, v]) => v.trim() !== '')
       .map(([campoId, valor]) => ({ campoId: Number(campoId), valor }))
 
+    const crearConPassword = form.id ? crearUsuario : modoAcceso === 'password'
     const payload = form.id
-      ? { ...form, camposPersonalizados, username, crearUsuario, password: crearUsuario ? password : undefined }
-      : { ...form, crearUsuario: true, username: username || undefined, password, camposPersonalizados }
+      ? { ...form, camposPersonalizados, username, crearUsuario: crearConPassword, password: crearConPassword ? password : undefined }
+      : crearConPassword
+        ? { ...form, crearUsuario: true, username: username || undefined, password, camposPersonalizados }
+        : { ...form, crearUsuario: false, camposPersonalizados }
 
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     if (!res.ok) {
@@ -198,6 +203,23 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
       }
       showApiError(payloadErr, href => router.push(href))
       return
+    }
+    // Nuevo empleado en modo invitación: disparar envío de invitación
+    if (isNew && modoAcceso === 'invitacion') {
+      const created = await res.json().catch(() => ({}))
+      const empId = created?.id ?? created?.employeeId
+      if (empId) {
+        const inv = await fetch('/api/invitaciones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeId: Number(empId) }),
+        })
+        if (inv.ok) toast.success('Invitación enviada por email')
+        else {
+          const err = await inv.json().catch(() => ({}))
+          toast.error(err?.error ?? 'Empleado creado, pero no se pudo enviar la invitación')
+        }
+      }
     }
     onSaved()
     onClose()
@@ -230,7 +252,39 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
           {/* ── NUEVO: Step 1 (credenciales) ── */}
           {isNew && step === 1 && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Estas credenciales le permitirán al empleado acceder al portal.</p>
+              <p className="text-sm text-muted-foreground">Cómo va a acceder este empleado al portal:</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModoAcceso('invitacion')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                    modoAcceso === 'invitacion'
+                      ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                      : 'border-border hover:border-green-400 hover:bg-muted/50',
+                  )}
+                >
+                  Enviar invitación por email
+                  <p className={cn('text-xs mt-0.5 font-normal', modoAcceso === 'invitacion' ? 'text-green-700/80 dark:text-green-400/70' : 'text-muted-foreground')}>
+                    El empleado elige su usuario y contraseña.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoAcceso('password')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-md border text-sm text-left transition-colors',
+                    modoAcceso === 'password'
+                      ? 'border-green-600 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 font-medium'
+                      : 'border-border hover:border-green-400 hover:bg-muted/50',
+                  )}
+                >
+                  Setear contraseña ahora
+                  <p className={cn('text-xs mt-0.5 font-normal', modoAcceso === 'password' ? 'text-green-700/80 dark:text-green-400/70' : 'text-muted-foreground')}>
+                    Le llega un email con las credenciales.
+                  </p>
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <Label className="mb-1.5">Email <span className="text-red-500">*</span></Label>
@@ -243,24 +297,33 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                     autoFocus
                   />
                 </div>
-                <div>
-                  <Label className="mb-1.5">Nombre de usuario <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
-                  <Input
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder="Ej: jgarcía"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="password"
-                    value={password}
-                    onChange={e => { setPassword(e.target.value); clearError('password') }}
-                    placeholder="Contraseña inicial"
-                    className={cn(err('password') && 'border-red-500 focus-visible:ring-red-500')}
-                  />
-                </div>
+                {modoAcceso === 'password' && (
+                  <>
+                    <div>
+                      <Label className="mb-1.5">Nombre de usuario <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+                      <Input
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        placeholder="Ej: jgarcía"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={e => { setPassword(e.target.value); clearError('password') }}
+                        placeholder="Contraseña inicial"
+                        className={cn(err('password') && 'border-red-500 focus-visible:ring-red-500')}
+                      />
+                    </div>
+                  </>
+                )}
+                {modoAcceso === 'invitacion' && (
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    Al finalizar, se enviará un link de invitación válido por 7 días para que el empleado cree su usuario y contraseña.
+                  </p>
+                )}
               </div>
             </div>
           )}

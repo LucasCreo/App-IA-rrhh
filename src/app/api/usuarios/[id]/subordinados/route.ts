@@ -19,7 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requirePermiso(PERMISOS.GESTIONAR_USUARIOS)
+  const user = await requirePermiso(PERMISOS.GESTIONAR_ORGANIGRAMA)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { id } = await params

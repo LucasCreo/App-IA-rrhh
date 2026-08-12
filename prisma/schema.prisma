@@ -12,6 +12,7 @@ model User {
   email                 String    @unique
   username              String?   @unique
   passwordHash          String
+  passwordTemporal      Boolean   @default(false)
   role                  String    @default("EMPLOYEE")
   employeeId            Int?      @unique
   managerUserId         Int?
@@ -29,6 +30,7 @@ model User {
   manager         User?                @relation("UserManager", fields: [managerUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subordinados    User[]               @relation("UserManager")
   documents       Document[]           @relation("CargadoPor")
+  documentosGrupo DocumentoGrupo[]     @relation("GrupoCargadoPor")
   auditLogs       AuditLog[]
   lotes           Lote[]               @relation("LotesCargados")
   eventosCreados  Evento[]             @relation("EventosCreadosPor")
@@ -99,6 +101,7 @@ model Employee {
   saldosVacaciones        SaldoVacaciones[]
   lotes                   LoteEmpleado[]
   invitacion              UserInvitation?
+  documentosAsignados     DocumentoAsignacion[]
 }
 
 model Category {
@@ -178,16 +181,48 @@ model PostComment {
 }
 
 model TipoDocumento {
-  id           Int        @id @default(autoincrement())
-  nombre       String     @unique
-  descripcion  String?
-  accion       String     @default("FIRMA")
-  campos       String?    @db.NVarChar(Max)
-  tienePeriodo Boolean    @default(true)
-  protegido    Boolean    @default(false)
-  documentos   Document[]
-  lotes        Lote[]
-  createdAt    DateTime   @default(now())
+  id                Int                 @id @default(autoincrement())
+  nombre            String              @unique
+  descripcion       String?
+  accion            String              @default("FIRMA")
+  campos            String?             @db.NVarChar(Max)
+  tienePeriodo      Boolean             @default(true)
+  protegido         Boolean             @default(false)
+  documentos        Document[]
+  lotes             Lote[]
+  documentosGrupo   DocumentoGrupo[]
+  createdAt         DateTime            @default(now())
+}
+
+model DocumentoGrupo {
+  id              Int      @id @default(autoincrement())
+  nombreArchivo   String
+  filePath        String
+  periodo         String?
+  tipoDocumentoId Int?
+  cargadoPorId    Int
+  createdAt       DateTime @default(now())
+
+  tipoDocumento TipoDocumento?           @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cargadoPor    User                     @relation("GrupoCargadoPor", fields: [cargadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  asignaciones  DocumentoAsignacion[]
+}
+
+model DocumentoAsignacion {
+  id              Int       @id @default(autoincrement())
+  grupoId         Int
+  employeeId      Int
+  estado          String    @default("BORRADOR")
+  firmaConforme   Boolean?
+  firmaComentario String?
+  fechaFirma      DateTime?
+  fechaCarga      DateTime  @default(now())
+
+  grupo    DocumentoGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  employee Employee       @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([grupoId, employeeId])
+  @@index([employeeId, estado])
 }
 
 model Lote {

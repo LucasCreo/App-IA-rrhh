@@ -43,7 +43,7 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [tipos, setTipos] = useState<TipoDoc[]>([])
-  const [estado, setEstado] = useState<'ENVIADO_A_FIRMA' | 'BORRADOR'>('ENVIADO_A_FIRMA')
+  const [estado, setEstado] = useState<'ENVIADO_A_FIRMA' | 'BORRADOR'>('BORRADOR')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -137,7 +137,7 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     setAno(String(CURRENT_YEAR))
     setTipoDocumentoId('')
     setCategoriaId('')
-    setEstado('ENVIADO_A_FIRMA')
+    setEstado('BORRADOR')
     setSelectedIds(new Set())
     setSearch('')
   }
@@ -199,37 +199,6 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
               </Select>
             </div>
           )}
-
-          {/* Estado */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-1.5">Estado al cargar</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setEstado('ENVIADO_A_FIRMA')}
-                className={cn(
-                  'rounded-lg border px-3 py-2 text-sm transition-colors',
-                  estado === 'ENVIADO_A_FIRMA'
-                    ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
-                    : 'border-border hover:border-muted-foreground text-muted-foreground'
-                )}
-              >
-                Enviado
-              </button>
-              <button
-                type="button"
-                onClick={() => setEstado('BORRADOR')}
-                className={cn(
-                  'rounded-lg border px-3 py-2 text-sm transition-colors',
-                  estado === 'BORRADOR'
-                    ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400'
-                    : 'border-border hover:border-muted-foreground text-muted-foreground'
-                )}
-              >
-                Borrador
-              </button>
-            </div>
-          </div>
 
           {/* Período */}
           {mostrarPeriodo && (

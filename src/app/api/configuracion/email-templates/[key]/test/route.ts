@@ -71,6 +71,10 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     email: 'juan@empresa.com',
     password: 'ContrasenaTemporal123',
   },
+  INVITACION_USUARIO: {
+    nombre: 'Juan',
+    expira: '19/08/2026 15:00',
+  },
   EMPLEADO_ESTADO_CAMBIADO: {
     nombre: 'Juan',
     estado: 'desactivada',

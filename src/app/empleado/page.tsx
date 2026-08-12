@@ -28,18 +28,16 @@ export default async function EmpleadoPage() {
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: 'ENVIADO_A_FIRMA', tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
     prisma.respuestaFormulario.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
-    prisma.document.count({
+    prisma.documentoAsignacion.count({
       where: {
         employeeId: decoded.employeeId,
         estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] },
-        OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }],
       },
     }),
-    prisma.document.count({
+    prisma.documentoAsignacion.count({
       where: {
         employeeId: decoded.employeeId,
         estado: 'ENVIADO_A_FIRMA',
-        OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: RECIBO_TIPO } } }],
       },
     }),
     prisma.document.findMany({

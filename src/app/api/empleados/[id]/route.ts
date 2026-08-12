@@ -114,6 +114,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             email: body.email,
             username: body.username || null,
             passwordHash: await hashPassword(body.password),
+            passwordTemporal: true,
             role: 'EMPLOYEE',
             employeeId: updated.id,
           },

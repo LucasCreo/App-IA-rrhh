@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
             email: body.email,
             username: body.username || null,
             passwordHash: await hashPassword(body.password),
+            passwordTemporal: true,
             role: 'EMPLOYEE',
             employeeId: newEmp.id,
           },

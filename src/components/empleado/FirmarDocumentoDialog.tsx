@@ -12,13 +12,17 @@ const TIEMPO_MIN_SEG_DEFAULT = 10
 interface Props {
   open: boolean
   docId: number | null
+  /** 'documentos' apunta a /api/documentos/{id}, 'asignaciones' a /api/asignaciones/{id}. Default: 'documentos'. */
+  endpoint?: 'documentos' | 'asignaciones'
+  /** Si viene, se usa como src del iframe. Si no, se arma con docId + endpoint. */
+  archivoUrl?: string
   titulo: string
   descripcion: string
   onClose: () => void
   onFirmado: () => void
 }
 
-export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClose, onFirmado }: Props) {
+export function FirmarDocumentoDialog({ open, docId, endpoint = 'documentos', archivoUrl, titulo, descripcion, onClose, onFirmado }: Props) {
   const [password, setPassword] = useState('')
   const [conforme, setConforme] = useState<'si' | 'no' | ''>('')
   const [comentario, setComentario] = useState('')
@@ -58,7 +62,7 @@ export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClos
     if (!conforme) { toast.error('Indicá si estás conforme'); return }
     if (!password) { toast.error('Ingresá tu contraseña'); return }
     setFirmando(true)
-    const res = await fetch(`/api/documentos/${docId}/firmar-password`, {
+    const res = await fetch(`/api/${endpoint}/${docId}/firmar-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password, conforme: conforme === 'si', comentario }),
@@ -87,7 +91,7 @@ export function FirmarDocumentoDialog({ open, docId, titulo, descripcion, onClos
 
           {docId && (
             <iframe
-              src={`/api/documentos/${docId}/archivo#toolbar=1&view=FitH`}
+              src={`${archivoUrl ?? `/api/${endpoint}/${docId}/archivo`}#toolbar=1&view=FitH`}
               className="w-full h-[75vh] bg-muted"
               title="Documento"
             />

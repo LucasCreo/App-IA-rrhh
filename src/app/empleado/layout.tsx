@@ -18,9 +18,10 @@ export default async function EmpleadoLayout({ children }: { children: React.Rea
       where: { id: decoded.employeeId },
       select: { nombre: true, apellido: true },
     }),
-    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true } }),
+    prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true, passwordTemporal: true } }),
   ])
   if (!employee) redirect('/login')
+  if (dbUser?.passwordTemporal) redirect('/cambiar-password')
 
   const initials = `${employee.nombre[0]}${employee.apellido[0]}`.toUpperCase()
   const fullName = `${employee.nombre} ${employee.apellido}`

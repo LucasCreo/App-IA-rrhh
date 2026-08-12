@@ -16,6 +16,7 @@ import { SolicitudesModificacionAdmin } from '@/components/empleados/Solicitudes
 import { SubordinadosDialog } from '@/components/usuarios/SubordinadosDialog'
 import { ManagerDialog } from '@/components/usuarios/ManagerDialog'
 import { DocumentosTable } from '@/components/documentos/DocumentosTable'
+import { MisDocumentos } from '@/components/empleado/MisDocumentos'
 import { EmpleadoEvaluacionesTab } from '@/components/empleados/EmpleadoEvaluacionesTab'
 import { EmpleadoSolicitudesTab } from '@/components/empleados/EmpleadoSolicitudesTab'
 import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendarioTab'
@@ -284,7 +285,7 @@ export default function EmpleadoDetailPage() {
           ))}
         </div>
 
-        {tab === 'documentos' && <DocumentosTable employeeId={form.id} esRecibo={false} />}
+        {tab === 'documentos' && <MisDocumentos employeeId={form.id} />}
         {tab === 'recibos' && <DocumentosTable employeeId={form.id} esRecibo={true} />}
         {EVALUACIONES_ENABLED && tab === 'evaluaciones' && <EmpleadoEvaluacionesTab employeeId={form.id} />}
         {tab === 'solicitudes' && <EmpleadoSolicitudesTab employeeId={form.id} />}

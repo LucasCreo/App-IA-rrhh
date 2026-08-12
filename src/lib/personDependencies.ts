@@ -82,6 +82,7 @@ export async function deletePersona(
       await tx.valorCampoEmpleado.deleteMany({ where: { employeeId } })
       await tx.saldoVacaciones.deleteMany({ where: { employeeId } })
       await tx.loteEmpleado.deleteMany({ where: { employeeId } })
+      await tx.userInvitation.deleteMany({ where: { employeeId } })
     }
     if (userId) {
       await tx.passwordResetToken.deleteMany({ where: { userId } })
@@ -130,6 +131,7 @@ export async function deletePersonaCascade(
       await tx.solicitudDocumento.deleteMany({ where: { employeeId } })
       await tx.solicitudModificacion.deleteMany({ where: { employeeId } })
       await tx.document.deleteMany({ where: { employeeId } })
+      await tx.userInvitation.deleteMany({ where: { employeeId } })
     }
 
     // 2) User: borrar todo lo que creó (documentos, lotes, eventos, posts, comentarios, reacciones)

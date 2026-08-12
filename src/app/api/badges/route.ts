@@ -48,15 +48,11 @@ export async function GET() {
         tipoDocumento: { nombre: RECIBO_TIPO },
       },
     }),
-    // Otros documentos pendientes
-    prisma.document.count({
+    // Otros documentos pendientes (asignaciones de grupo)
+    prisma.documentoAsignacion.count({
       where: {
         employeeId: user.employeeId,
         estado: 'ENVIADO_A_FIRMA',
-        OR: [
-          { tipoDocumentoId: null },
-          { tipoDocumento: { nombre: { not: RECIBO_TIPO } } },
-        ],
       },
     }),
     // Solicitudes de documentos resueltas después del último acceso

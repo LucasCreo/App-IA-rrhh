@@ -11,19 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { cn } from '@/lib/utils'
 
-interface DocApi {
+interface AsignacionApi {
   id: number
-  nombreArchivo: string
-  periodo: string | null
   estado: string
+  firmaConforme: boolean | null
   fechaCarga: string
   fechaFirma?: string
-  tipoDocumento?: { nombre: string; accion: string } | null
+  grupo: {
+    id: number
+    nombreArchivo: string
+    periodo: string | null
+    tipoDocumento?: { nombre: string; accion: string } | null
+  }
 }
 
-type Item = { kind: 'doc'; key: string; fecha: string; titulo: string; subtitulo?: string | null; pendiente: boolean; doc: DocApi }
+type Item = { kind: 'doc'; key: string; fecha: string; titulo: string; subtitulo?: string | null; pendiente: boolean; asign: AsignacionApi }
 
-interface Props { employeeId: number }
+interface Props {
+  /** Si se pasa, actúa como vista admin del legajo (usa ?employeeId=X). Si no, es la vista del empleado logueado. */
+  employeeId?: number
+}
 
 const FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -32,47 +39,48 @@ const FILTROS = [
 type Filtro = typeof FILTROS[number]['value']
 
 export function MisDocumentos({ employeeId }: Props) {
-  const [docs, setDocs] = useState<DocApi[]>([])
+  const [asigns, setAsigns] = useState<AsignacionApi[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'firmado' | 'rechazado'>('')
   const [acting, setActing] = useState<number | null>(null)
 
-  const [firmaDoc, setFirmaDoc] = useState<DocApi | null>(null)
+  const [firmaAsign, setFirmaAsign] = useState<AsignacionApi | null>(null)
 
   function load() {
     setLoading(true)
-    fetch(`/api/documentos?employeeId=${employeeId}&recibo=false`)
+    const url = employeeId ? `/api/asignaciones/mis?employeeId=${employeeId}` : `/api/asignaciones/mis`
+    fetch(url)
       .then(r => r.json())
-      .then(d => setDocs(d.docs ?? []))
+      .then(d => setAsigns(d.asignaciones ?? []))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [employeeId])
 
   async function marcarLeido(id: number) {
     setActing(id)
-    const res = await fetch(`/api/documentos/${id}/marcar-leido`, { method: 'POST' })
+    const res = await fetch(`/api/asignaciones/${id}/marcar-leido`, { method: 'POST' })
     setActing(null)
     if (res.ok) { toast.success('Documento marcado como leído'); load() }
     else toast.error('Error al marcar como leído')
   }
 
-  const items: Item[] = docs.map<Item>(d => ({
+  const items: Item[] = asigns.map<Item>(a => ({
     kind: 'doc',
-    key: `doc-${d.id}`,
-    fecha: d.fechaCarga,
-    titulo: d.tipoDocumento?.nombre ?? d.nombreArchivo,
-    subtitulo: d.periodo ? `Período ${d.periodo}` : d.nombreArchivo,
-    pendiente: d.estado === 'ENVIADO_A_FIRMA',
-    doc: d,
+    key: `asign-${a.id}`,
+    fecha: a.fechaCarga,
+    titulo: a.grupo.tipoDocumento?.nombre ?? a.grupo.nombreArchivo,
+    subtitulo: a.grupo.periodo ? `Período ${a.grupo.periodo}` : a.grupo.nombreArchivo,
+    pendiente: a.estado === 'ENVIADO_A_FIRMA',
+    asign: a,
   }))
 
   function estadoMatch(item: Item, target: typeof estadoFiltro): boolean {
     if (!target) return true
     if (target === 'pendiente') return item.pendiente
-    if (target === 'firmado') return item.doc.estado === 'FIRMADO'
-    if (target === 'rechazado') return item.doc.estado === 'RECHAZADO'
+    if (target === 'firmado') return item.asign.estado === 'FIRMADO'
+    if (target === 'rechazado') return item.asign.estado === 'RECHAZADO'
     return true
   }
 
@@ -162,7 +170,7 @@ export function MisDocumentos({ employeeId }: Props) {
               </div>
 
               <div className="sm:shrink-0">
-                <DocActions doc={item.doc} acting={acting} onFirmar={setFirmaDoc} onMarcarLeido={marcarLeido} />
+                <AsignActions asign={item.asign} acting={acting} onFirmar={setFirmaAsign} onMarcarLeido={marcarLeido} />
               </div>
             </div>
           ))}
@@ -170,46 +178,49 @@ export function MisDocumentos({ employeeId }: Props) {
       )}
 
       <FirmarDocumentoDialog
-        open={firmaDoc !== null}
-        docId={firmaDoc?.id ?? null}
+        open={firmaAsign !== null}
+        docId={firmaAsign?.id ?? null}
+        endpoint="asignaciones"
+        archivoUrl={firmaAsign ? `/api/documentos-grupos/${firmaAsign.grupo.id}/archivo` : undefined}
         titulo="Firmar documento"
-        descripcion={firmaDoc?.tipoDocumento?.nombre ?? firmaDoc?.nombreArchivo ?? ''}
-        onClose={() => setFirmaDoc(null)}
+        descripcion={firmaAsign?.grupo.tipoDocumento?.nombre ?? firmaAsign?.grupo.nombreArchivo ?? ''}
+        onClose={() => setFirmaAsign(null)}
         onFirmado={load}
       />
     </div>
   )
 }
 
-function DocActions({ doc, acting, onFirmar, onMarcarLeido }: {
-  doc: DocApi
+function AsignActions({ asign, acting, onFirmar, onMarcarLeido }: {
+  asign: AsignacionApi
   acting: number | null
-  onFirmar: (d: DocApi) => void
+  onFirmar: (a: AsignacionApi) => void
   onMarcarLeido: (id: number) => void
 }) {
-  const accion = doc.tipoDocumento?.accion
-  const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
-  const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
+  const accion = asign.grupo.tipoDocumento?.accion
+  const pendienteFirma = accion === 'FIRMA' && asign.estado === 'ENVIADO_A_FIRMA'
+  const pendienteLectura = accion === 'LECTURA' && asign.estado === 'ENVIADO_A_FIRMA'
+  const url = `/api/documentos-grupos/${asign.grupo.id}/archivo`
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <StatusBadge estado={doc.estado} accion={accion} pov="empleado" />
+      <StatusBadge estado={asign.estado} accion={accion} pov="empleado" />
       {pendienteLectura && (
-        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" disabled={acting === doc.id} onClick={() => onMarcarLeido(doc.id)}>
+        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" disabled={acting === asign.id} onClick={() => onMarcarLeido(asign.id)}>
           <BookOpen size={13} className="mr-1" />
-          {acting === doc.id ? '...' : 'Marcar leído'}
+          {acting === asign.id ? '...' : 'Marcar leído'}
         </Button>
       )}
       {pendienteFirma && (
-        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" onClick={() => onFirmar(doc)}>
+        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" onClick={() => onFirmar(asign)}>
           <Pen size={13} className="mr-1" /> Firmar
         </Button>
       )}
       {!pendienteFirma && !pendienteLectura && (
         <div className="flex items-center gap-1">
-          <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
+          <a href={url} target="_blank">
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0"><FileText size={14} /></Button>
           </a>
-          <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
+          <a href={url} download={asign.grupo.nombreArchivo}>
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0"><Download size={14} /></Button>
           </a>
         </div>

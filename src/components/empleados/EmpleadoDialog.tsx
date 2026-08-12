@@ -308,7 +308,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       />
                     </div>
                     <div>
-                      <Label className="mb-1.5">Contraseña <span className="text-red-500">*</span></Label>
+                      <Label className="mb-1.5">Contraseña <span className="text-xs text-muted-foreground font-normal">(temporal)</span> <span className="text-red-500">*</span></Label>
                       <Input
                         type="password"
                         value={password}
@@ -318,6 +318,11 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       />
                     </div>
                   </>
+                )}
+                {modoAcceso === 'password' && (
+                  <p className="col-span-2 text-[11px] text-muted-foreground">
+                    El empleado deberá cambiar esta contraseña la primera vez que inicie sesión.
+                  </p>
                 )}
                 {modoAcceso === 'invitacion' && (
                   <p className="col-span-2 text-xs text-muted-foreground">
@@ -510,8 +515,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
               {isNew && (
                 <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   El usuario se crea como <strong className="text-foreground">Empleado</strong> por defecto.
-                  Para asignarle un rol personalizado (Admin, RRHH, etc.), andá a
-                  {' '}<strong className="text-foreground">Configuración → Usuarios</strong> después de guardar.
+                  Para asignarle un rol personalizado, andá a
+                  {' '}<strong className="text-foreground">Configuración → Usuarios</strong>
+                  {modoAcceso === 'invitacion' ? ' cuando el empleado acepte la invitación.' : ' después de guardar.'}
                 </div>
               )}
 

@@ -4,16 +4,12 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { ArrowLeft, FileText, Search, Send, Trash2, Eye, X, Users, CheckCircle2, Clock, FileX, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Checkbox } from '@/components/ui/checkbox'
-import { StatusBadge } from '@/components/ui/status-badge'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { ArrowLeft, FileText, Search, Send, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { cn } from '@/lib/utils'
 
 interface Asignacion {
   id: number
@@ -41,14 +37,27 @@ interface Grupo {
   asignaciones: Asignacion[]
 }
 
+type EstadoKey = 'FIRMADO' | 'ENVIADO_A_FIRMA' | 'BORRADOR' | 'RECHAZADO'
+
+const ESTADO_CONFIG: Record<EstadoKey, { label: string; classes: string; Icon: React.ElementType }> = {
+  FIRMADO:         { label: 'Firmado',    classes: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300', Icon: CheckCircle2 },
+  ENVIADO_A_FIRMA: { label: 'Pendiente de firma', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400', Icon: Clock },
+  BORRADOR:        { label: 'Borrador',   classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400', Icon: FileX },
+  RECHAZADO:       { label: 'Rechazado',  classes: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400', Icon: AlertCircle },
+}
+
+type Filtro = 'todos' | 'firmados' | 'enFirma' | 'borradores' | 'rechazados'
+
 export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
   const router = useRouter()
   const [grupo, setGrupo] = useState<Grupo | null>(null)
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
-  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [sending, setSending] = useState(false)
+  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [preview, setPreview] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,170 +86,304 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
     if (r.ok) {
       const d = await r.json()
       toast.success(`${d.sent} enviado${d.sent !== 1 ? 's' : ''} a firma`)
-      setSelected(new Set())
+      setSelectedIds(new Set())
       load()
     } else toast.error('No se pudo enviar')
   }
 
   if (loading) return (
-    <div className="space-y-3">
-      {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+    <div className="flex flex-col h-full">
+      <div className="h-14 border-b border-border shrink-0" />
+      <div className="p-6 space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
+      </div>
     </div>
   )
-  if (!grupo) return <p className="text-sm text-muted-foreground">No encontrado.</p>
+  if (!grupo) return <p className="text-sm text-muted-foreground p-6">No encontrado.</p>
 
-  const q = busqueda.trim().toLowerCase()
-  const filtradas = grupo.asignaciones.filter(a => {
-    if (!q) return true
-    return `${a.employee.apellido} ${a.employee.nombre} ${a.employee.legajo}`.toLowerCase().includes(q)
-  })
+  const accion = grupo.tipoDocumento?.accion ?? 'FIRMA'
   const stats = {
     total: grupo.asignaciones.length,
     firmados: grupo.asignaciones.filter(a => a.estado === 'FIRMADO').length,
     enFirma: grupo.asignaciones.filter(a => a.estado === 'ENVIADO_A_FIRMA').length,
     borradores: grupo.asignaciones.filter(a => a.estado === 'BORRADOR').length,
+    rechazados: grupo.asignaciones.filter(a => a.estado === 'RECHAZADO').length,
   }
+  const pct = stats.total > 0 ? Math.round(stats.firmados / stats.total * 100) : 0
   const borradorIds = grupo.asignaciones.filter(a => a.estado === 'BORRADOR').map(a => a.id)
-  const selectedBorradores = borradorIds.filter(id => selected.has(id))
-  const allBorradoresSelected = borradorIds.length > 0 && borradorIds.every(id => selected.has(id))
+  const selectedBorradores = borradorIds.filter(id => selectedIds.has(id))
+  const canEnviar = accion !== 'NINGUNA' && borradorIds.length > 0
 
-  function toggle(id: number) {
-    setSelected(prev => {
-      const n = new Set(prev)
-      if (n.has(id)) n.delete(id); else n.add(id)
-      return n
-    })
-  }
-  function toggleAllBorradores() {
-    if (allBorradoresSelected) setSelected(new Set())
-    else setSelected(new Set(borradorIds))
-  }
+  const filtroTabs = ([
+    { key: 'todos' as Filtro, label: 'Todos', count: stats.total },
+    { key: 'firmados', label: accion === 'LECTURA' ? 'Leídos' : 'Firmados', count: stats.firmados },
+    { key: 'enFirma', label: 'Pendientes de firma', count: stats.enFirma },
+    { key: 'borradores', label: 'Borrador', count: stats.borradores },
+    { key: 'rechazados', label: 'Rechazados', count: stats.rechazados },
+  ] as { key: Filtro; label: string; count: number }[]).filter(t => t.key === 'todos' || t.count > 0)
+
+  const q = busqueda.trim().toLowerCase()
+  const filtradas = grupo.asignaciones.filter(a => {
+    if (q && !`${a.employee.apellido} ${a.employee.nombre} ${a.employee.legajo}`.toLowerCase().includes(q)) return false
+    if (filtro === 'todos') return true
+    if (filtro === 'firmados') return a.estado === 'FIRMADO'
+    if (filtro === 'enFirma') return a.estado === 'ENVIADO_A_FIRMA'
+    if (filtro === 'borradores') return a.estado === 'BORRADOR'
+    if (filtro === 'rechazados') return a.estado === 'RECHAZADO'
+    return true
+  })
 
   return (
-    <div className="space-y-4">
-      <Link href="/admin/documentos" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft size={15} /> Volver a documentos
-      </Link>
+    <div className="flex h-full">
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-14 border-b border-border bg-background flex items-center px-6 shrink-0">
+          <Link href="/admin/documentos" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft size={16} /> Volver a documentos
+          </Link>
+        </header>
 
-      <div className="rounded-xl border bg-card p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <FileText size={16} className="text-muted-foreground shrink-0" />
-              <h2 className="font-semibold text-lg truncate">{grupo.nombreArchivo}</h2>
-              {grupo.tipoDocumento && <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{grupo.tipoDocumento.nombre}</span>}
-              {grupo.periodo && <span className="text-xs text-muted-foreground">· {grupo.periodo}</span>}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Cargado por {grupo.cargadoPor.email} · {new Date(grupo.createdAt).toLocaleDateString('es-AR')}
-            </p>
-            <div className="flex gap-4 mt-3 text-sm flex-wrap">
-              <span><strong>{stats.total}</strong> asignados</span>
-              <span className="text-green-700 dark:text-green-400"><strong>{stats.firmados}</strong> firmados</span>
-              <span className="text-blue-600 dark:text-blue-400"><strong>{stats.enFirma}</strong> en firma</span>
-              <span className="text-muted-foreground"><strong>{stats.borradores}</strong> borrador{stats.borradores !== 1 ? 'es' : ''}</span>
-            </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <a href={`/api/documentos-grupos/${grupo.id}/archivo`} target="_blank">
-              <Button variant="outline" size="sm"><FileText size={13} className="mr-1.5" /> Ver archivo</Button>
-            </a>
-            <Button
-              variant="outline" size="sm"
-              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 size={13} className="mr-1.5" /> Eliminar
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input className="pl-9" placeholder="Buscar por empleado o legajo…" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
-        </div>
-        {borradorIds.length > 0 && (
-          <Button
-            size="sm"
-            className="bg-blue-600 hover:bg-blue-700"
-            disabled={sending}
-            onClick={() => enviarFirma(selected.size > 0 ? selectedBorradores : borradorIds)}
-          >
-            <Send size={13} className="mr-1.5" />
-            {selected.size > 0
-              ? `Enviar ${selectedBorradores.length} seleccionado${selectedBorradores.length !== 1 ? 's' : ''}`
-              : `Enviar ${borradorIds.length} borrador${borradorIds.length !== 1 ? 'es' : ''}`}
-          </Button>
-        )}
-      </div>
-
-      <div className="rounded-xl border bg-card overflow-hidden">
-        <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 border-b bg-muted/30 text-xs font-medium text-muted-foreground">
-          <Checkbox
-            checked={allBorradoresSelected}
-            onCheckedChange={toggleAllBorradores}
-            disabled={borradorIds.length === 0}
-            aria-label="Seleccionar todos los borradores"
-          />
-          <span>Empleado</span>
-          <span className="w-16 text-right">Legajo</span>
-          <span className="w-32">Estado</span>
-          <span className="w-24 text-right">Firmado</span>
-        </div>
-        {filtradas.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Sin resultados</p>
-        ) : (
-          filtradas.map(a => {
-            const isBorrador = a.estado === 'BORRADOR'
-            return (
-              <div key={a.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 border-b last:border-b-0 hover:bg-muted/20 text-sm">
-                <Checkbox
-                  checked={selected.has(a.id)}
-                  onCheckedChange={() => toggle(a.id)}
-                  disabled={!isBorrador}
-                  aria-label={`Seleccionar ${a.employee.apellido}, ${a.employee.nombre}`}
-                />
-                <div className="min-w-0">
-                  <p className="truncate">{a.employee.apellido}, {a.employee.nombre}</p>
-                  {a.employee.categoria && (
-                    <p className="text-xs text-muted-foreground truncate">{a.employee.categoria.nombre}</p>
-                  )}
+        <div className="flex-1 overflow-auto p-6 space-y-5">
+          {/* Stats card */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h2 className="font-semibold text-foreground leading-tight truncate">{grupo.nombreArchivo}</h2>
+                  <span className="text-xs text-muted-foreground">
+                    {grupo.tipoDocumento?.nombre ?? 'Sin tipo'}{grupo.periodo ? ` · ${grupo.periodo}` : ''}
+                  </span>
                 </div>
-                <span className="w-16 text-right text-xs text-muted-foreground">{a.employee.legajo}</span>
-                <span className="w-32 inline-flex items-center gap-1.5">
-                  <StatusBadge estado={a.estado} accion={grupo.tipoDocumento?.accion} pov="admin" />
-                  {a.estado === 'FIRMADO' && a.firmaConforme === true && (
-                    <span className="text-[10px] text-green-700 dark:text-green-400">✓</span>
-                  )}
-                  {a.estado === 'FIRMADO' && a.firmaConforme === false && (
-                    <span className="text-[10px] text-red-600 dark:text-red-400">✗</span>
-                  )}
-                </span>
-                <span className="w-24 text-right text-xs text-muted-foreground">
-                  {a.fechaFirma ? new Date(a.fechaFirma).toLocaleDateString('es-AR') : '—'}
-                </span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Cargado por {grupo.cargadoPor.email} · {new Date(grupo.createdAt).toLocaleDateString('es-AR')}
+                </p>
               </div>
-            )
-          })
-        )}
+              <div className="flex items-center gap-1 shrink-0">
+                {canEnviar && (
+                  <Button
+                    size="sm"
+                    className="bg-green-700 hover:bg-green-800 text-white h-8"
+                    onClick={() => enviarFirma(selectedIds.size > 0 ? selectedBorradores : borradorIds)}
+                    disabled={sending || (selectedIds.size > 0 && selectedBorradores.length === 0)}
+                  >
+                    <Send size={13} className="mr-1.5" />
+                    {sending ? 'Enviando...' :
+                      selectedIds.size > 0
+                        ? `Enviar (${selectedBorradores.length})`
+                        : `Enviar ${borradorIds.length} borrador${borradorIds.length !== 1 ? 'es' : ''}`}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setPreview(v => !v)}
+                >
+                  <Eye size={13} className="mr-1.5" /> {preview ? 'Cerrar' : 'Ver archivo'}
+                </Button>
+                <Button
+                  variant="outline" size="sm"
+                  className="h-8 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 size={13} className="mr-1.5" /> Eliminar
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="text-xs font-medium text-foreground shrink-0">
+                {stats.firmados}/{stats.total} {accion === 'LECTURA' ? 'leyeron' : 'firmaron'}
+              </span>
+              <span className="text-xs font-bold text-green-600 dark:text-green-400 shrink-0">{pct}%</span>
+            </div>
+
+            {(stats.enFirma > 0 || stats.rechazados > 0) && (
+              <div className="flex gap-3 text-xs flex-wrap">
+                {stats.enFirma > 0 && <span className="text-blue-600 dark:text-blue-400">{stats.enFirma} en firma</span>}
+                {stats.rechazados > 0 && <span className="text-orange-600 dark:text-orange-400">{stats.rechazados} rechazado{stats.rechazados !== 1 ? 's' : ''}</span>}
+              </div>
+            )}
+          </div>
+
+          {/* Búsqueda */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Input
+                className="pl-9"
+                placeholder="Buscar por empleado o legajo…"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {filtroTabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setFiltro(tab.key)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  filtro === tab.key
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {tab.label} <span className="opacity-60">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Tabla */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="w-10 text-left py-3 px-4">
+                    {(() => {
+                      const visBorradorIds = filtradas.filter(a => a.estado === 'BORRADOR').map(a => a.id)
+                      const allSel = visBorradorIds.length > 0 && visBorradorIds.every(id => selectedIds.has(id))
+                      return (
+                        <input
+                          type="checkbox"
+                          checked={allSel}
+                          disabled={visBorradorIds.length === 0}
+                          onChange={e => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) visBorradorIds.forEach(id => next.add(id))
+                              else visBorradorIds.forEach(id => next.delete(id))
+                              return next
+                            })
+                          }}
+                          className="cursor-pointer accent-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          title="Seleccionar borradores visibles"
+                        />
+                      )
+                    })()}
+                  </th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Empleado</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Legajo</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground">Estado</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden md:table-cell">Fecha firma</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Conformidad</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Comentario</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                      <Users size={24} className="mx-auto mb-2 opacity-30" />
+                      Sin empleados en este filtro
+                    </td>
+                  </tr>
+                ) : filtradas.map((a, idx) => {
+                  const estadoKey = a.estado as EstadoKey
+                  const cfgBase = ESTADO_CONFIG[estadoKey] ?? ESTADO_CONFIG.BORRADOR
+                  const cfg = accion === 'LECTURA' && estadoKey === 'FIRMADO'
+                    ? { ...cfgBase, label: 'Leído' }
+                    : cfgBase
+                  const { Icon } = cfg
+                  const isBorrador = a.estado === 'BORRADOR'
+                  return (
+                    <tr key={a.id} className={`border-b border-border last:border-0 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
+                      <td className="py-3 px-4 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(a.id)}
+                          disabled={!isBorrador}
+                          onChange={e => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.add(a.id)
+                              else next.delete(a.id)
+                              return next
+                            })
+                          }}
+                          className="cursor-pointer accent-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      </td>
+                      <td className="py-3 px-4 font-medium">
+                        {a.employee.apellido}, {a.employee.nombre}
+                        {a.employee.categoria && (
+                          <p className="text-xs text-muted-foreground font-normal">{a.employee.categoria.nombre}</p>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground font-mono text-xs hidden sm:table-cell">{a.employee.legajo}</td>
+                      <td className="py-3 px-4">
+                        <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium', cfg.classes)}>
+                          <Icon size={11} />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground text-xs hidden md:table-cell">
+                        {a.fechaFirma ? new Date(a.fechaFirma).toLocaleDateString('es-AR') : '—'}
+                      </td>
+                      <td className="py-3 px-4 hidden lg:table-cell">
+                        {a.firmaConforme === true ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">✓ Conforme</span>
+                        ) : a.firmaConforme === false ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">✗ No conforme</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 hidden lg:table-cell">
+                        {a.firmaComentario ? (
+                          <div className="max-w-[240px] overflow-hidden">
+                            <p className="text-xs text-muted-foreground line-clamp-2 break-words" title={a.firmaComentario}>
+                              {a.firmaComentario}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <AlertDialog open={confirmDelete} onOpenChange={o => { if (!o) setConfirmDelete(false) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar el documento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se elimina el archivo y las {stats.total} asignación{stats.total !== 1 ? 'es' : ''}. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={eliminarGrupo}>Eliminar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Panel lateral de preview */}
+      {preview && (
+        <aside className="w-full sm:w-[420px] lg:w-[520px] shrink-0 border-l bg-card flex flex-col h-full">
+          <div className="h-12 flex items-center justify-between px-4 border-b bg-muted/30 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText size={14} className="text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate" title={grupo.nombreArchivo}>{grupo.nombreArchivo}</span>
+            </div>
+            <button
+              onClick={() => setPreview(false)}
+              className="p-1.5 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
+              title="Cerrar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <iframe
+            src={`/api/documentos-grupos/${grupo.id}/archivo`}
+            className="flex-1 w-full bg-muted"
+            title={grupo.nombreArchivo}
+          />
+        </aside>
+      )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`¿Eliminar el documento "${grupo.nombreArchivo}"?`}
+        description={`Se elimina el archivo y las ${stats.total} asignación${stats.total !== 1 ? 'es' : ''}. Esta acción no se puede deshacer.`}
+        onConfirm={eliminarGrupo}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

@@ -188,9 +188,11 @@ export function TabFormularios() {
                       <td className="text-center px-4 py-2">
                         <input type="checkbox" checked={p.activo} onChange={() => toggleActivo(p)} className="w-4 h-4 accent-green-700" />
                       </td>
-                      <td className="px-4 py-2 text-right space-x-1">
-                        <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Pencil size={13} /></Button>
-                        <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => setDeleteId(p.id)}><Trash2 size={13} /></Button>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Pencil size={13} /></Button>
+                          <Button size="sm" variant="destructive" className="h-7 w-7 p-0" onClick={() => setDeleteId(p.id)}><Trash2 size={13} /></Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

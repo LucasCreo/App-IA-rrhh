@@ -46,3 +46,7 @@ next-env.d.ts
 /public/uploads/*
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# code intelligence
+/.codegraph
+/.cortex

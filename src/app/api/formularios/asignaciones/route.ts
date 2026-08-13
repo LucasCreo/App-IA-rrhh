@@ -1,21 +1,28 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds } from '@/lib/scope'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const { searchParams } = new URL(req.url)
+  const pageParam = searchParams.get('page')
+  const paged = pageParam !== null
+  const page = Math.max(1, Number(pageParam ?? 1) || 1)
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20) || 20))
+
   const scope = user.role === 'ADMIN' ? await getScopedEmployeeIds(user.userId) : null
-  const scopeFilter = scope
+  const where = scope
     ? { respuestas: { some: { employeeId: { in: [...scope] } } } }
     : {}
 
-  const [asignaciones, enviadasRaw] = await Promise.all([
+  const [total, asignaciones, enviadasRaw] = await Promise.all([
+    paged ? prisma.asignacionFormulario.count({ where }) : Promise.resolve(0),
     prisma.asignacionFormulario.findMany({
-      where: scopeFilter,
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         plantilla: { select: { nombre: true } },
@@ -25,6 +32,7 @@ export async function GET() {
           select: { employee: { select: { nombre: true, apellido: true } } },
         },
       },
+      ...(paged ? { skip: (page - 1) * limit, take: limit } : {}),
     }),
     prisma.respuestaFormulario.groupBy({
       by: ['asignacionId'],
@@ -37,9 +45,10 @@ export async function GET() {
   ])
 
   const enviadasMap = new Map(enviadasRaw.map(e => [e.asignacionId, e._count]))
-  const result = asignaciones.map(a => ({ ...a, enviadas: enviadasMap.get(a.id) ?? 0 }))
+  const items = asignaciones.map(a => ({ ...a, enviadas: enviadasMap.get(a.id) ?? 0 }))
 
-  return NextResponse.json(result)
+  if (paged) return NextResponse.json({ items, total, page, pages: Math.max(1, Math.ceil(total / limit)) })
+  return NextResponse.json(items)
 }
 
 export async function POST(req: Request) {

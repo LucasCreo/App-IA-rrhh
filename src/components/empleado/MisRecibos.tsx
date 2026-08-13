@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Download, BookOpen, Pen, Search, X } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination, paginate } from '@/components/ui/pagination'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +46,10 @@ export function MisRecibos({ employeeId }: Props) {
   const [anio, setAnio] = useState<string>('')
   const [mes, setMes] = useState<string>('')
   const [orden, setOrden] = useState<Orden>('DESC')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => { setPage(1) }, [filtro, busqueda, anio, mes, orden])
 
   function load() {
     setLoading(true)
@@ -207,7 +212,7 @@ export function MisRecibos({ employeeId }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDocs.map(doc => {
+                {paginate(filteredDocs, page, pageSize).map(doc => {
                   const accion = doc.tipoDocumento?.accion
                   const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
                   const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
@@ -263,7 +268,7 @@ export function MisRecibos({ employeeId }: Props) {
 
           {/* Móvil: cards */}
           <div className="md:hidden space-y-2">
-            {filteredDocs.map(doc => {
+            {paginate(filteredDocs, page, pageSize).map(doc => {
               const accion = doc.tipoDocumento?.accion
               const pendienteFirma = accion === 'FIRMA' && doc.estado === 'ENVIADO_A_FIRMA'
               const pendienteLectura = accion === 'LECTURA' && doc.estado === 'ENVIADO_A_FIRMA'
@@ -310,6 +315,12 @@ export function MisRecibos({ employeeId }: Props) {
               )
             })}
           </div>
+
+          <Pagination
+            page={page} pageSize={pageSize} total={filteredDocs.length}
+            itemLabel="recibos"
+            onPageChange={setPage} onPageSizeChange={setPageSize}
+          />
         </>
       )}
 

@@ -11,24 +11,40 @@ import { getReciboTipoId } from '@/lib/tiposDocumento'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
 import { detectarLegajoDesdeFilename } from '@/lib/recibosDetect'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const scope = await getScopedEmployeeIds(user.userId)
-  const lotes = await prisma.lote.findMany({
-    where: scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {},
-    include: {
-      tipoDocumento: { select: { id: true, nombre: true } },
-      documentos: { select: { estado: true, employeeId: true } },
-      empleados: { select: { employeeId: true } },
-      pendientes: { select: { id: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  const { searchParams } = new URL(req.url)
+  const q = searchParams.get('q')?.trim() ?? ''
+  const pageParam = searchParams.get('page')
+  const paged = pageParam !== null
+  const page = Math.max(1, Number(pageParam ?? 1) || 1)
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20) || 20))
 
-  return NextResponse.json(lotes.map(l => {
+  const scope = await getScopedEmployeeIds(user.userId)
+  const where = {
+    ...(scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {}),
+    ...(q ? { nombre: { contains: q } } : {}),
+  }
+
+  const [total, lotes] = await Promise.all([
+    paged ? prisma.lote.count({ where }) : Promise.resolve(0),
+    prisma.lote.findMany({
+      where,
+      include: {
+        tipoDocumento: { select: { id: true, nombre: true } },
+        documentos: { select: { estado: true, employeeId: true } },
+        empleados: { select: { employeeId: true } },
+        pendientes: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      ...(paged ? { skip: (page - 1) * limit, take: limit } : {}),
+    }),
+  ])
+
+  const items = lotes.map(l => {
     const empleadosIds = scope
       ? l.empleados.filter(e => scope.has(e.employeeId)).map(e => e.employeeId)
       : l.empleados.map(e => e.employeeId)
@@ -52,7 +68,12 @@ export async function GET() {
         pendientes: l.pendientes.length,
       },
     }
-  }))
+  })
+
+  if (paged) {
+    return NextResponse.json({ items, total, page, pages: Math.max(1, Math.ceil(total / limit)) })
+  }
+  return NextResponse.json(items)
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
   }

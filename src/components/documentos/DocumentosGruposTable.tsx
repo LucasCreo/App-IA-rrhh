@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination } from '@/components/ui/pagination'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -50,20 +51,25 @@ export function DocumentosGruposTable() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams()
     if (busqueda) params.set('q', busqueda)
     if (tipoFiltro !== 'todos') params.set('tipoDocumentoId', tipoFiltro)
-    const qs = params.toString()
-    const r = await fetch(`/api/documentos-grupos${qs ? `?${qs}` : ''}`)
+    params.set('page', String(page))
+    params.set('limit', String(pageSize))
+    const r = await fetch(`/api/documentos-grupos?${params}`)
     if (r.ok) {
       const d = await r.json()
       setGrupos(d.grupos ?? [])
+      setTotal(d.total ?? 0)
     }
     setLoading(false)
-  }, [busqueda, tipoFiltro])
+  }, [busqueda, tipoFiltro, page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -141,9 +147,9 @@ export function DocumentosGruposTable() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input className="pl-9" placeholder="Buscar por nombre de archivo…" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+          <Input className="pl-9" placeholder="Buscar por nombre de archivo…" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPage(1) }} />
         </div>
-        <Select value={tipoFiltro} onValueChange={v => setTipoFiltro(v ?? 'todos')}>
+        <Select value={tipoFiltro} onValueChange={v => { setTipoFiltro(v ?? 'todos'); setPage(1) }}>
           <SelectTrigger className="w-52">
             <SelectValue placeholder="Tipo de documento" />
           </SelectTrigger>
@@ -174,13 +180,15 @@ export function DocumentosGruposTable() {
         <div className="space-y-2">
           {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
-      ) : grupos.length === 0 ? (
+      ) : total === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <FileText size={32} strokeWidth={1.2} />
-          <p className="text-sm">No hay documentos cargados</p>
+          <p className="text-sm">
+            {busqueda || tipoFiltro !== 'todos' ? 'Sin resultados para los filtros aplicados' : 'No hay documentos cargados'}
+          </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
             <Checkbox
               checked={allSelected}
@@ -197,7 +205,7 @@ export function DocumentosGruposTable() {
             const errTotal = g.stats.rechazados
             const isSelected = selected.has(g.id)
             return (
-              <div key={g.id} className="flex items-center gap-3">
+              <div key={g.id} className="flex items-center gap-2">
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggleOne(g.id)}
@@ -206,70 +214,75 @@ export function DocumentosGruposTable() {
                 />
                 <div
                   onClick={() => router.push(`/admin/documentos/${g.id}`)}
-                  className={`flex-1 min-w-0 rounded-xl border bg-card px-5 py-4 hover:border-green-500/60 hover:shadow-sm transition-all cursor-pointer ${isSelected ? 'border-green-500' : ''}`}
+                  className={`flex-1 min-w-0 rounded-lg border bg-card px-3 py-2 hover:border-green-500/60 hover:shadow-sm transition-all cursor-pointer ${isSelected ? 'border-green-500' : ''}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <FileText size={14} className="text-muted-foreground shrink-0" />
-                        <p className="font-semibold text-foreground truncate">{g.nombreArchivo}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FileText size={13} className="text-muted-foreground shrink-0" />
+                        <p className="text-sm font-medium text-foreground truncate">{g.nombreArchivo}</p>
                         {g.periodo && (
                           <span className="text-xs text-muted-foreground shrink-0">· {g.periodo}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-xs">
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden max-w-[200px]">
                           <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {g.stats.firmados}/{g.stats.total} firmados
+                        <span className="text-[11px] text-muted-foreground shrink-0">
+                          {g.stats.firmados}/{g.stats.total}
                         </span>
                         {g.stats.enFirma > 0 && (
-                          <span className="text-xs text-blue-600 dark:text-blue-400 shrink-0">{g.stats.enFirma} en firma</span>
+                          <span className="text-[11px] text-blue-600 dark:text-blue-400 shrink-0">· {g.stats.enFirma} en firma</span>
                         )}
                         {g.stats.borradores > 0 && (
-                          <span className="text-xs text-muted-foreground shrink-0">{g.stats.borradores} borrador{g.stats.borradores !== 1 ? 'es' : ''}</span>
+                          <span className="text-[11px] text-muted-foreground shrink-0">· {g.stats.borradores} borrador{g.stats.borradores !== 1 ? 'es' : ''}</span>
                         )}
                         {errTotal > 0 && (
-                          <span className="text-xs text-red-600 dark:text-red-400 shrink-0">{errTotal} rechazado{errTotal !== 1 ? 's' : ''}</span>
+                          <span className="text-[11px] text-red-600 dark:text-red-400 shrink-0">· {errTotal} rechazado{errTotal !== 1 ? 's' : ''}</span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                       <span
-                        className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-1 rounded-md"
+                        className="inline-flex items-center gap-1 text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded"
                         title="Tipo de documento"
                       >
-                        <Tag size={11} />
+                        <Tag size={10} />
                         {g.tipoDocumento?.nombre ?? 'Sin tipo'}
                       </span>
                       {g.stats.borradores > 0 && (
                         <Button
                           size="sm" variant="outline"
-                          className="h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                          className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-900 dark:hover:bg-blue-950/30"
                           onClick={() => enviarFirma(g.id)}
                           title="Enviar a firma los borradores"
                         >
-                          <Send size={13} className="mr-1" /> Enviar {g.stats.borradores}
+                          <Send size={12} className="mr-1" /> {g.stats.borradores}
                         </Button>
                       )}
                       <a href={`/api/documentos-grupos/${g.id}/archivo`} target="_blank" title="Ver archivo">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0"><FileText size={14} /></Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText size={13} /></Button>
                       </a>
                       <Button
                         size="sm" variant="ghost"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
                         onClick={() => setDeleteId(g.id)} title="Eliminar"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                       </Button>
-                      <ChevronRight size={16} className="text-muted-foreground ml-1" />
+                      <ChevronRight size={14} className="text-muted-foreground" />
                     </div>
                   </div>
                 </div>
               </div>
             )
           })}
+          <Pagination
+            page={page} pageSize={pageSize} total={total}
+            itemLabel="documentos"
+            onPageChange={setPage} onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

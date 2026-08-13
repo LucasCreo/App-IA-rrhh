@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination, paginate } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search } from 'lucide-react'
@@ -59,6 +60,10 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'aprobada' | 'rechazada'>('')
   const [detalle, setDetalle] = useState<Item | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro, vista])
 
   const [nuevaOpen, setNuevaOpen] = useState(false)
   const [tipoSel, setTipoSel] = useState<TipoSolicitud | null>(null)
@@ -237,7 +242,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         </div>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(item => (
+          {paginate(filtered, page, pageSize).map(item => (
             <div key={item.key} className="flex items-start gap-3 px-4 py-3 bg-card">
               {item.kind === 'doc' && <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />}
               {item.kind === 'form' && <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
@@ -299,6 +304,14 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          page={page} pageSize={pageSize} total={filtered.length}
+          itemLabel="solicitudes"
+          onPageChange={setPage} onPageSizeChange={setPageSize}
+        />
       )}
 
       {/* Nueva solicitud */}

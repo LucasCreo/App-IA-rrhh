@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Check, X, FileText, Search, Paperclip } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
+import { Pagination } from '@/components/ui/pagination'
 
 interface CampoSolicitud { nombre: string; label: string }
 interface SolicitudDoc {
@@ -54,6 +55,11 @@ export function SolicitudesUnificadas() {
   const [bulkReview, setBulkReview] = useState<'APROBADO' | 'RECHAZADO' | null>(null)
   const [bulkComentario, setBulkComentario] = useState('')
   const [bulkProcessing, setBulkProcessing] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => { setPage(1) }, [estadoFiltro, qDebounced])
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
@@ -62,11 +68,19 @@ export function SolicitudesUnificadas() {
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/solicitudes')
+    const params = new URLSearchParams()
+    if (estadoFiltro) params.set('estado', estadoFiltro)
+    if (qDebounced) params.set('q', qDebounced)
+    params.set('page', String(page))
+    params.set('limit', String(pageSize))
+    fetch(`/api/solicitudes?${params}`)
       .then(r => r.json())
-      .then(d => setDocs(Array.isArray(d) ? d : []))
+      .then(d => {
+        if (Array.isArray(d)) { setDocs(d); setTotal(d.length) }
+        else { setDocs(d.items ?? []); setTotal(d.total ?? 0) }
+      })
       .finally(() => setLoading(false))
-  }, [])
+  }, [estadoFiltro, qDebounced, page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -84,19 +98,7 @@ export function SolicitudesUnificadas() {
     router.refresh()
   }
 
-  const filtered = docs.filter(d => {
-    if (estadoFiltro && d.estado !== estadoFiltro) return false
-    if (qDebounced) {
-      const nombre = `${d.employee.apellido} ${d.employee.nombre}`.toLowerCase()
-      if (!nombre.includes(qDebounced) && !d.employee.legajo.toLowerCase().includes(qDebounced)) return false
-    }
-    return true
-  }).sort((a, b) => {
-    const aP = a.estado === 'PENDIENTE' ? 0 : 1
-    const bP = b.estado === 'PENDIENTE' ? 0 : 1
-    if (aP !== bP) return aP - bP
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  })
+  const filtered = docs
 
   const resolvables = filtered.filter(d => d.estado === 'PENDIENTE' && d.canApprove)
   const selectedResolvables = resolvables.filter(d => selected.has(d.id))
@@ -167,7 +169,7 @@ export function SolicitudesUnificadas() {
           />
         </div>
         <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length} de {docs.length}
+          {total} {total === 1 ? 'resultado' : 'resultados'}
         </span>
       </div>
 
@@ -236,6 +238,14 @@ export function SolicitudesUnificadas() {
             )
           })}
         </div>
+      )}
+
+      {!loading && total > 0 && (
+        <Pagination
+          page={page} pageSize={pageSize} total={total}
+          itemLabel="solicitudes"
+          onPageChange={setPage} onPageSizeChange={setPageSize}
+        />
       )}
 
       {/* Review doc dialog */}

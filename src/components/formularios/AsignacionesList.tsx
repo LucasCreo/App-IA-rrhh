@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils'
 import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
+import { Pagination } from '@/components/ui/pagination'
 
 interface SolicitudFormulario {
   id: number
@@ -48,12 +49,20 @@ export function AsignacionesList() {
   const [editFechaLimite, setEditFechaLimite] = useState('')
   const [editDatosAdmin, setEditDatosAdmin] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
-  function load() {
-    fetch('/api/formularios/asignaciones').then(r => r.json()).then(setSolicitudes)
-  }
+  const load = useCallback(() => {
+    fetch(`/api/formularios/asignaciones?page=${page}&limit=${pageSize}`)
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) { setSolicitudes(d); setTotal(d.length) }
+        else { setSolicitudes(d.items ?? []); setTotal(d.total ?? 0) }
+      })
+  }, [page, pageSize])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   async function openDialog() {
     const [pRes, eRes] = await Promise.all([
@@ -137,13 +146,13 @@ export function AsignacionesList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{solicitudes.length} solicitud{solicitudes.length !== 1 ? 'es' : ''}</p>
+        <p className="text-sm text-muted-foreground">{total} solicitud{total !== 1 ? 'es' : ''}</p>
         <Button className="bg-green-700 hover:bg-green-800 gap-1.5" onClick={openDialog}>
           <Plus size={15} /> Nueva solicitud
         </Button>
       </div>
 
-      {solicitudes.length === 0 ? (
+      {total === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">Sin solicitudes creadas todavía</p>
@@ -211,6 +220,13 @@ export function AsignacionesList() {
               ))}
             </tbody>
           </table>
+          <div className="px-3 pb-2">
+            <Pagination
+              page={page} pageSize={pageSize} total={total}
+              itemLabel="solicitudes"
+              onPageChange={setPage} onPageSizeChange={setPageSize}
+            />
+          </div>
         </div>
       )}
 

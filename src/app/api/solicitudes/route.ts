@@ -9,11 +9,16 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const estado = new URL(req.url).searchParams.get('estado')
+  const { searchParams } = new URL(req.url)
+  const estado = searchParams.get('estado')
+  const q = searchParams.get('q')?.trim() ?? ''
+  const pageParam = searchParams.get('page')
+  const paged = pageParam !== null
+  const page = Math.max(1, Number(pageParam ?? 1) || 1)
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20) || 20))
 
   try {
     if (user.role === 'ADMIN') {
-      // Admin path: check permission
       const authed = await requirePermiso(PERMISOS.GESTIONAR_SOLICITUDES)
       if (!authed) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
@@ -21,23 +26,37 @@ export async function GET(req: NextRequest) {
         getScopedEmployeeIds(authed.userId),
         getDescendantEmployeeIds(authed.userId),
       ])
-      const raw = await prisma.solicitudDocumento.findMany({
-        where: {
-          ...(estado ? { estado } : {}),
-          ...(scope ? { employeeId: { in: [...scope] } } : {}),
-        },
-        include: {
-          employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
-          tipo: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 500,
-      })
-      return NextResponse.json(raw.map(s => ({
+      const where = {
+        ...(estado ? { estado } : {}),
+        ...(scope ? { employeeId: { in: [...scope] } } : {}),
+        ...(q ? {
+          OR: [
+            { employee: { legajo: { contains: q } } },
+            { employee: { nombre: { contains: q } } },
+            { employee: { apellido: { contains: q } } },
+          ],
+        } : {}),
+      }
+      const [total, raw] = await Promise.all([
+        paged ? prisma.solicitudDocumento.count({ where }) : Promise.resolve(0),
+        prisma.solicitudDocumento.findMany({
+          where,
+          include: {
+            employee: { select: { id: true, nombre: true, apellido: true, legajo: true } },
+            tipo: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: paged ? (page - 1) * limit : undefined,
+          take: paged ? limit : 500,
+        }),
+      ])
+      const items = raw.map(s => ({
         ...s,
         tipo: { ...s.tipo, campos: JSON.parse(s.tipo.campos ?? '[]') },
         canApprove: descendants.has(s.employeeId),
-      })))
+      }))
+      if (paged) return NextResponse.json({ items, total, page, pages: Math.max(1, Math.ceil(total / limit)) })
+      return NextResponse.json(items)
     }
 
     if (!user.employeeId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

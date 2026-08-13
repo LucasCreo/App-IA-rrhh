@@ -15,6 +15,7 @@ import { Check, X, FileText, CalendarOff, ClipboardList, CheckCircle2, XCircle, 
 import { handleApiError } from '@/lib/apiErrors'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
+import { Pagination, paginate } from '@/components/ui/pagination'
 
 interface CampoSolicitud { nombre: string; label: string }
 interface SolicitudDoc {
@@ -82,6 +83,10 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
   const [loading, setLoading] = useState(true)
   const [direccion, setDireccion] = useState<Direccion>('recibidas')
   const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => { setPage(1) }, [direccion, filtro])
 
   const [reviewDoc, setReviewDoc] = useState<{
     solicitud: SolicitudDoc; estado: 'APROBADO' | 'RECHAZADO'; comentario: string; comentarioVisible: boolean
@@ -225,7 +230,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
         <p className="text-sm text-muted-foreground py-12 text-center">Sin solicitudes</p>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(item => {
+          {paginate(filtered, page, pageSize).map(item => {
             if (item.kind === 'doc') return (
               <RowDoc
                 key={item.key}
@@ -240,6 +245,14 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
             return <RowForm key={item.key} r={item.data} onView={() => setViewForm(item.data)} />
           })}
         </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          page={page} pageSize={pageSize} total={filtered.length}
+          itemLabel="solicitudes"
+          onPageChange={setPage} onPageSizeChange={setPageSize}
+        />
       )}
 
       <Dialog open={reviewDoc !== null} onOpenChange={v => !v && setReviewDoc(null)}>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination, paginate } from '@/components/ui/pagination'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +46,10 @@ export function MisDocumentos({ employeeId }: Props) {
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'firmado' | 'rechazado'>('')
   const [acting, setActing] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro])
 
   const [firmaAsign, setFirmaAsign] = useState<AsignacionApi | null>(null)
 
@@ -156,7 +161,7 @@ export function MisDocumentos({ employeeId }: Props) {
         </div>
       ) : (
         <div className="divide-y">
-          {filtered.map(item => (
+          {paginate(filtered, page, pageSize).map(item => (
             <div key={item.key} className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 sm:px-5 py-4">
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
@@ -175,6 +180,14 @@ export function MisDocumentos({ employeeId }: Props) {
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <Pagination
+          page={page} pageSize={pageSize} total={filtered.length}
+          itemLabel="documentos"
+          onPageChange={setPage} onPageSizeChange={setPageSize}
+        />
       )}
 
       <FirmarDocumentoDialog

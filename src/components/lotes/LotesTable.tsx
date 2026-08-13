@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Layers, ChevronRight, Trash2 } from 'lucide-react'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Pagination } from '@/components/ui/pagination'
 import { CrearLoteDialog } from './CrearLoteDialog'
 
 interface LoteStats {
@@ -45,18 +46,25 @@ export function LotesTable() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
-  async function fetchLotes() {
+  const fetchLotes = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch('/api/lotes')
-      if (r.ok) setLotes(await r.json())
+      const r = await fetch(`/api/lotes?page=${page}&limit=${pageSize}`)
+      if (r.ok) {
+        const d = await r.json()
+        setLotes(d.items ?? [])
+        setTotal(d.total ?? 0)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, pageSize])
 
-  useEffect(() => { fetchLotes() }, [])
+  useEffect(() => { fetchLotes() }, [fetchLotes])
 
   const allSelected = lotes.length > 0 && lotes.every(l => selected.has(l.id))
   const someSelected = selected.size > 0 && !allSelected
@@ -218,6 +226,11 @@ export function LotesTable() {
                 </div>
               )
             })}
+            <Pagination
+              page={page} pageSize={pageSize} total={total}
+              itemLabel="lotes"
+              onPageChange={setPage} onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>

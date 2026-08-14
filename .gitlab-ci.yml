@@ -61,7 +61,7 @@ deploy_develop:
   script:
     - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME
     - docker rm -f $CI_PROJECT_NAME-develop || true
-    - docker run --name $CI_PROJECT_NAME-develop -d -p 6106:3000
+    - docker run --name $CI_PROJECT_NAME-develop -d -p 7106:3000
       --add-host=host.docker.internal:host-gateway --restart unless-stopped
       $IMAGE_ARG:$CI_COMMIT_REF_NAME
     - docker images -q -f dangling=true $IMAGE_ARG | xargs --no-run-if-empty docker rmi -f || true

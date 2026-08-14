@@ -27,7 +27,8 @@ export async function verifyToken(token: string): Promise<TokenPayload> {
 }
 
 export const hashPassword = (pw: string) => bcrypt.hash(pw, 10)
-export const comparePassword = (pw: string, hash: string) => bcrypt.compare(pw, hash)
+export const comparePassword = (pw: string, hash: string | null) =>
+  hash ? bcrypt.compare(pw, hash) : Promise.resolve(false)
 
 export async function getCurrentUser() {
   const cookieStore = await cookies()

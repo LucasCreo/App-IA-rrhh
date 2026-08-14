@@ -1,0 +1,83 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_ARG: $DOCKER_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME
+
+# ── BUILD: una sola definición para las 3 ramas ───────────────────────
+# rules detecta la rama, setea TARGET_ENV y, vía environment.name,
+# scopea las CI/CD vars al environment correcto de GitLab.
+docker_build:
+  stage: build
+  variables:
+    TARGET_ENV: "not-defined"
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "master"
+      variables: { TARGET_ENV: "production" }
+    - if: $CI_COMMIT_REF_NAME == "develop"
+      variables: { TARGET_ENV: "development" }
+    - if: $CI_COMMIT_REF_NAME == "demo"
+      variables: { TARGET_ENV: "demo" }
+  environment:
+    name: $TARGET_ENV
+  before_script:
+    # Materializar .env.production desde las CI/CD vars (scopeadas a $TARGET_ENV).
+    # SIN secrets versionados: el repo solo tiene placeholders __VAR__.
+    # Debe correr ANTES del build: Next inlinea NEXT_PUBLIC_* en `next build`.
+    - sed -i "s|__DATABASE_URL__|$DATABASE_URL|g" .env.production
+    - sed -i "s|__JWT_SECRET__|$JWT_SECRET|g" .env.production
+    - sed -i "s|__NEXT_PUBLIC_APP_URL__|$NEXT_PUBLIC_APP_URL|g" .env.production
+    - sed -i "s|__SMTP_HOST__|$SMTP_HOST|g" .env.production
+    - sed -i "s|__SMTP_PORT__|$SMTP_PORT|g" .env.production
+    - sed -i "s|__SMTP_USER__|$SMTP_USER|g" .env.production
+    - sed -i "s|__SMTP_PASS__|$SMTP_PASS|g" .env.production
+    - sed -i "s|__SMTP_FROM__|$SMTP_FROM|g" .env.production
+    - sed -i "s|__GOOGLE_CLIENT_ID__|$GOOGLE_CLIENT_ID|g" .env.production
+    - sed -i "s|__GOOGLE_CLIENT_SECRET__|$GOOGLE_CLIENT_SECRET|g" .env.production
+  script:
+    - docker login $DOCKER_REGISTRY -u $DEVOPS_LOGIN -p $DEVOPS_PASSWORD
+    - docker build -t $IMAGE_ARG:$CI_COMMIT_REF_NAME .
+    - docker push $IMAGE_ARG:$CI_COMMIT_REF_NAME
+
+# ── master → producción on-prem vía compose ───────────────────────────
+deploy_master:
+  stage: deploy
+  environment: production
+  dependencies: [docker_build]
+  script:
+    - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    - cd /home/desarrollo/compose
+    - docker compose -f docker-compose-aditus.yml pull aditus-rrhh
+    - docker compose -f docker-compose-aditus.yml up -d aditus-rrhh
+    - docker images -q -f dangling=true $IMAGE_ARG | xargs --no-run-if-empty docker rmi -f || true
+  only: [master]
+
+# ── develop → desarrollo (desa) on-prem vía docker run ────────────────
+deploy_develop:
+  stage: deploy
+  environment: development
+  dependencies: [docker_build]
+  script:
+    - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    - docker rm -f $CI_PROJECT_NAME-develop || true
+    - docker run --name $CI_PROJECT_NAME-develop -d -p 6106:3000
+      --add-host=host.docker.internal:host-gateway --restart unless-stopped
+      $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    - docker images -q -f dangling=true $IMAGE_ARG | xargs --no-run-if-empty docker rmi -f || true
+  only: [develop]
+
+# ── demo → manual, runner aditus-demo, compose demo ───────────────────
+deploy_demo:
+  stage: deploy
+  dependencies: [docker_build]
+  variables:
+    SERVICE_NAME: "aditus-rrhh-demo"
+  script:
+    - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    - cd /home/desarrollo/compose
+    - docker compose -f docker-compose-aditus-demo.yml up -d $SERVICE_NAME
+    - docker images -q -f dangling=true $IMAGE_ARG | xargs --no-run-if-empty docker rmi -f || true
+  only: [demo]
+  when: manual
+  tags: [aditus-demo]

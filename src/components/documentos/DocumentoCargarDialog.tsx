@@ -112,12 +112,13 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
 
   async function handleSubmit() {
     if (!file) { toast.error('Seleccioná un archivo'); return }
+    if (!tipoDocumentoId) { toast.error('Seleccioná un tipo de documento'); return }
     if (selectedIds.size === 0) { toast.error('Seleccioná al menos un empleado'); return }
     setSaving(true)
     const formData = new FormData()
     formData.append('file', file)
     if (mostrarPeriodo) formData.append('periodo', `${ano}-${mes}`)
-    if (tipoDocumentoId) formData.append('tipoDocumentoId', tipoDocumentoId)
+    formData.append('tipoDocumentoId', tipoDocumentoId)
     formData.append('estado', estado)
     formData.append('empleadoIds', JSON.stringify(Array.from(selectedIds)))
 
@@ -141,7 +142,7 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
     setSearch('')
   }
 
-  const canSubmit = !!file && !saving && selectedIds.size > 0
+  const canSubmit = !!file && !saving && !!tipoDocumentoId && selectedIds.size > 0
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose() } }}>
@@ -186,16 +187,19 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
           </div>
 
           {/* Tipo de documento */}
-          {tipos.length > 0 && (
+          {tipos.length > 0 ? (
             <div>
-              <p className="text-xs text-muted-foreground mb-1.5">Tipo de documento (opcional)</p>
-              <Select value={tipoDocumentoId} onValueChange={v => setTipoDocumentoId(!v || v === 'none' ? '' : v)}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Sin tipo" /></SelectTrigger>
+              <p className="text-xs text-muted-foreground mb-1.5">Tipo de documento *</p>
+              <Select value={tipoDocumentoId} onValueChange={v => v && setTipoDocumentoId(v)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná un tipo" /></SelectTrigger>
                 <SelectContent side="bottom" alignItemWithTrigger={false}>
-                  <SelectItem value="none">Sin tipo</SelectItem>
                   {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+          ) : (
+            <div className="rounded-md border border-yellow-300 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/30 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
+              No hay tipos de documento configurados. Creá uno en Configuración → Documentos antes de cargar.
             </div>
           )}
 

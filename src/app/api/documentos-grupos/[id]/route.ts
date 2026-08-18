@@ -61,11 +61,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.periodo === null || typeof body.periodo === 'string') {
     data.periodo = body.periodo ? String(body.periodo).trim() || null : null
   }
-  if (body.tipoDocumentoId === null || Number.isInteger(body.tipoDocumentoId)) {
+  if (body.tipoDocumentoId !== undefined) {
+    if (!Number.isInteger(body.tipoDocumentoId)) {
+      return NextResponse.json({ error: 'El tipo de documento es requerido' }, { status: 400 })
+    }
     data.tipoDocumentoId = body.tipoDocumentoId
   }
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Nada para actualizar' }, { status: 400 })
+  }
+
+  // Si cambia el tipo, no permitir hacerlo si hay asignaciones fuera de BORRADOR
+  if (data.tipoDocumentoId !== undefined) {
+    const actual = await prisma.documentoGrupo.findUnique({
+      where: { id: grupoId },
+      select: { tipoDocumentoId: true },
+    })
+    if (actual && actual.tipoDocumentoId !== data.tipoDocumentoId) {
+      const noBorrador = await prisma.documentoAsignacion.count({
+        where: { grupoId, estado: { not: 'BORRADOR' } },
+      })
+      if (noBorrador > 0) {
+        return NextResponse.json({
+          error: `No se puede cambiar el tipo: hay ${noBorrador} asignación${noBorrador !== 1 ? 'es' : ''} enviada${noBorrador !== 1 ? 's' : ''} o firmada${noBorrador !== 1 ? 's' : ''}.`,
+        }, { status: 409 })
+      }
+    }
   }
 
   try {
@@ -110,6 +131,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     include: { tipoDocumento: { select: { nombre: true, accion: true } } },
   })
   if (!grupo) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  if (!grupo.tipoDocumento) {
+    return NextResponse.json({ error: 'El documento no tiene tipo asignado. Editalo antes de enviar.' }, { status: 400 })
+  }
 
   const res = await prisma.documentoAsignacion.updateMany({
     where: {
@@ -131,9 +155,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
     include: { employee: { select: { nombre: true, email: true } } },
   })
-  const accion = grupo.tipoDocumento?.accion ?? 'FIRMA'
+  const accion = grupo.tipoDocumento.accion
   const requiereFirma = accion === 'FIRMA'
-  const tipo = grupo.tipoDocumento?.nombre ?? 'Documento'
+  const tipo = grupo.tipoDocumento.nombre
   Promise.all(asigns
     .filter(a => a.employee?.email)
     .map(a => sendMailFromTemplate('DOCUMENTO_A_FIRMA', {

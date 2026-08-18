@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Eye, EyeOff } from 'lucide-react'
 
 const TIEMPO_MIN_SEG_DEFAULT = 10
 
@@ -24,6 +25,7 @@ interface Props {
 
 export function FirmarDocumentoDialog({ open, docId, endpoint = 'documentos', archivoUrl, titulo, descripcion, onClose, onFirmado }: Props) {
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [conforme, setConforme] = useState<'si' | 'no' | ''>('')
   const [comentario, setComentario] = useState('')
   const [firmando, setFirmando] = useState(false)
@@ -165,12 +167,24 @@ export function FirmarDocumentoDialog({ open, docId, endpoint = 'documentos', ar
             </div>
             <div>
               <Label className="mb-1.5">Contraseña</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && conforme) confirmar() }}
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && conforme) confirmar() }}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-neutral-900 dark:text-white hover:bg-muted transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
           </div>
           <DialogFooter>

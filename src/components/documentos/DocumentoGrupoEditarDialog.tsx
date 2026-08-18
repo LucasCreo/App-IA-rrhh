@@ -81,6 +81,7 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
 
   async function guardar() {
     if (!nombre.trim()) { toast.error('El nombre es requerido'); return }
+    if (!tipoId || tipoId === 'sin') { toast.error('El tipo de documento es requerido'); return }
     setSaving(true)
     try {
       if (file) {
@@ -99,10 +100,14 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
         body: JSON.stringify({
           nombreArchivo: nombre.trim(),
           periodo: mostrarPeriodo ? `${anio}-${mes}` : null,
-          tipoDocumentoId: tipoId === 'sin' ? null : Number(tipoId),
+          tipoDocumentoId: Number(tipoId),
         }),
       })
-      if (!r.ok) { toast.error('No se pudo actualizar'); return }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d.error ?? 'No se pudo actualizar')
+        return
+      }
       toast.success(file ? 'Documento y archivo actualizados' : 'Documento actualizado')
       onSaved()
     } finally {
@@ -128,16 +133,19 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
             <Input value={nombre} onChange={e => setNombre(e.target.value)} className="h-9 text-sm" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Tipo de documento</p>
-            <Select value={tipoId} onValueChange={v => v && setTipoId(v)}>
-              <SelectTrigger className="w-full h-9 text-sm"><SelectValue /></SelectTrigger>
+            <p className="text-xs text-muted-foreground mb-1">Tipo de documento *</p>
+            <Select value={tipoId === 'sin' ? '' : tipoId} onValueChange={v => v && setTipoId(v)}>
+              <SelectTrigger className="w-full h-9 text-sm"><SelectValue placeholder="Seleccioná un tipo" /></SelectTrigger>
               <SelectContent side="bottom" alignItemWithTrigger={false}>
-                <SelectItem value="sin">Sin tipo</SelectItem>
                 {tipos
                   .filter(t => t.nombre.toLowerCase() !== 'recibo de sueldo')
                   .map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
               </SelectContent>
             </Select>
+            <p className="flex items-start gap-1.5 text-xs text-yellow-700 dark:text-yellow-500 mt-1.5">
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              <span>Solo se puede cambiar si todas las asignaciones están en borrador.</span>
+            </p>
           </div>
 
           {mostrarPeriodo && (

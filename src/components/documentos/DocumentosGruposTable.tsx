@@ -204,7 +204,6 @@ export function DocumentosGruposTable() {
                 </th>
                 <th className="text-left px-4 py-2.5 font-medium">Archivo</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Tipo</th>
-                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Período</th>
                 <th className="text-center px-4 py-2.5 font-medium">Progreso</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Cargado</th>
                 <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
@@ -239,9 +238,6 @@ export function DocumentosGruposTable() {
                         <Tag size={10} />
                         {g.tipoDocumento?.nombre ?? 'Sin tipo'}
                       </span>
-                    </td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell">
-                      {g.periodo ?? '—'}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-center gap-2">

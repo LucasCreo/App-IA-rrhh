@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
   if (!file) {
     return NextResponse.json({ error: 'El archivo es requerido' }, { status: 400 })
   }
+  if (!tipoDocumentoId) {
+    return NextResponse.json({ error: 'El tipo de documento es requerido' }, { status: 400 })
+  }
   if (file.size > MAX_PDF_SIZE) {
     return NextResponse.json({ error: 'El archivo supera los 10 MB' }, { status: 400 })
   }
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
         nombreArchivo: file.name,
         filePath,
         periodo,
-        tipoDocumentoId: tipoDocumentoId ?? null,
+        tipoDocumentoId,
         cargadoPorId: user.userId,
       },
     })

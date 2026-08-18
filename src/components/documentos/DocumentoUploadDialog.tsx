@@ -33,7 +33,6 @@ const MESES = [
   { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' },
 ]
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
 const DEFAULT_CAMPOS: CampoDefinicion[] = [
   { nombre: 'periodo', label: 'Período', tipo: 'mes_anio', requerido: true },
@@ -282,15 +281,15 @@ export function DocumentoUploadDialog({ open, onClose, onSaved, esRecibo, employ
                                 {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <Select
+                            <Input
+                              type="number"
+                              min={1900}
+                              max={CURRENT_YEAR + 10}
                               value={entry.campoValues[`${campo.nombre}__ano`] ?? ''}
-                              onValueChange={v => v && setCampoValue(i, `${campo.nombre}__ano`, v)}
-                            >
-                              <SelectTrigger className="w-20 h-8 text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
-                              <SelectContent side="bottom" alignItemWithTrigger={false}>
-                                {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                              onChange={e => setCampoValue(i, `${campo.nombre}__ano`, e.target.value)}
+                              className="w-20 h-8 text-xs"
+                              placeholder="Año"
+                            />
                           </Fragment>
                         )
                       }

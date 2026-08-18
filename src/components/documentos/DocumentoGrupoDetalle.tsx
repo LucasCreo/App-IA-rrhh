@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, FileText, Search, Send, Trash2, Eye, X, Users, CheckCircle2, Clock, FileX, AlertCircle } from 'lucide-react'
+import { ArrowLeft, FileText, Search, Send, Trash2, Eye, X, Users, CheckCircle2, Clock, FileX, AlertCircle, Pencil } from 'lucide-react'
+import { DocumentoGrupoEditarDialog } from './DocumentoGrupoEditarDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -58,6 +59,7 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
   const [sending, setSending] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [preview, setPreview] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -172,6 +174,14 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
                         : `Enviar ${borradorIds.length} borrador${borradorIds.length !== 1 ? 'es' : ''}`}
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <Pencil size={13} className="mr-1.5" /> Editar
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -375,6 +385,15 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
             title={grupo.nombreArchivo}
           />
         </aside>
+      )}
+
+      {editOpen && (
+        <DocumentoGrupoEditarDialog
+          open
+          grupo={grupo}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); load() }}
+        />
       )}
 
       <ConfirmDialog

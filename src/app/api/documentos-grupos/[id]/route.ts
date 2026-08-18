@@ -46,6 +46,37 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   })
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const { id } = await params
+  const grupoId = Number(id)
+  const body = await req.json().catch(() => ({}))
+
+  const data: Record<string, unknown> = {}
+  if (typeof body.nombreArchivo === 'string' && body.nombreArchivo.trim()) {
+    data.nombreArchivo = body.nombreArchivo.trim()
+  }
+  if (body.periodo === null || typeof body.periodo === 'string') {
+    data.periodo = body.periodo ? String(body.periodo).trim() || null : null
+  }
+  if (body.tipoDocumentoId === null || Number.isInteger(body.tipoDocumentoId)) {
+    data.tipoDocumentoId = body.tipoDocumentoId
+  }
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Nada para actualizar' }, { status: 400 })
+  }
+
+  try {
+    const grupo = await prisma.documentoGrupo.update({ where: { id: grupoId }, data })
+    await logAction(user.userId, 'EDITAR_DOCUMENTO_GRUPO', 'Documento', `Grupo ${grupoId}: ${grupo.nombreArchivo}`)
+    return NextResponse.json({ ok: true, grupo })
+  } catch {
+    return NextResponse.json({ error: 'No se pudo actualizar' }, { status: 500 })
+  }
+}
+
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })

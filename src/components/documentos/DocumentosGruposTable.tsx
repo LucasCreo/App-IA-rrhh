@@ -13,8 +13,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useRouter } from 'next/navigation'
-import { FileText, Plus, Search, Trash2, Send, ChevronRight, Tag } from 'lucide-react'
+import { FileText, Plus, Search, Trash2, Send, Tag, Pencil } from 'lucide-react'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
+import { DocumentoGrupoEditarDialog } from './DocumentoGrupoEditarDialog'
 
 interface TipoDocumento {
   id: number
@@ -48,6 +49,7 @@ export function DocumentosGruposTable() {
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos')
   const [tipos, setTipos] = useState<TipoDocumento[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [editGrupo, setEditGrupo] = useState<Grupo | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -178,7 +180,7 @@ export function DocumentosGruposTable() {
 
       {loading ? (
         <div className="space-y-2">
-          {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+          {[0, 1, 2].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
         </div>
       ) : total === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
@@ -188,101 +190,120 @@ export function DocumentosGruposTable() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
-            <Checkbox
-              checked={allSelected}
-              indeterminate={someSelected}
-              onCheckedChange={toggleAll}
-              aria-label="Seleccionar todos"
-            />
-            <span>
-              {selected.size > 0 ? `${selected.size} seleccionado${selected.size === 1 ? '' : 's'}` : 'Seleccionar todos'}
-            </span>
-          </div>
-          {grupos.map(g => {
-            const pct = g.stats.total > 0 ? Math.round(g.stats.firmados / g.stats.total * 100) : 0
-            const errTotal = g.stats.rechazados
-            const isSelected = selected.has(g.id)
-            return (
-              <div key={g.id} className="flex items-center gap-2">
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggleOne(g.id)}
-                  aria-label={`Seleccionar ${g.nombreArchivo}`}
-                  className="shrink-0"
-                />
-                <div
-                  onClick={() => router.push(`/admin/documentos/${g.id}`)}
-                  className={`flex-1 min-w-0 rounded-lg border bg-card px-3 py-2 hover:border-green-500/60 hover:shadow-sm transition-all cursor-pointer ${isSelected ? 'border-green-500' : ''}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+        <div className="border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="w-10 px-3 py-2.5">
+                  <Checkbox
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label="Seleccionar todos"
+                  />
+                </th>
+                <th className="text-left px-4 py-2.5 font-medium">Archivo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Tipo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Período</th>
+                <th className="text-center px-4 py-2.5 font-medium">Progreso</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Cargado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grupos.map(g => {
+                const pct = g.stats.total > 0 ? Math.round(g.stats.firmados / g.stats.total * 100) : 0
+                const errTotal = g.stats.rechazados
+                const isSelected = selected.has(g.id)
+                return (
+                  <tr
+                    key={g.id}
+                    className={`border-t hover:bg-muted/40 cursor-pointer transition-colors ${isSelected ? 'bg-green-50/50 dark:bg-green-950/10' : ''}`}
+                    onClick={() => router.push(`/admin/documentos/${g.id}`)}
+                  >
+                    <td className="px-3 py-2 w-10" onClick={e => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleOne(g.id)}
+                        aria-label={`Seleccionar ${g.nombreArchivo}`}
+                      />
+                    </td>
+                    <td className="px-4 py-2 font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <FileText size={13} className="text-muted-foreground shrink-0" />
-                        <p className="text-sm font-medium text-foreground truncate">{g.nombreArchivo}</p>
-                        {g.periodo && (
-                          <span className="text-xs text-muted-foreground shrink-0">· {g.periodo}</span>
-                        )}
+                        <span className="truncate" title={g.nombreArchivo}>{g.nombreArchivo}</span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden max-w-[200px]">
-                          <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {g.stats.firmados}/{g.stats.total}
-                        </span>
-                        {g.stats.enFirma > 0 && (
-                          <span className="text-[11px] text-blue-600 dark:text-blue-400 shrink-0">· {g.stats.enFirma} en firma</span>
-                        )}
-                        {g.stats.borradores > 0 && (
-                          <span className="text-[11px] text-muted-foreground shrink-0">· {g.stats.borradores} borrador{g.stats.borradores !== 1 ? 'es' : ''}</span>
-                        )}
-                        {errTotal > 0 && (
-                          <span className="text-[11px] text-red-600 dark:text-red-400 shrink-0">· {errTotal} rechazado{errTotal !== 1 ? 's' : ''}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                      <span
-                        className="inline-flex items-center gap-1 text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded"
-                        title="Tipo de documento"
-                      >
+                    </td>
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                         <Tag size={10} />
                         {g.tipoDocumento?.nombre ?? 'Sin tipo'}
                       </span>
-                      {g.stats.borradores > 0 && (
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell">
+                      {g.periodo ?? '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="h-1 w-16 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className={`text-xs font-medium ${g.stats.firmados === g.stats.total ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                          {g.stats.firmados}/{g.stats.total}
+                        </span>
+                        {errTotal > 0 && (
+                          <span className="text-[10px] text-red-600 dark:text-red-400" title={`${errTotal} rechazado${errTotal !== 1 ? 's' : ''}`}>
+                            {errTotal}✗
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell">
+                      {new Date(g.createdAt).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {g.stats.borradores > 0 && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                            onClick={() => enviarFirma(g.id)}
+                            title="Enviar a firma los borradores"
+                          >
+                            <Send size={12} className="mr-1" /> {g.stats.borradores}
+                          </Button>
+                        )}
+                        <a href={`/api/documentos-grupos/${g.id}/archivo`} target="_blank" title="Ver archivo">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText size={13} /></Button>
+                        </a>
                         <Button
-                          size="sm" variant="outline"
-                          className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-900 dark:hover:bg-blue-950/30"
-                          onClick={() => enviarFirma(g.id)}
-                          title="Enviar a firma los borradores"
+                          size="sm" variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => setEditGrupo(g)} title="Editar"
                         >
-                          <Send size={12} className="mr-1" /> {g.stats.borradores}
+                          <Pencil size={13} />
                         </Button>
-                      )}
-                      <a href={`/api/documentos-grupos/${g.id}/archivo`} target="_blank" title="Ver archivo">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText size={13} /></Button>
-                      </a>
-                      <Button
-                        size="sm" variant="ghost"
-                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                        onClick={() => setDeleteId(g.id)} title="Eliminar"
-                      >
-                        <Trash2 size={13} />
-                      </Button>
-                      <ChevronRight size={14} className="text-muted-foreground" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          <Pagination
-            page={page} pageSize={pageSize} total={total}
-            itemLabel="documentos"
-            onPageChange={setPage} onPageSizeChange={setPageSize}
-          />
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                          onClick={() => setDeleteId(g.id)} title="Eliminar"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="px-3 pb-2">
+            <Pagination
+              page={page} pageSize={pageSize} total={total}
+              itemLabel="documentos"
+              onPageChange={setPage} onPageSizeChange={setPageSize}
+            />
+          </div>
         </div>
       )}
 
@@ -291,6 +312,15 @@ export function DocumentosGruposTable() {
           open
           onClose={() => setUploadOpen(false)}
           onSaved={() => { setUploadOpen(false); load() }}
+        />
+      )}
+
+      {editGrupo && (
+        <DocumentoGrupoEditarDialog
+          open
+          grupo={editGrupo}
+          onClose={() => setEditGrupo(null)}
+          onSaved={() => { setEditGrupo(null); load() }}
         />
       )}
 

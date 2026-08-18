@@ -19,7 +19,6 @@ const MESES = [
   { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' },
 ]
 const CURRENT_YEAR = new Date().getFullYear()
-const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - 2 + i))
 
 interface Empleado { id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nombre: string } | null }
 interface Categoria { id: number; nombre: string }
@@ -211,12 +210,15 @@ export function DocumentoCargarDialog({ open, onClose, onSaved }: Props) {
                     {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={ano} onValueChange={v => { if (v) setAno(v) }}>
-                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent side="bottom" alignItemWithTrigger={false}>
-                    {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="number"
+                  min={1900}
+                  max={CURRENT_YEAR + 10}
+                  value={ano}
+                  onChange={e => setAno(e.target.value)}
+                  className="w-24"
+                  placeholder="Año"
+                />
               </div>
             </div>
           )}

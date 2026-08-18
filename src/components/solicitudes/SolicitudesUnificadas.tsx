@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Check, X, FileText, Search, Paperclip } from 'lucide-react'
+import { Check, X, Search, Paperclip } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { Pagination } from '@/components/ui/pagination'
@@ -163,7 +163,8 @@ export function SolicitudesUnificadas() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-8 h-9"
-            placeholder="Buscar por nombre o legajo…"
+            placeholder="Buscar…"
+            title="Busca por nombre, legajo, descripción o comentario"
             value={q}
             onChange={e => setQ(e.target.value)}
           />
@@ -220,23 +221,97 @@ export function SolicitudesUnificadas() {
           {docs.length === 0 ? 'No hay solicitudes.' : 'Sin coincidencias para los filtros aplicados.'}
         </p>
       ) : (
-        <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(s => {
-            const selectable = s.estado === 'PENDIENTE' && s.canApprove
-            const isSelected = selected.has(s.id)
-            return (
-              <RowDoc
-                key={s.id}
-                s={s}
-                selectable={selectable}
-                selected={isSelected}
-                onToggleSelect={() => toggleOne(s.id)}
-                onReview={(estado) => { setReviewDoc({ solicitud: s, estado }); setComentarioDoc(''); setVisibleDoc(false) }}
-                onView={() => setViewDoc(s)}
-                onPreview={(nombreArchivo) => setPreview({ url: `/api/solicitudes/archivo?file=${nombreArchivo}`, filename: nombreArchivo })}
-              />
-            )
-          })}
+        <div className="border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted">
+              <tr>
+                <th className="w-10 px-3 py-2.5"></th>
+                <th className="text-left px-4 py-2.5 font-medium">Empleado</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Legajo</th>
+                <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Archivo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Descripción</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Comentario</th>
+                <th className="text-left px-4 py-2.5 font-medium">Estado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(s => {
+                const selectable = s.estado === 'PENDIENTE' && s.canApprove
+                const isSelected = selected.has(s.id)
+                return (
+                  <tr key={s.id} className={`border-t hover:bg-muted/40 transition-colors ${isSelected ? 'bg-green-50/50 dark:bg-green-950/10' : ''}`}>
+                    <td className="px-3 py-2 w-10">
+                      {selectable && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleOne(s.id)}
+                          aria-label="Seleccionar solicitud"
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-2 font-medium">{s.employee.apellido}, {s.employee.nombre}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden sm:table-cell">{s.employee.legajo}</td>
+                    <td className="px-4 py-2">
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{s.tipo.nombre}</span>
+                    </td>
+                    <td className="px-4 py-2 hidden md:table-cell max-w-[200px]">
+                      {s.nombreArchivo ? (
+                        <button
+                          onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${s.nombreArchivo}`, filename: s.nombreArchivo })}
+                          className="text-xs text-blue-600 hover:underline truncate block max-w-full text-left"
+                          title={s.nombreArchivo.replace(/^\d+-/, '')}
+                        >
+                          {s.nombreArchivo.replace(/^\d+-/, '')}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden lg:table-cell max-w-[200px]">
+                      {s.descripcion ? (
+                        <p className="text-xs text-muted-foreground line-clamp-2 break-words" title={s.descripcion}>{s.descripcion}</p>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden lg:table-cell max-w-[200px]">
+                      {s.comentario ? (
+                        <p className={cn('text-xs italic line-clamp-2 break-words', s.comentarioVisible ? 'text-muted-foreground' : 'text-muted-foreground/60')} title={s.comentario}>
+                          {s.comentario}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge estado={s.estado} />
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        {s.estado === 'PENDIENTE' && s.canApprove ? (
+                          <>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30" title="Aprobar" onClick={() => { setReviewDoc({ solicitud: s, estado: 'APROBADO' }); setComentarioDoc(''); setVisibleDoc(false) }}>
+                              <Check size={13} />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" title="Rechazar" onClick={() => { setReviewDoc({ solicitud: s, estado: 'RECHAZADO' }); setComentarioDoc(''); setVisibleDoc(false) }}>
+                              <X size={13} />
+                            </Button>
+                          </>
+                        ) : s.estado === 'PENDIENTE' ? (
+                          <span className="text-xs text-muted-foreground italic px-2">Fuera de tu jerarquía</span>
+                        ) : null}
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setViewDoc(s)}>
+                          Ver
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -394,84 +469,4 @@ export function SolicitudesUnificadas() {
   )
 }
 
-function RowDoc({ s, selectable, selected, onToggleSelect, onReview, onView, onPreview }: {
-  s: SolicitudDoc
-  selectable: boolean
-  selected: boolean
-  onToggleSelect: () => void
-  onReview: (estado: 'APROBADO' | 'RECHAZADO') => void
-  onView: () => void
-  onPreview?: (nombreArchivo: string) => void
-}) {
-  const meta = (() => { try { return JSON.parse(s.metadata ?? '{}') as Record<string, string> } catch { return {} } })()
-  const entries = Object.entries(meta).filter(([, v]) => v)
-  return (
-    <div className="flex items-start gap-3 px-4 py-3 bg-card">
-      <div className="w-4 mt-1 shrink-0">
-        {selectable && (
-          <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label="Seleccionar solicitud" />
-        )}
-      </div>
-      <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm">{s.employee.apellido}, {s.employee.nombre}</span>
-          <span className="text-xs text-muted-foreground">· {s.employee.legajo}</span>
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{s.tipo.nombre}</span>
-        </div>
-        {s.nombreArchivo && (
-          <button
-            onClick={() => onPreview?.(s.nombreArchivo!)}
-            className="text-xs text-blue-600 hover:underline text-left"
-          >
-            {s.nombreArchivo.replace(/^\d+-/, '')}
-          </button>
-        )}
-        {entries.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-            {entries.map(([k, v]) => {
-              const campo = s.tipo.campos?.find(c => c.nombre === k)
-              return (
-                <span key={k} className="text-xs text-muted-foreground">
-                  {campo?.label ?? k}: <span className="text-foreground">{v}</span>
-                </span>
-              )
-            })}
-          </div>
-        )}
-        {s.descripcion && <p className="text-xs text-muted-foreground mt-1">{s.descripcion}</p>}
-        {s.comentario && (
-          <p className={cn('text-xs italic mt-1 border-l-2 pl-2', s.comentarioVisible ? 'border-green-400 text-muted-foreground' : 'border-border text-muted-foreground/60')}>
-            {s.comentario}
-            {!s.comentarioVisible && <span className="ml-1 not-italic text-muted-foreground/50">(no visible al empleado)</span>}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="text-right hidden sm:block">
-          <StatusBadge estado={s.estado} />
-          <p className="text-xs text-muted-foreground mt-0.5">{new Date(s.createdAt).toLocaleDateString('es-AR')}</p>
-        </div>
-        {s.estado === 'PENDIENTE' ? (
-          s.canApprove ? (
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30" title="Aprobar" onClick={() => onReview('APROBADO')}>
-                <Check size={14} />
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30" title="Rechazar" onClick={() => onReview('RECHAZADO')}>
-                <X size={14} />
-              </Button>
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground italic">Fuera de tu jerarquía</span>
-          )
-        ) : (
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onView}>
-            Ver
-          </Button>
-        )}
-      </div>
-    </div>
-  )
-}
 

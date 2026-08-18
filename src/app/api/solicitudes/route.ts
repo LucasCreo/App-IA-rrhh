@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
             { employee: { legajo: { contains: q } } },
             { employee: { nombre: { contains: q } } },
             { employee: { apellido: { contains: q } } },
+            { descripcion: { contains: q } },
+            { comentario: { contains: q } },
           ],
         } : {}),
       }

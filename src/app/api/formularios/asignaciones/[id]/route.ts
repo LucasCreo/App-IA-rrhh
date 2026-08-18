@@ -24,6 +24,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const plantillaChanged = plantillaId && Number(plantillaId) !== current.plantillaId
 
+  if (plantillaChanged) {
+    const enviadas = await prisma.respuestaFormulario.count({
+      where: { asignacionId: Number(id), estado: 'ENVIADO' },
+    })
+    if (enviadas > 0) {
+      return NextResponse.json({
+        error: `No se puede cambiar la plantilla: hay ${enviadas} respuesta${enviadas !== 1 ? 's' : ''} ya enviada${enviadas !== 1 ? 's' : ''}. Creá una nueva asignación.`,
+      }, { status: 409 })
+    }
+  }
+
   await prisma.asignacionFormulario.update({
     where: { id: Number(id) },
     data: {
@@ -35,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   })
 
   if (plantillaChanged) {
+    // Todas las respuestas eran PENDIENTES (o borrador sin enviar) — resetear datos por si había parciales
     await prisma.respuestaFormulario.updateMany({
       where: { asignacionId: Number(id) },
       data: { estado: 'PENDIENTE', datos: '{}' },

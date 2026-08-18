@@ -13,11 +13,16 @@ export async function GET(req: NextRequest) {
   const paged = pageParam !== null
   const page = Math.max(1, Number(pageParam ?? 1) || 1)
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20) || 20))
+  const q = searchParams.get('q')?.trim() ?? ''
+  const plantillaIdParam = searchParams.get('plantillaId')
+  const plantillaId = plantillaIdParam && plantillaIdParam !== 'todas' ? Number(plantillaIdParam) : null
 
   const scope = user.role === 'ADMIN' ? await getScopedEmployeeIds(user.userId) : null
-  const where = scope
-    ? { respuestas: { some: { employeeId: { in: [...scope] } } } }
-    : {}
+  const where = {
+    ...(scope ? { respuestas: { some: { employeeId: { in: [...scope] } } } } : {}),
+    ...(q ? { nombre: { contains: q } } : {}),
+    ...(plantillaId ? { plantillaId } : {}),
+  }
 
   const [total, asignaciones, enviadasRaw] = await Promise.all([
     paged ? prisma.asignacionFormulario.count({ where }) : Promise.resolve(0),

@@ -52,17 +52,40 @@ export function AsignacionesList() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
+  const [busqueda, setBusqueda] = useState('')
+  const [busquedaDebounced, setBusquedaDebounced] = useState('')
+  const [plantillaFiltro, setPlantillaFiltro] = useState<string>('todas')
+
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 300)
+    return () => clearTimeout(t)
+  }, [busqueda])
+
+  useEffect(() => { setPage(1) }, [busquedaDebounced, plantillaFiltro])
 
   const load = useCallback(() => {
-    fetch(`/api/formularios/asignaciones?page=${page}&limit=${pageSize}`)
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('limit', String(pageSize))
+    if (busquedaDebounced) params.set('q', busquedaDebounced)
+    if (plantillaFiltro !== 'todas') params.set('plantillaId', plantillaFiltro)
+    fetch(`/api/formularios/asignaciones?${params}`)
       .then(r => r.json())
       .then(d => {
         if (Array.isArray(d)) { setSolicitudes(d); setTotal(d.length) }
         else { setSolicitudes(d.items ?? []); setTotal(d.total ?? 0) }
       })
-  }, [page, pageSize])
+  }, [page, pageSize, busquedaDebounced, plantillaFiltro])
 
   useEffect(() => { load() }, [load])
+
+  // Cargar plantillas al montar para el filtro
+  useEffect(() => {
+    fetch('/api/configuracion/plantillas-formulario')
+      .then(r => r.ok ? r.json() : [])
+      .then((d: Plantilla[]) => setPlantillas(Array.isArray(d) ? d.filter(p => p.activo) : []))
+      .catch(() => {})
+  }, [])
 
   async function openDialog() {
     const [pRes, eRes] = await Promise.all([
@@ -112,7 +135,11 @@ export function AsignacionesList() {
       body: JSON.stringify({ nombre: editNombre, plantillaId: Number(editPlantillaId), fechaLimite: editFechaLimite || null, datosAdmin: editDatosAdmin }),
     })
     setEditSaving(false)
-    if (!res.ok) { toast.error('Error al guardar'); return }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Error al guardar')
+      return
+    }
     setToEdit(null); load()
     toast.success('Solicitud actualizada')
   }
@@ -143,10 +170,27 @@ export function AsignacionesList() {
     toast.success('Solicitud creada')
   }
 
+  const hasFiltros = !!busqueda.trim() || plantillaFiltro !== 'todas'
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{total} solicitud{total !== 1 ? 'es' : ''}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nombre…"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Select value={plantillaFiltro} onValueChange={v => v && setPlantillaFiltro(v)}>
+          <SelectTrigger className="w-52"><SelectValue placeholder="Plantilla" /></SelectTrigger>
+          <SelectContent side="bottom" alignItemWithTrigger={false}>
+            <SelectItem value="todas">Todas las plantillas</SelectItem>
+            {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Button className="bg-green-700 hover:bg-green-800 gap-1.5" onClick={openDialog}>
           <Plus size={15} /> Nueva solicitud
         </Button>
@@ -155,7 +199,7 @@ export function AsignacionesList() {
       {total === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <ClipboardList size={36} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Sin solicitudes creadas todavía</p>
+          <p className="text-sm">{hasFiltros ? 'Sin resultados para los filtros aplicados' : 'Sin solicitudes creadas todavía'}</p>
         </div>
       ) : (
         <div className="border rounded-xl overflow-hidden">
@@ -248,10 +292,14 @@ export function AsignacionesList() {
                   {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {toEdit && editPlantillaId !== String(toEdit.plantillaId) && toEdit.enviadas > 0 && (
+              {toEdit && editPlantillaId !== String(toEdit.plantillaId) && (
                 <div className="flex items-start gap-2 mt-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-xs text-yellow-800 dark:text-yellow-300">
                   <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                  <span>Cambiar la plantilla reiniciará las respuestas ya enviadas por los empleados.</span>
+                  <span>
+                    {toEdit.enviadas > 0
+                      ? 'No se puede cambiar la plantilla si hay respuestas enviadas. Creá una nueva asignación.'
+                      : 'Cambiar la plantilla reinicia las respuestas parciales (borradores) de los empleados.'}
+                  </span>
                 </div>
               )}
             </div>

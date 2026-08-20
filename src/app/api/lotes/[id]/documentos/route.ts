@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { randomBytes } from 'crypto'
+import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
+import { reciboProps } from '@/lib/aditusRecibos'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -22,8 +21,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
 
     const formData = await req.formData()
-    const uploadsDir = join(process.cwd(), 'uploads')
-    await mkdir(uploadsDir, { recursive: true })
 
     const uploaded: number[] = []
     const errors: string[] = []
@@ -61,30 +58,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         continue
       }
 
-      const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const filePath = join(uploadsDir, fileName)
-      await writeFile(filePath, buffer)
+      const empleado = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { legajo: true, nombre: true, apellido: true, cuil: true },
+      })
+      if (!empleado) {
+        errors.push(`${file.name}: empleado no encontrado`)
+        continue
+      }
 
       const nombreArchivoLimpio = file.name.replace(/^.*[\\/]/, '')
-      const doc = await prisma.document.create({
-        data: {
-          nombreArchivo: nombreArchivoLimpio,
-          filePath,
-          periodo: lote.periodo,
-          employeeId,
-          cargadoPorId: user.userId,
-          estado: 'BORRADOR',
-          loteId: lote.id,
-          ...(lote.tipoDocumentoId ? { tipoDocumentoId: lote.tipoDocumentoId } : {}),
-        },
-      })
-      uploaded.push(doc.id)
+      let aditusId: string
+      try {
+        aditusId = await uploadAditusFile({
+          content: buffer,
+          fileName: nombreArchivoLimpio,
+          contentType: 'application/pdf',
+          properties: reciboProps({ empleado, periodo: lote.periodo, loteNombre: lote.nombre }),
+        })
+      } catch (e) {
+        errors.push(`${file.name}: ${e instanceof Error ? e.message : 'error subiendo a Aditus'}`)
+        continue
+      }
 
-      await prisma.loteEmpleado.upsert({
-        where: { loteId_employeeId: { loteId: lote.id, employeeId } },
-        create: { loteId: lote.id, employeeId },
-        update: {},
-      })
+      try {
+        const doc = await prisma.document.create({
+          data: {
+            nombreArchivo: nombreArchivoLimpio,
+            aditusId,
+            periodo: lote.periodo,
+            employeeId,
+            cargadoPorId: user.userId,
+            estado: 'BORRADOR',
+            loteId: lote.id,
+            ...(lote.tipoDocumentoId ? { tipoDocumentoId: lote.tipoDocumentoId } : {}),
+          },
+        })
+        uploaded.push(doc.id)
+
+        await prisma.loteEmpleado.upsert({
+          where: { loteId_employeeId: { loteId: lote.id, employeeId } },
+          create: { loteId: lote.id, employeeId },
+          update: {},
+        })
+      } catch (e) {
+        try { await deleteAditusFile(aditusId) } catch { /* rollback */ }
+        errors.push(`${file.name}: ${e instanceof Error ? e.message : 'error creando registro'}`)
+      }
     }
 
     await logAction(user.userId, 'AGREGAR_RECIBOS', 'Lote', `${lote.nombre} — ${uploaded.length} docs`)

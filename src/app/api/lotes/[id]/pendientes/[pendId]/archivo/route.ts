@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
-import { readFile } from 'fs/promises'
+import { getAditusFile } from '@/lib/aditus'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string; pendId: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
@@ -13,15 +13,18 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   if (!pendiente || pendiente.loteId !== Number(id)) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  if (!pendiente.aditusId) {
+    return NextResponse.json({ error: 'Pendiente sin archivo en Aditus' }, { status: 404 })
+  }
   try {
-    const buffer = await readFile(pendiente.filePath)
-    return new NextResponse(buffer, {
+    const file = await getAditusFile(pendiente.aditusId, { download: true })
+    return new NextResponse(new Uint8Array(file.content), {
       headers: {
-        'Content-Type': 'application/pdf',
+        'Content-Type': file.contentType || 'application/pdf',
         'Content-Disposition': `inline; filename="${pendiente.nombreArchivo}"`,
       },
     })
   } catch {
-    return NextResponse.json({ error: 'Archivo no disponible' }, { status: 404 })
+    return NextResponse.json({ error: 'Archivo no disponible en Aditus' }, { status: 404 })
   }
 }

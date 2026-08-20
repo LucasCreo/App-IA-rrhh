@@ -16,7 +16,13 @@ import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/FormularioDialog'
 
-interface CampoSolicitud { nombre: string; label: string; tipo: 'texto' | 'numero' | 'fecha'; requerido: boolean }
+interface CampoSolicitud {
+  nombre: string
+  label: string
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo' | 'booleano'
+  opciones?: string
+  requerido: boolean
+}
 interface TipoSolicitud { id: number; nombre: string; descripcion?: string; requiereAprobacion: boolean; campos: CampoSolicitud[] }
 
 interface SolicitudDoc {
@@ -70,10 +76,11 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [saving, setSaving] = useState(false)
 
   const [descripcion, setDescripcion] = useState('')
-  const [file, setFile] = useState<File | null>(null)
   const [campoValues, setCampoValues] = useState<Record<string, string>>({})
+  const [uploadingCampo, setUploadingCampo] = useState<string | null>(null)
+  const [pendingCampo, setPendingCampo] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const campoFileRef = useRef<HTMLInputElement>(null)
 
   const _router = useRouter()
 
@@ -97,8 +104,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   useEffect(() => {
     setCampoValues({})
     setDescripcion('')
-    setFile(null)
-    if (fileRef.current) fileRef.current.value = ''
     if (tipoSel) {
       const d: Record<string, string> = {}
       for (const c of tipoSel.campos) d[c.nombre] = ''
@@ -148,19 +153,28 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
     pendientes: items.filter(i => i.pendiente).length,
   }
 
+  async function subirArchivoCampo(campo: string, f: File) {
+    setUploadingCampo(campo)
+    try {
+      const fd = new FormData(); fd.append('file', f)
+      if (tipoSel) fd.append('tipoId', String(tipoSel.id))
+      const up = await fetch('/api/solicitudes/archivo', { method: 'POST', body: fd })
+      if (!up.ok) { toast.error('Error al subir el archivo'); return }
+      const { fileName } = await up.json()
+      setCampoValues(prev => ({ ...prev, [campo]: fileName }))
+    } finally { setUploadingCampo(null) }
+  }
+
   async function enviarDoc() {
     if (!tipoSel) return
-    const camposValidos = tipoSel.campos.every(c => !c.requerido || campoValues[c.nombre]?.trim())
+    const camposValidos = tipoSel.campos.every(c => {
+      if (!c.requerido) return true
+      if (c.tipo === 'booleano') return true
+      return campoValues[c.nombre]?.trim()
+    })
     if (!camposValidos) { toast.error('Completá los campos requeridos'); return }
     setSaving(true)
     try {
-      let fileName: string | null = null
-      if (file) {
-        const fd = new FormData(); fd.append('file', file)
-        const up = await fetch('/api/solicitudes/archivo', { method: 'POST', body: fd })
-        if (!up.ok) { toast.error('Error al subir el archivo'); return }
-        fileName = (await up.json()).fileName
-      }
       const metadata: Record<string, string> = {}
       for (const c of tipoSel.campos) {
         const v = campoValues[c.nombre]?.trim()
@@ -171,7 +185,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipoId: tipoSel.id,
-          nombreArchivo: fileName,
           descripcion,
           metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         }),
@@ -242,8 +255,26 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
         </div>
       ) : (
         <div className="divide-y rounded-lg border overflow-hidden">
-          {paginate(filtered, page, pageSize).map(item => (
-            <div key={item.key} className="flex items-start gap-3 px-4 py-3 bg-card">
+          {paginate(filtered, page, pageSize).map(item => {
+            const vencido = item.kind === 'form' && item.estado === 'PENDIENTE' && !!item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
+            const clickable = !(item.kind === 'form' && vencido)
+            const onRowClick = () => {
+              if (item.kind === 'doc') setDetalle(item)
+              else if (item.kind === 'form') {
+                if (vencido) return
+                if (item.estado === 'PENDIENTE') setEditForm(item.data)
+                else setViewForm(item.data)
+              }
+            }
+            return (
+            <div
+              key={item.key}
+              className={cn(
+                'flex items-start gap-3 px-4 py-3 bg-card transition-colors',
+                clickable && 'cursor-pointer hover:bg-muted/50'
+              )}
+              onClick={clickable ? onRowClick : undefined}
+            >
               {item.kind === 'doc' && <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />}
               {item.kind === 'form' && <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
@@ -302,7 +333,8 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                 )}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -354,32 +386,75 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                 {tipoSel.campos.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {tipoSel.campos.map(c => (
-                      <div key={c.nombre}>
+                      <div key={c.nombre} className={c.tipo === 'archivo' || c.tipo === 'booleano' ? 'sm:col-span-2' : ''}>
                         <p className="text-xs text-muted-foreground mb-1">
                           {c.label}{c.requerido && <span className="text-destructive ml-0.5">*</span>}
                         </p>
-                        <Input
-                          type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
-                          value={campoValues[c.nombre] ?? ''}
-                          onChange={e => setCampoValues(prev => ({ ...prev, [c.nombre]: e.target.value }))}
-                          className="h-8 text-sm"
-                        />
+                        {c.tipo === 'seleccion' ? (
+                          <Select value={campoValues[c.nombre] || undefined} onValueChange={v => setCampoValues(prev => ({ ...prev, [c.nombre]: v ?? '' }))}>
+                            <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
+                            <SelectContent side="bottom" alignItemWithTrigger={false}>
+                              {(c.opciones ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : c.tipo === 'archivo' ? (
+                          <div className="flex items-center gap-2">
+                            {campoValues[c.nombre] ? (
+                              <>
+                                <span className="flex-1 text-sm inline-flex items-center gap-1 truncate">
+                                  <Paperclip size={13} /> {campoValues[c.nombre].replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
+                                </span>
+                                <button type="button" onClick={() => setCampoValues(prev => ({ ...prev, [c.nombre]: '' }))} className="text-muted-foreground hover:text-destructive" title="Quitar">×</button>
+                              </>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full h-8"
+                                disabled={uploadingCampo === c.nombre}
+                                onClick={() => { setPendingCampo(c.nombre); campoFileRef.current?.click() }}
+                              >
+                                <Upload size={13} className="mr-1.5" />
+                                {uploadingCampo === c.nombre ? 'Subiendo…' : 'Subir archivo'}
+                              </Button>
+                            )}
+                          </div>
+                        ) : c.tipo === 'booleano' ? (
+                          <label className="flex items-center gap-2 cursor-pointer select-none h-8">
+                            <input
+                              type="checkbox"
+                              checked={campoValues[c.nombre] === 'true'}
+                              onChange={e => setCampoValues(prev => ({ ...prev, [c.nombre]: e.target.checked ? 'true' : 'false' }))}
+                              className="w-4 h-4 accent-green-700"
+                            />
+                            <span className="text-sm">Sí</span>
+                          </label>
+                        ) : (
+                          <Input
+                            type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}
+                            value={campoValues[c.nombre] ?? ''}
+                            onChange={e => setCampoValues(prev => ({ ...prev, [c.nombre]: e.target.value }))}
+                            className="h-8 text-sm"
+                          />
+                        )}
                       </div>
                     ))}
+                    <input
+                      ref={campoFileRef}
+                      type="file"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0]
+                        if (f && pendingCampo) subirArchivoCampo(pendingCampo, f)
+                        setPendingCampo(null)
+                        e.target.value = ''
+                      }}
+                    />
                   </div>
                 )}
-                <div>
-                  <input ref={fileRef} type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2 font-normal"
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    {file
-                      ? <><Paperclip size={14} className="shrink-0" /><span className="truncate text-sm">{file.name}</span></>
-                      : <><Upload size={14} className="shrink-0 text-muted-foreground" /><span className="text-muted-foreground">Adjuntar archivo (opcional)…</span></>}
-                  </Button>
-                </div>
                 <Textarea
                   placeholder="Descripción (opcional)"
                   value={descripcion}
@@ -422,7 +497,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                     onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${s.nombreArchivo}`, filename: s.nombreArchivo })}
                     className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
                   >
-                    <Paperclip size={13} /> {s.nombreArchivo.replace(/^\d+-/, '')}
+                    <Paperclip size={13} /> {s.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                   </button>
                 )}
                 {metaEntries.length > 0 && (
@@ -432,7 +507,18 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                       return (
                         <div key={k} className="text-xs">
                           <span className="text-muted-foreground">{campo?.label ?? k}: </span>
-                          <span>{v}</span>
+                          {campo?.tipo === 'archivo' ? (
+                            <button
+                              onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${v}`, filename: v })}
+                              className="text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1"
+                            >
+                              <Paperclip size={11} /> {v.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
+                            </button>
+                          ) : campo?.tipo === 'booleano' ? (
+                            <span>{v === 'true' ? 'Sí' : 'No'}</span>
+                          ) : (
+                            <span>{v}</span>
+                          )}
                         </div>
                       )
                     })}

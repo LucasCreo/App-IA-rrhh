@@ -3,6 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Download, ExternalLink, FileText } from 'lucide-react'
+import { displayNameFromRef } from '@/lib/aditusSolicitudes'
 
 interface Props {
   open: boolean
@@ -21,7 +22,7 @@ function getExt(name?: string | null): string {
 }
 
 export function ArchivoPreviewDialog({ open, onClose, url, filename, title }: Props) {
-  const displayName = filename?.replace(/^\d+-/, '') ?? 'Archivo'
+  const displayName = filename ? displayNameFromRef(filename) : 'Archivo'
   const ext = getExt(filename)
   const isPdf = ext === 'pdf' || (url?.toLowerCase().includes('.pdf'))
   const isImg = IMG_EXT.includes(ext)

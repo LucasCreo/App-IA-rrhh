@@ -3,10 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { writeFile, unlink, mkdir } from 'fs/promises'
-import { randomBytes } from 'crypto'
-import { join } from 'path'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
+import { uploadAditusFile, updateAditusFile } from '@/lib/aditus'
+import { documentoGrupoProps } from '@/lib/aditusDocumentos'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -17,7 +16,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const grupo = await prisma.documentoGrupo.findUnique({
     where: { id: grupoId },
-    include: { asignaciones: { select: { estado: true } } },
+    include: {
+      tipoDocumento: { select: { nombre: true } },
+      asignaciones: { select: { estado: true, employee: { select: { legajo: true } } } },
+    },
   })
   if (!grupo) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
 
@@ -40,17 +42,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `${file.name}: no es un PDF válido` }, { status: 400 })
   }
 
-  const uploadsDir = join(process.cwd(), 'uploads')
-  await mkdir(uploadsDir, { recursive: true })
-  const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  const filePath = join(uploadsDir, fileName)
-  await writeFile(filePath, buffer)
+  const props = documentoGrupoProps({
+    nombreArchivo: file.name,
+    tipoDocumentoNombre: grupo.tipoDocumento?.nombre ?? null,
+    empleados: grupo.asignaciones.map(a => ({ legajo: a.employee.legajo })),
+  })
 
-  const oldPath = grupo.filePath
+  let aditusId = grupo.aditusId
+  try {
+    if (aditusId) {
+      await updateAditusFile(aditusId, {
+        content: buffer,
+        fileName: file.name,
+        contentType: 'application/pdf',
+        properties: props,
+      })
+    } else {
+      aditusId = await uploadAditusFile({
+        content: buffer,
+        fileName: file.name,
+        contentType: 'application/pdf',
+        properties: props,
+      })
+    }
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
+  }
+
   await prisma.$transaction([
     prisma.documentoGrupo.update({
       where: { id: grupoId },
-      data: { nombreArchivo: file.name, filePath },
+      data: { nombreArchivo: file.name, aditusId },
     }),
     // Resetear asignaciones enviadas de vuelta a borrador (excepto rechazadas que quedan como están)
     prisma.documentoAsignacion.updateMany({
@@ -58,8 +80,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: { estado: 'BORRADOR' },
     }),
   ])
-
-  try { await unlink(oldPath) } catch { /* no-op */ }
 
   await logAction(user.userId, 'REEMPLAZAR_DOCUMENTO_GRUPO', 'Documento', `Grupo ${grupoId}: ${file.name}`)
   return NextResponse.json({ ok: true })

@@ -14,6 +14,7 @@ import { ImportEmpleadosDialog } from './ImportEmpleadosDialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Trash2, Plus, Search, SlidersHorizontal, X, Download, Upload, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
 import { formatearCuil } from '@/lib/cuil'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -82,6 +83,8 @@ export function EmpleadosTable() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteErrorsOpen, setBulkDeleteErrorsOpen] = useState(false)
+  const [bulkDeleteErrors, setBulkDeleteErrors] = useState<Array<{ ok: false; emp: Empleado; status: number; error: string; dependencias: { label: string; count: number }[] }>>([])
 
   useEffect(() => {
     fetch('/api/categorias').then(r => r.json()).then(setCats)
@@ -164,18 +167,31 @@ export function EmpleadosTable() {
   async function handleBulkDelete() {
     if (selected.size === 0) return
     setBulkDeleting(true)
+    const empsSel = data.employees.filter(e => selected.has(e.id))
     const results = await Promise.all(
-      Array.from(selected).map(id =>
-        fetch(`/api/empleados/${id}`, { method: 'DELETE' }).then(r => r.ok)
-      )
+      empsSel.map(async emp => {
+        const res = await fetch(`/api/empleados/${emp.id}`, { method: 'DELETE' })
+        if (res.ok) return { ok: true as const, emp }
+        const body = await res.clone().json().catch(() => ({}))
+        return {
+          ok: false as const,
+          emp,
+          status: res.status,
+          error: body?.error ?? `Error ${res.status}`,
+          dependencias: Array.isArray(body?.dependencias) ? body.dependencias as { label: string; count: number }[] : [],
+        }
+      })
     )
-    const ok = results.filter(Boolean).length
-    const fail = results.length - ok
+    const ok = results.filter(r => r.ok).length
+    const failed = results.filter(r => !r.ok) as Array<{ ok: false; emp: Empleado; status: number; error: string; dependencias: { label: string; count: number }[] }>
     setBulkDeleting(false)
     setBulkDeleteOpen(false)
     setSelected(new Set())
     if (ok > 0) toast.success(`${ok} empleado(s) eliminado(s)`)
-    if (fail > 0) toast.error(`${fail} no se pudo(ieron) eliminar (tienen datos asociados)`)
+    if (failed.length > 0) {
+      setBulkDeleteErrors(failed)
+      setBulkDeleteErrorsOpen(true)
+    }
     load()
   }
 
@@ -562,6 +578,36 @@ export function EmpleadosTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={bulkDeleteErrorsOpen} onOpenChange={setBulkDeleteErrorsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Eliminación incompleta</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground mb-2">
+            {bulkDeleteErrors.length === 1
+              ? '1 empleado no pudo eliminarse.'
+              : `${bulkDeleteErrors.length} empleados no pudieron eliminarse.`}
+          </div>
+          <div className="max-h-72 overflow-y-auto border rounded-md divide-y">
+            {bulkDeleteErrors.map(f => (
+              <div key={f.emp.id} className="p-2 text-xs">
+                <div className="font-medium">{f.emp.apellido}, {f.emp.nombre} ({f.emp.legajo})</div>
+                {f.dependencias.length > 0 ? (
+                  <ul className="text-red-600 dark:text-red-400 list-disc list-inside">
+                    {f.dependencias.map((d, i) => <li key={i}>{d.label}: {d.count}</li>)}
+                  </ul>
+                ) : (
+                  <div className="text-red-600 dark:text-red-400">{f.error}</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteErrorsOpen(false)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

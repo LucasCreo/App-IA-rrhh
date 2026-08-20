@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
+import { deleteAditusFile } from '@/lib/aditus'
 
 export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
@@ -22,6 +23,12 @@ export async function POST(req: NextRequest) {
   const errors: Array<{ id: number; error: string }> = []
   let deleted = 0
   try {
+    // Recolectar aditusIds de pendientes cascadeados
+    const pendientes = await prisma.loteArchivoPendiente.findMany({
+      where: { loteId: { in: ids }, aditusId: { not: null } },
+      select: { aditusId: true },
+    })
+
     await prisma.$transaction([
       prisma.document.updateMany({ where: { loteId: { in: ids } }, data: { loteId: null } }),
       prisma.lote.deleteMany({ where: { id: { in: ids } } }),
@@ -32,6 +39,11 @@ export async function POST(req: NextRequest) {
     }
     for (const l of lotes) {
       await logAction(user.userId, 'ELIMINAR_LOTE', 'Lote', l.nombre)
+    }
+    for (const p of pendientes) {
+      if (p.aditusId) {
+        try { await deleteAditusFile(p.aditusId) } catch { /* best-effort */ }
+      }
     }
   } catch (e) {
     return NextResponse.json({

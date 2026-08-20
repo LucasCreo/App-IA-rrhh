@@ -1,14 +1,46 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { deleteAditusFile } from '@/lib/aditus'
+import { parseArchivoRef } from '@/lib/aditusSolicitudes'
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
-  await prisma.respuestaFormulario.deleteMany({ where: { asignacionId: Number(id) } })
-  await prisma.asignacionFormulario.delete({ where: { id: Number(id) } })
+  const asignacionId = Number(id)
+
+  // Recolectar aditusIds de campos tipo archivo antes de borrar
+  const asignacion = await prisma.asignacionFormulario.findUnique({
+    where: { id: asignacionId },
+    include: {
+      plantilla: { include: { campos: { select: { nombre: true, tipo: true } } } },
+      respuestas: { select: { datos: true } },
+    },
+  })
+  const camposArchivo = asignacion?.plantilla.campos.filter(c => c.tipo === 'archivo').map(c => c.nombre) ?? []
+  const aditusIds: string[] = []
+  for (const r of asignacion?.respuestas ?? []) {
+    try {
+      const datos = JSON.parse(r.datos) as Record<string, string>
+      for (const nombre of camposArchivo) {
+        const ref = datos[nombre]
+        if (typeof ref === 'string' && ref) {
+          const { aditusId } = parseArchivoRef(ref)
+          if (aditusId) aditusIds.push(aditusId)
+        }
+      }
+    } catch { /* datos no parseables — ignorar */ }
+  }
+
+  await prisma.respuestaFormulario.deleteMany({ where: { asignacionId } })
+  await prisma.asignacionFormulario.delete({ where: { id: asignacionId } })
+
+  for (const aid of aditusIds) {
+    try { await deleteAditusFile(aid) } catch { /* best-effort */ }
+  }
+
   return NextResponse.json({ ok: true })
 }
 
@@ -46,11 +78,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   })
 
   if (plantillaChanged) {
+    // Recolectar aditusIds de archivos que van a quedar huérfanos al resetear datos
+    const respuestas = await prisma.respuestaFormulario.findMany({
+      where: { asignacionId: Number(id) },
+      select: { datos: true },
+    })
+    const camposArchivoAnt = await prisma.campoFormulario.findMany({
+      where: { plantillaId: current.plantillaId, tipo: 'archivo' },
+      select: { nombre: true },
+    })
+    const nombresArchivo = new Set(camposArchivoAnt.map(c => c.nombre))
+    const aditusIds: string[] = []
+    for (const r of respuestas) {
+      try {
+        const datos = JSON.parse(r.datos) as Record<string, string>
+        for (const [k, v] of Object.entries(datos)) {
+          if (nombresArchivo.has(k) && typeof v === 'string' && v) {
+            const { aditusId } = parseArchivoRef(v)
+            if (aditusId) aditusIds.push(aditusId)
+          }
+        }
+      } catch { /* ignorar */ }
+    }
+
     // Todas las respuestas eran PENDIENTES (o borrador sin enviar) — resetear datos por si había parciales
     await prisma.respuestaFormulario.updateMany({
       where: { asignacionId: Number(id) },
       data: { estado: 'PENDIENTE', datos: '{}' },
     })
+
+    for (const aid of aditusIds) {
+      try { await deleteAditusFile(aid) } catch { /* best-effort */ }
+    }
   }
 
   return NextResponse.json({ ok: true })

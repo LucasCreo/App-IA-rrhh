@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, Paperclip, X } from 'lucide-react'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
+import { displayNameFromRef } from '@/lib/aditusSolicitudes'
 
 export interface FormularioCampo {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo' | 'booleano'
   opciones?: string
   requerido: boolean
   rellena?: 'admin' | 'empleado'
@@ -31,7 +32,7 @@ export interface FormularioRespuesta {
   }
 }
 
-function displayNameFromFile(f: string) { return f.replace(/^\d+-/, '') }
+function displayNameFromFile(f: string) { return displayNameFromRef(f) }
 
 interface Props {
   respuesta: FormularioRespuesta | null
@@ -56,6 +57,7 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
     setUploadingCampo(campo)
     const fd = new FormData()
     fd.append('file', file)
+    if (respuesta?.id) fd.append('respuestaId', String(respuesta.id))
     const r = await fetch('/api/formularios/archivo', { method: 'POST', body: fd })
     setUploadingCampo(null)
     if (!r.ok) { toast.error('Error al subir el archivo'); return }
@@ -71,9 +73,13 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
     if (!respuesta) return
     const campos = respuesta.asignacion.plantilla.campos
     for (const campo of campos) {
-      if ((campo.rellena ?? 'empleado') === 'empleado' && campo.requerido && !form[campo.nombre]?.trim()) {
-        toast.error(`El campo "${campo.label}" es requerido`)
-        return
+      if ((campo.rellena ?? 'empleado') === 'empleado' && campo.requerido) {
+        // Los booleanos son válidos aunque estén "false" (sin marcar)
+        if (campo.tipo === 'booleano') continue
+        if (!form[campo.nombre]?.trim()) {
+          toast.error(`El campo "${campo.label}" es requerido`)
+          return
+        }
       }
     }
     setSaving(true)
@@ -116,6 +122,10 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
                     >
                       <Paperclip size={13} /> {displayNameFromFile(valor)}
                     </button>
+                  ) : campo.tipo === 'booleano' ? (
+                    <p className={`text-sm rounded-md px-3 py-2 ${esAdmin ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100' : 'bg-muted/40'}`}>
+                      {valor === 'true' ? 'Sí' : valor === 'false' ? 'No' : <span className="text-muted-foreground italic">Sin respuesta</span>}
+                    </p>
                   ) : (
                     <p className={`text-sm rounded-md px-3 py-2 ${esAdmin ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100' : 'bg-muted/40'}`}>
                       {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}
@@ -170,6 +180,16 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
+                ) : campo.tipo === 'booleano' ? (
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={form[campo.nombre] === 'true'}
+                      onChange={e => setField(campo.nombre, e.target.checked ? 'true' : 'false')}
+                      className="w-4 h-4 accent-green-700"
+                    />
+                    <span className="text-sm">Sí</span>
+                  </label>
                 ) : campo.tipo === 'archivo' ? (
                   <div className="flex items-center gap-2">
                     {form[campo.nombre] ? (

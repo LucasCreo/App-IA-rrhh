@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { unlink } from 'fs/promises'
 import { getScopedEmployeeIds } from '@/lib/scope'
+import { deleteAditusFile } from '@/lib/aditus'
 
 async function assertScopeOnDoc(userId: number, docEmployeeId: number) {
   const scope = await getScopedEmployeeIds(userId)
@@ -57,7 +57,9 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
   }
   const doc = await prisma.document.delete({ where: { id: Number(id) } })
-  try { await unlink(doc.filePath) } catch { /* file may not exist */ }
+  if (doc.aditusId) {
+    try { await deleteAditusFile(doc.aditusId) } catch { /* best-effort */ }
+  }
   await logAction(user.userId, 'ELIMINAR', 'Documento', doc.nombreArchivo)
   return NextResponse.json({ ok: true })
 }

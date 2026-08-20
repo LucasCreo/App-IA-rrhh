@@ -4,10 +4,9 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
-import { writeFile, unlink, mkdir } from 'fs/promises'
-import { randomBytes } from 'crypto'
-import { join } from 'path'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
+import { updateAditusFile, uploadAditusFile } from '@/lib/aditus'
+import { reciboProps } from '@/lib/aditusRecibos'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -16,7 +15,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const docId = Number(id)
 
-  const existing = await prisma.document.findUnique({ where: { id: docId } })
+  const existing = await prisma.document.findUnique({
+    where: { id: docId },
+    include: {
+      employee: { select: { legajo: true, nombre: true, apellido: true, cuil: true } },
+      lote: { select: { nombre: true } },
+    },
+  })
   if (!existing) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
 
   if (existing.estado === 'FIRMADO') {
@@ -40,25 +45,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `${file.name}: no es un PDF válido` }, { status: 400 })
   }
 
-  const uploadsDir = join(process.cwd(), 'uploads')
-  await mkdir(uploadsDir, { recursive: true })
-  const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  const filePath = join(uploadsDir, fileName)
-  await writeFile(filePath, buffer)
+  const props = reciboProps({
+    empleado: existing.employee,
+    periodo: existing.periodo,
+    loteNombre: existing.lote?.nombre ?? null,
+  })
 
-  const oldPath = existing.filePath
+  let aditusId = existing.aditusId
+  try {
+    if (aditusId) {
+      await updateAditusFile(aditusId, {
+        content: buffer,
+        fileName: file.name,
+        contentType: 'application/pdf',
+        properties: props,
+      })
+    } else {
+      aditusId = await uploadAditusFile({
+        content: buffer,
+        fileName: file.name,
+        contentType: 'application/pdf',
+        properties: props,
+      })
+    }
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
+  }
+
   await prisma.document.update({
     where: { id: docId },
     data: {
       nombreArchivo: file.name,
-      filePath,
+      aditusId,
       estado: 'BORRADOR',
       fechaFirma: null,
     },
   })
-
-  // Borrar el archivo viejo del disco (best-effort)
-  try { await unlink(oldPath) } catch { /* no-op */ }
 
   await logAction(user.userId, 'REEMPLAZAR', 'Documento', `ID ${docId}: ${file.name}`)
   return NextResponse.json({ ok: true })

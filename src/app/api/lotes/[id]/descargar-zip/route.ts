@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
-import { readFile } from 'fs/promises'
+import { getAditusFile } from '@/lib/aditus'
 import JSZip from 'jszip'
 
 function slug(s: string) {
@@ -22,9 +22,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
 
   const docs = await prisma.document.findMany({
-    where: { loteId, filePath: { not: '' } },
+    where: { loteId, aditusId: { not: null } },
     select: {
-      filePath: true,
+      aditusId: true,
       nombreArchivo: true,
       employee: { select: { legajo: true, apellido: true, nombre: true } },
     },
@@ -33,14 +33,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const zip = new JSZip()
   let incluidos = 0
   for (const d of docs) {
+    if (!d.aditusId) continue
     try {
-      const buffer = await readFile(d.filePath)
+      const file = await getAditusFile(d.aditusId, { download: true })
       const emp = d.employee
       const base = `${emp.legajo}_${slug(emp.apellido)}_${slug(emp.nombre)}.pdf`
-      zip.file(base, buffer)
+      zip.file(base, file.content)
       incluidos++
     } catch {
-      // Ignorar archivos faltantes en disco
+      // Ignorar archivos faltantes en Aditus
     }
   }
 

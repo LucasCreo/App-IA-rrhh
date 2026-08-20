@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Check, X, FileText, CalendarOff, ClipboardList, CheckCircle2, XCircle, Clock, Paperclip } from 'lucide-react'
 import { handleApiError } from '@/lib/apiErrors'
+import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { Pagination, paginate } from '@/components/ui/pagination'
@@ -330,7 +331,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
               )}
               {s.archivoUrl && (
                 <button
-                  onClick={() => setPreview({ url: s.archivoUrl!, filename: s.archivoUrl!.split('/').pop() ?? undefined })}
+                  onClick={() => setPreview({ url: s.archivoUrl!, filename: displayNameFromArchivoUrl(s.archivoUrl) || undefined })}
                   className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
                 >
                   <Paperclip size={13} /> Ver adjunto
@@ -410,7 +411,7 @@ export function EmpleadoSolicitudesTab({ employeeId }: { employeeId: number }) {
                           onClick={() => setPreview({ url: `/api/formularios/archivo?file=${valor}`, filename: valor })}
                           className="font-medium text-right text-green-700 dark:text-green-400 hover:underline truncate max-w-[200px]"
                         >
-                          {valor.replace(/^\d+-/, '')}
+                          {valor.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                         </button>
                       ) : (
                         <span className="font-medium text-right">{valor || '—'}</span>
@@ -455,7 +456,7 @@ function RowDoc({ s, onReview, onPreview }: { s: SolicitudDoc; onReview: (estado
             onClick={() => onPreview?.(s.nombreArchivo!)}
             className="text-xs text-blue-600 hover:underline text-left"
           >
-            {s.nombreArchivo.replace(/^\d+-/, '')}
+            {s.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
           </button>
         )}
         {entries.length > 0 && (

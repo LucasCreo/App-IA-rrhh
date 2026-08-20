@@ -169,7 +169,7 @@ export function SolicitudesTab() {
                     target="_blank"
                     className="text-xs text-blue-600 hover:underline"
                   >
-                    {s.nombreArchivo.replace(/^\d+-/, '')}
+                    {s.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                   </a>
                 )}
                 {(() => {

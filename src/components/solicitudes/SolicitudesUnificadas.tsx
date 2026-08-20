@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { Pagination } from '@/components/ui/pagination'
 
-interface CampoSolicitud { nombre: string; label: string }
+interface CampoSolicitud { nombre: string; label: string; tipo?: string }
 interface SolicitudDoc {
   id: number; nombreArchivo?: string; estado: string
   descripcion?: string; comentario?: string; comentarioVisible: boolean
@@ -261,9 +261,9 @@ export function SolicitudesUnificadas() {
                         <button
                           onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${s.nombreArchivo}`, filename: s.nombreArchivo })}
                           className="text-xs text-blue-600 hover:underline truncate block max-w-full text-left"
-                          title={s.nombreArchivo.replace(/^\d+-/, '')}
+                          title={s.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                         >
-                          {s.nombreArchivo.replace(/^\d+-/, '')}
+                          {s.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                         </button>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
@@ -392,7 +392,7 @@ export function SolicitudesUnificadas() {
                       className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline min-w-0 max-w-full"
                     >
                       <Paperclip size={13} className="shrink-0" />
-                      <span className="truncate">{viewDoc.nombreArchivo.replace(/^\d+-/, '')}</span>
+                      <span className="truncate">{viewDoc.nombreArchivo.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}</span>
                     </button>
                   )}
                 </div>
@@ -403,7 +403,20 @@ export function SolicitudesUnificadas() {
                       return (
                         <div key={k} className="flex justify-between gap-4 text-xs min-w-0">
                           <span className="text-muted-foreground shrink-0">{campo?.label ?? k}</span>
-                          <span className="text-foreground text-right break-words min-w-0">{v}</span>
+                          {campo?.tipo === 'archivo' ? (
+                            <a
+                              href={`/api/solicitudes/archivo?file=${v}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 min-w-0 truncate"
+                            >
+                              {v.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
+                            </a>
+                          ) : campo?.tipo === 'booleano' ? (
+                            <span className="text-foreground text-right">{v === 'true' ? 'Sí' : 'No'}</span>
+                          ) : (
+                            <span className="text-foreground text-right break-words min-w-0">{v}</span>
+                          )}
                         </div>
                       )
                     })}

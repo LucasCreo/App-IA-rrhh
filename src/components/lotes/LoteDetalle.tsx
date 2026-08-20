@@ -21,7 +21,6 @@ import { detectarLegajoDesdeFilename, detectarLegajoPdf, runWithConcurrency } fr
 
 interface Pendiente {
   id: number
-  filePath: string
   nombreArchivo: string
   legajoDetectado: string | null
   detectando: boolean

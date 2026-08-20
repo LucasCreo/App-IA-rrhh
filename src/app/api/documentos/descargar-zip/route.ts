@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { getScopedEmployeeIds } from '@/lib/scope'
-import { readFile } from 'fs/promises'
+import { getAditusFile } from '@/lib/aditus'
 import JSZip from 'jszip'
 
 function slug(s: string) {
@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
     : scope ? { employeeId: { in: [...scope] } } : {}
 
   const docs = await prisma.document.findMany({
-    where: { id: { in: docIds }, ...employeeFilter, filePath: { not: '' } },
+    where: { id: { in: docIds }, ...employeeFilter, aditusId: { not: null } },
     select: {
-      filePath: true,
+      aditusId: true,
       nombreArchivo: true,
       employee: { select: { legajo: true, apellido: true, nombre: true } },
     },
@@ -35,8 +35,9 @@ export async function POST(req: NextRequest) {
   let incluidos = 0
   const usados = new Set<string>()
   for (const d of docs) {
+    if (!d.aditusId) continue
     try {
-      const buffer = await readFile(d.filePath)
+      const file = await getAditusFile(d.aditusId, { download: true })
       const emp = d.employee
       let base = `${emp.legajo}_${slug(emp.apellido)}_${slug(emp.nombre)}.pdf`
       let i = 2
@@ -45,9 +46,9 @@ export async function POST(req: NextRequest) {
         i++
       }
       usados.add(base)
-      zip.file(base, buffer)
+      zip.file(base, file.content)
       incluidos++
-    } catch { /* faltante en disco */ }
+    } catch { /* faltante en Aditus */ }
   }
 
   if (incluidos === 0) {

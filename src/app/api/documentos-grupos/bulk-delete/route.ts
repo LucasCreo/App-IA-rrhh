@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { unlink } from 'fs/promises'
+import { deleteAditusFile } from '@/lib/aditus'
 
 export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
   const grupos = await prisma.documentoGrupo.findMany({
     where: { id: { in: ids } },
-    select: { id: true, nombreArchivo: true, filePath: true },
+    select: { id: true, nombreArchivo: true, aditusId: true },
   })
   const found = new Set(grupos.map(g => g.id))
 
@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
       if (!found.has(id)) errors.push({ id, error: 'Documento no encontrado' })
     }
     for (const g of grupos) {
-      try { await unlink(g.filePath) } catch { /* no-op */ }
+      if (g.aditusId) {
+        try { await deleteAditusFile(g.aditusId) } catch { /* best-effort */ }
+      }
       await logAction(user.userId, 'ELIMINAR_DOCUMENTO_GRUPO', 'Documento', `Grupo ${g.id}: ${g.nombreArchivo}`)
     }
   } catch (e) {

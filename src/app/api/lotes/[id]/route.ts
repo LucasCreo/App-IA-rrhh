@@ -4,6 +4,7 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
+import { deleteAditusFile } from '@/lib/aditus'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -90,10 +91,22 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     const lote = await prisma.lote.findUnique({ where: { id: Number(id) }, select: { nombre: true } })
     if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
 
+    // Recolectar aditusIds de pendientes (se cascadean; hay que borrarlos de Aditus)
+    const pendientes = await prisma.loteArchivoPendiente.findMany({
+      where: { loteId: Number(id), aditusId: { not: null } },
+      select: { aditusId: true },
+    })
+
     await prisma.$transaction([
       prisma.document.updateMany({ where: { loteId: Number(id) }, data: { loteId: null } }),
       prisma.lote.delete({ where: { id: Number(id) } }),
     ])
+
+    for (const p of pendientes) {
+      if (p.aditusId) {
+        try { await deleteAditusFile(p.aditusId) } catch { /* best-effort */ }
+      }
+    }
 
     await logAction(user.userId, 'ELIMINAR_LOTE', 'Lote', lote.nombre)
     return NextResponse.json({ ok: true })

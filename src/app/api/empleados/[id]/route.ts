@@ -201,6 +201,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
       return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
     }
-    throw e
+    console.error('[empleados DELETE]', e)
+    const detail = e instanceof Prisma.PrismaClientKnownRequestError
+      ? `Prisma ${e.code}: ${e.message.split('\n').pop()?.trim() ?? e.message}`
+      : (e instanceof Error ? e.message : 'Error desconocido')
+    return NextResponse.json({ error: detail }, { status: 500 })
   }
 }

@@ -3,11 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser, requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { writeFile, mkdir } from 'fs/promises'
-import { randomBytes } from 'crypto'
-import { join } from 'path'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
+import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
+import { reciboProps } from '@/lib/aditusRecibos'
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -134,28 +133,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El archivo no es un PDF válido' }, { status: 400 })
   }
 
-  const uploadsDir = join(process.cwd(), 'uploads')
-  await mkdir(uploadsDir, { recursive: true })
-
-  const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-  const filePath = join(uploadsDir, fileName)
-  await writeFile(filePath, buffer)
-
-  const doc = await prisma.document.create({
-    data: {
-      nombreArchivo: file.name,
-      filePath,
-      periodo,
-      metadata: metadataRaw || null,
-      employeeId,
-      cargadoPorId: user.userId,
-      estado: 'BORRADOR',
-      ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
-    },
-    include: {
-      employee: { select: { nombre: true, apellido: true, legajo: true } },
-    },
+  const empleado = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { legajo: true, nombre: true, apellido: true, cuil: true },
   })
+  if (!empleado) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
+
+  let aditusId: string
+  try {
+    aditusId = await uploadAditusFile({
+      content: buffer,
+      fileName: file.name,
+      contentType: 'application/pdf',
+      properties: reciboProps({ empleado, periodo }),
+    })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
+  }
+
+  let doc
+  try {
+    doc = await prisma.document.create({
+      data: {
+        nombreArchivo: file.name,
+        aditusId,
+        periodo,
+        metadata: metadataRaw || null,
+        employeeId,
+        cargadoPorId: user.userId,
+        estado: 'BORRADOR',
+        ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+      },
+      include: {
+        employee: { select: { nombre: true, apellido: true, legajo: true } },
+      },
+    })
+  } catch (e) {
+    try { await deleteAditusFile(aditusId) } catch { /* rollback best-effort */ }
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error creando documento' }, { status: 500 })
+  }
 
   await logAction(user.userId, 'CARGAR', 'Documento', `${file.name} → ${doc.employee.legajo}`)
   return NextResponse.json(doc, { status: 201 })

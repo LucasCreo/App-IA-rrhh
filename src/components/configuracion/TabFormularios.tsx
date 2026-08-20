@@ -17,7 +17,7 @@ import { Pencil, Trash2, Plus, X } from 'lucide-react'
 interface Campo {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo' | 'booleano'
   opciones?: string
   requerido: boolean
   rellena?: 'admin' | 'empleado'
@@ -36,8 +36,9 @@ const TIPOS_CAMPO = [
   { value: 'texto', label: 'Texto libre' },
   { value: 'numero', label: 'Número' },
   { value: 'fecha', label: 'Fecha' },
-  { value: 'seleccion', label: 'Selección' },
+  { value: 'seleccion', label: 'Lista' },
   { value: 'archivo', label: 'Archivo' },
+  { value: 'booleano', label: 'Casilla (sí/no)' },
 ]
 
 function slugify(s: string) {

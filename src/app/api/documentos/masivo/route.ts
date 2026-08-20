@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
-import { randomBytes } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
@@ -9,6 +6,8 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
+import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
+import { documentoGrupoProps } from '@/lib/aditusDocumentos'
 
 export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -44,37 +43,57 @@ export async function POST(req: NextRequest) {
   const scope = await getScopedEmployeeIds(user.userId)
   if (scope) where.id = { in: (empleadoIds ?? []).filter(id => scope.has(id)) }
 
-  const empleados = await prisma.employee.findMany({ where, select: { id: true } })
+  const empleados = await prisma.employee.findMany({ where, select: { id: true, legajo: true } })
   if (empleados.length === 0) {
     return NextResponse.json({ error: 'No hay empleados válidos para esta distribución' }, { status: 400 })
   }
 
-  const uploadsDir = path.join(process.cwd(), 'uploads')
-  await mkdir(uploadsDir, { recursive: true })
-  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${sanitized}`
-  const filePath = path.join(uploadsDir, fileName)
-  await writeFile(filePath, buffer)
-
-  const grupo = await prisma.$transaction(async tx => {
-    const g = await tx.documentoGrupo.create({
-      data: {
-        nombreArchivo: file.name,
-        filePath,
-        periodo,
-        tipoDocumentoId,
-        cargadoPorId: user.userId,
-      },
-    })
-    await tx.documentoAsignacion.createMany({
-      data: empleados.map(e => ({
-        grupoId: g.id,
-        employeeId: e.id,
-        estado: 'BORRADOR',
-      })),
-    })
-    return g
+  const tipoDoc = await prisma.tipoDocumento.findUnique({
+    where: { id: tipoDocumentoId },
+    select: { nombre: true },
   })
+
+  let aditusId: string
+  try {
+    aditusId = await uploadAditusFile({
+      content: buffer,
+      fileName: file.name,
+      contentType: 'application/pdf',
+      properties: documentoGrupoProps({
+        nombreArchivo: file.name,
+        tipoDocumentoNombre: tipoDoc?.nombre ?? null,
+        empleados,
+      }),
+    })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
+  }
+
+  let grupo
+  try {
+    grupo = await prisma.$transaction(async tx => {
+      const g = await tx.documentoGrupo.create({
+        data: {
+          nombreArchivo: file.name,
+          aditusId,
+          periodo,
+          tipoDocumentoId,
+          cargadoPorId: user.userId,
+        },
+      })
+      await tx.documentoAsignacion.createMany({
+        data: empleados.map(e => ({
+          grupoId: g.id,
+          employeeId: e.id,
+          estado: 'BORRADOR',
+        })),
+      })
+      return g
+    })
+  } catch (e) {
+    try { await deleteAditusFile(aditusId) } catch { /* rollback best-effort */ }
+    return NextResponse.json({ error: e instanceof Prisma.PrismaClientKnownRequestError ? e.message : (e instanceof Error ? e.message : 'Error creando grupo') }, { status: 500 })
+  }
 
   await logAction(user.userId, 'CARGAR_DOCUMENTO_GRUPO', 'Documento', `${file.name} → ${empleados.length} empleados${periodo ? ` · ${periodo}` : ''}`)
 

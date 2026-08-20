@@ -181,9 +181,9 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
               onChange={onPickFile}
             />
             {file ? (
-              <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900 min-w-0 overflow-hidden">
                 <Paperclip size={13} className="text-green-700 dark:text-green-400 shrink-0" />
-                <span className="truncate flex-1 text-green-800 dark:text-green-300">{file.name}</span>
+                <span className="truncate flex-1 min-w-0 text-green-800 dark:text-green-300" title={file.name}>{file.name}</span>
                 <button
                   type="button"
                   onClick={() => { setFile(null); setNombre(grupo.nombreArchivo); if (fileRef.current) fileRef.current.value = '' }}
@@ -195,9 +195,9 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm bg-muted/30 mb-2">
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm bg-muted/30 mb-2 min-w-0 overflow-hidden">
                   <FileText size={13} className="text-muted-foreground shrink-0" />
-                  <span className="truncate text-muted-foreground">{grupo.nombreArchivo}</span>
+                  <span className="truncate min-w-0 text-muted-foreground" title={grupo.nombreArchivo}>{grupo.nombreArchivo}</span>
                 </div>
                 <Button
                   type="button"

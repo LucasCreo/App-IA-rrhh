@@ -14,6 +14,7 @@ import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import Link from 'next/link'
 import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, Upload, XCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
 interface SolicitudAusencia {
@@ -350,7 +351,7 @@ export function MisLicencias() {
               )}
               {detalle.archivoUrl && (
                 <button
-                  onClick={() => setPreview({ url: detalle.archivoUrl!, filename: detalle.archivoUrl!.split('/').pop() ?? undefined })}
+                  onClick={() => setPreview({ url: detalle.archivoUrl!, filename: displayNameFromArchivoUrl(detalle.archivoUrl) || undefined })}
                   className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
                 >
                   <Paperclip size={13} /> Ver adjunto

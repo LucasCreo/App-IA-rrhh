@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { unlink } from 'fs/promises'
+import { deleteAditusFile } from '@/lib/aditus'
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string; pendId: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
@@ -19,7 +19,9 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   }
 
   await prisma.loteArchivoPendiente.delete({ where: { id: pendienteId } })
-  try { await unlink(pendiente.filePath) } catch { /* no-op */ }
+  if (pendiente.aditusId) {
+    try { await deleteAditusFile(pendiente.aditusId) } catch { /* best-effort */ }
+  }
   await logAction(user.userId, 'ELIMINAR_PENDIENTE', 'Lote', `Lote ${loteId}: ${pendiente.nombreArchivo}`)
   return NextResponse.json({ ok: true })
 }

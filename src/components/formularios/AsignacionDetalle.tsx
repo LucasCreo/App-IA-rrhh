@@ -17,7 +17,7 @@ import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 interface Campo {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo' | 'booleano'
   opciones?: string
   requerido: boolean
   rellena?: 'admin' | 'empleado'
@@ -279,8 +279,12 @@ export function AsignacionDetalle({ id }: { id: number }) {
                       onClick={() => setPreview({ url: `/api/formularios/archivo?file=${valor}`, filename: valor })}
                       className="text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1"
                     >
-                      <Paperclip size={13} /> {valor.replace(/^\d+-/, '')}
+                      <Paperclip size={13} /> {valor.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
                     </button>
+                  ) : campo.tipo === 'booleano' ? (
+                    <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
+                      {valor === 'true' ? 'Sí' : valor === 'false' ? 'No' : <span className="text-muted-foreground italic">Sin respuesta</span>}
+                    </p>
                   ) : (
                     <p className="text-sm bg-muted/40 rounded-md px-3 py-2">
                       {valor || <span className="text-muted-foreground italic">Sin respuesta</span>}

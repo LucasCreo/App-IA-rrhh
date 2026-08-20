@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { getScopedEmployeeIds } from '@/lib/scope'
-import { readFile } from 'fs/promises'
+import { getAditusFile } from '@/lib/aditus'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -29,15 +29,19 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     }
   }
 
+  if (!grupo.aditusId) {
+    return NextResponse.json({ error: 'Documento sin archivo en Aditus' }, { status: 404 })
+  }
+
   try {
-    const buffer = await readFile(grupo.filePath)
-    return new NextResponse(buffer, {
+    const file = await getAditusFile(grupo.aditusId, { download: true })
+    return new NextResponse(new Uint8Array(file.content), {
       headers: {
-        'Content-Type': 'application/pdf',
+        'Content-Type': file.contentType || 'application/pdf',
         'Content-Disposition': `inline; filename="${grupo.nombreArchivo}"`,
       },
     })
   } catch {
-    return NextResponse.json({ error: 'Archivo no disponible' }, { status: 404 })
+    return NextResponse.json({ error: 'Archivo no disponible en Aditus' }, { status: 404 })
   }
 }

@@ -18,7 +18,8 @@ import { TabFormularios } from './TabFormularios'
 interface CampoSolicitud {
   nombre: string
   label: string
-  tipo: 'texto' | 'numero' | 'fecha'
+  tipo: 'texto' | 'numero' | 'fecha' | 'seleccion' | 'archivo' | 'booleano'
+  opciones?: string
   requerido: boolean
 }
 
@@ -32,10 +33,29 @@ const TIPOS_CAMPO = [
   { value: 'texto', label: 'Texto' },
   { value: 'numero', label: 'Número' },
   { value: 'fecha', label: 'Fecha' },
+  { value: 'seleccion', label: 'Lista' },
+  { value: 'archivo', label: 'Archivo' },
+  { value: 'booleano', label: 'Casilla (sí/no)' },
 ]
 
 function camposFromRaw(raw: unknown): CampoSolicitud[] {
   try { return Array.isArray(raw) ? raw as CampoSolicitud[] : [] } catch { return [] }
+}
+
+function slugify(s: string) {
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function uniqueSlug(base: string, existing: string[]) {
+  const slug = base || 'campo'
+  if (!existing.includes(slug)) return slug
+  let n = 2
+  while (existing.includes(`${slug}_${n}`)) n++
+  return `${slug}_${n}`
 }
 
 export function TabSolicitudes() {
@@ -102,7 +122,14 @@ export function TabSolicitudes() {
 
   async function saveEdit() {
     if (!editTipo || !editNombre.trim()) { toast.error('El nombre no puede estar vacío'); return }
-    const camposValidos = editCampos.filter(c => c.nombre.trim() && c.label.trim())
+    const conLabel = editCampos.filter(c => c.label.trim())
+    // Auto-generar `nombre` interno único desde el label
+    const usados: string[] = []
+    const camposValidos = conLabel.map(c => {
+      const nombre = c.nombre?.trim() || uniqueSlug(slugify(c.label.trim()), usados)
+      usados.push(nombre)
+      return { ...c, nombre, label: c.label.trim() }
+    })
     await fetch(`/api/configuracion/tipos-solicitud/${editTipo.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -276,13 +303,7 @@ export function TabSolicitudes() {
                       <div className="flex gap-2">
                         <Input
                           className="flex-1 h-7 text-xs"
-                          placeholder="Nombre interno (sin espacios)"
-                          value={campo.nombre}
-                          onChange={e => updateCampo(i, 'nombre', e.target.value.replace(/\s/g, '_').toLowerCase())}
-                        />
-                        <Input
-                          className="flex-1 h-7 text-xs"
-                          placeholder="Etiqueta visible"
+                          placeholder="Etiqueta del campo (ej: Motivo)"
                           value={campo.label}
                           onChange={e => updateCampo(i, 'label', e.target.value)}
                         />
@@ -307,6 +328,17 @@ export function TabSolicitudes() {
                           <span className="text-xs text-muted-foreground">Requerido</span>
                         </div>
                       </div>
+                      {campo.tipo === 'seleccion' && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Opciones (separadas por coma)</p>
+                          <Input
+                            className="h-7 text-xs"
+                            placeholder="Ej: Opción 1, Opción 2, Opción 3"
+                            value={campo.opciones ?? ''}
+                            onChange={e => updateCampo(i, 'opciones', e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

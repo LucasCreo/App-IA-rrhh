@@ -18,7 +18,7 @@ export default async function EmpleadoPage() {
   if (!decoded.employeeId) redirect('/login')
 
   const RECIBO_TIPO = 'Recibo de Sueldo'
-  const [employee, dbUser, totalRecibos, recibosPendientes, totalSolicitudes, formulariosPendientes, totalDocumentos, documentosPendientes, ultimosRecibos] = await Promise.all([
+  const [employee, dbUser, totalRecibos, recibosPendientes, solicitudesDocsCount, formulariosCount, formulariosPendientes, totalDocumentos, documentosPendientes, ultimosRecibos] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
       include: { categoria: true },
@@ -27,6 +27,7 @@ export default async function EmpleadoPage() {
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] }, tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.document.count({ where: { employeeId: decoded.employeeId, estado: 'ENVIADO_A_FIRMA', tipoDocumento: { nombre: RECIBO_TIPO } } }),
     prisma.solicitudDocumento.count({ where: { employeeId: decoded.employeeId } }),
+    prisma.respuestaFormulario.count({ where: { employeeId: decoded.employeeId } }),
     prisma.respuestaFormulario.count({ where: { employeeId: decoded.employeeId, estado: 'PENDIENTE' } }),
     prisma.documentoAsignacion.count({
       where: {
@@ -128,7 +129,7 @@ export default async function EmpleadoPage() {
             )}
             <ArrowUpRight size={14} className="absolute top-3 right-3 text-muted-foreground/40 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
             <Send size={18} className="mx-auto mb-1.5 text-muted-foreground" />
-            <p className="text-2xl font-bold">{totalSolicitudes}</p>
+            <p className="text-2xl font-bold">{solicitudesDocsCount + formulariosCount}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Solicitudes</p>
           </Link>
         </div>

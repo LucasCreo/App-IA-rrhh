@@ -3,13 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { randomBytes } from 'crypto'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getReciboTipoId } from '@/lib/tiposDocumento'
 import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
 import { detectarLegajoDesdeFilename } from '@/lib/recibosDetect'
+import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
+import { reciboProps, reciboPendienteProps } from '@/lib/aditusRecibos'
 
 export async function GET(req: NextRequest) {
   try {
@@ -109,9 +108,6 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  const uploadsDir = join(process.cwd(), 'uploads')
-  await mkdir(uploadsDir, { recursive: true })
-
   // Cargar patrones de filename + empleados scopeados para detección server-side
   const config = await prisma.generalConfig.findFirst({ select: { reciboFilenamePatterns: true } })
   let patterns: string[] = []
@@ -125,10 +121,10 @@ export async function POST(req: NextRequest) {
   const scope = await getScopedEmployeeIds(user.userId)
   const empleadosActivos = await prisma.employee.findMany({
     where: { estado: 'ACTIVO', ...(scope ? { id: { in: [...scope] } } : {}) },
-    select: { id: true, legajo: true },
+    select: { id: true, legajo: true, nombre: true, apellido: true, cuil: true },
   })
   const legajoSet = new Set(empleadosActivos.map(e => e.legajo))
-  const empByLegajo = new Map(empleadosActivos.map(e => [e.legajo, e.id]))
+  const empByLegajo = new Map(empleadosActivos.map(e => [e.legajo, e]))
   const empleadosConDoc = new Set<number>()
 
   let uploaded = 0
@@ -151,52 +147,78 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const fileName = `${Date.now()}-${randomBytes(4).toString('hex')}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-    const filePath = join(uploadsDir, fileName)
-    await writeFile(filePath, buffer)
-
     // Strip cualquier prefijo de carpeta que el navegador haya adjuntado
     const nombreArchivoLimpio = file.name.replace(/^.*[\\/]/, '')
 
     // Intentar detectar legajo por filename (patrones + fallback genérico)
     const legajoDetectado = detectarLegajoDesdeFilename(nombreArchivoLimpio, legajoSet, patterns)
-    const empId = legajoDetectado ? empByLegajo.get(legajoDetectado) : undefined
+    const emp = legajoDetectado ? empByLegajo.get(legajoDetectado) : undefined
 
-    if (empId && !empleadosConDoc.has(empId)) {
-      // Auto-asignar: crear Document directamente
-      await prisma.$transaction(async tx => {
-        await tx.document.create({
+    let aditusId: string
+    try {
+      if (emp && !empleadosConDoc.has(emp.id)) {
+        aditusId = await uploadAditusFile({
+          content: buffer,
+          fileName: nombreArchivoLimpio,
+          contentType: 'application/pdf',
+          properties: reciboProps({ empleado: emp, periodo, loteNombre: nombre }),
+        })
+      } else {
+        aditusId = await uploadAditusFile({
+          content: buffer,
+          fileName: nombreArchivoLimpio,
+          contentType: 'application/pdf',
+          properties: reciboPendienteProps({ fileName: nombreArchivoLimpio, loteNombre: nombre }),
+        })
+      }
+    } catch (e) {
+      errors.push(`${nombreArchivoLimpio}: ${e instanceof Error ? e.message : 'error subiendo a Aditus'}`)
+      continue
+    }
+
+    if (emp && !empleadosConDoc.has(emp.id)) {
+      try {
+        await prisma.$transaction(async tx => {
+          await tx.document.create({
+            data: {
+              nombreArchivo: nombreArchivoLimpio,
+              aditusId,
+              periodo,
+              employeeId: emp.id,
+              cargadoPorId: user.userId,
+              estado: 'BORRADOR',
+              loteId: lote.id,
+              ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+            },
+          })
+          await tx.loteEmpleado.upsert({
+            where: { loteId_employeeId: { loteId: lote.id, employeeId: emp.id } },
+            create: { loteId: lote.id, employeeId: emp.id },
+            update: {},
+          })
+        })
+        empleadosConDoc.add(emp.id)
+        asignados++
+        uploaded++
+      } catch (e) {
+        try { await deleteAditusFile(aditusId) } catch { /* rollback best-effort */ }
+        errors.push(`${nombreArchivoLimpio}: ${e instanceof Error ? e.message : 'error creando registro'}`)
+      }
+    } else {
+      try {
+        await prisma.loteArchivoPendiente.create({
           data: {
-            nombreArchivo: nombreArchivoLimpio,
-            filePath,
-            periodo,
-            employeeId: empId,
-            cargadoPorId: user.userId,
-            estado: 'BORRADOR',
             loteId: lote.id,
-            ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
+            aditusId,
+            nombreArchivo: nombreArchivoLimpio,
+            legajoDetectado: legajoDetectado ?? null,
           },
         })
-        await tx.loteEmpleado.upsert({
-          where: { loteId_employeeId: { loteId: lote.id, employeeId: empId } },
-          create: { loteId: lote.id, employeeId: empId },
-          update: {},
-        })
-      })
-      empleadosConDoc.add(empId)
-      asignados++
-      uploaded++
-    } else {
-      // Sin match o duplicado en este batch: queda como pendiente
-      await prisma.loteArchivoPendiente.create({
-        data: {
-          loteId: lote.id,
-          filePath,
-          nombreArchivo: nombreArchivoLimpio,
-          legajoDetectado: legajoDetectado ?? null,
-        },
-      })
-      uploaded++
+        uploaded++
+      } catch (e) {
+        try { await deleteAditusFile(aditusId) } catch { /* rollback best-effort */ }
+        errors.push(`${nombreArchivoLimpio}: ${e instanceof Error ? e.message : 'error creando pendiente'}`)
+      }
     }
   }
 

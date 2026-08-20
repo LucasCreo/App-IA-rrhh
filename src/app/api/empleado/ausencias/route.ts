@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { parseClientDate } from '@/lib/dates'
 import { esTopDelOrganigrama } from '@/lib/scope'
 import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { validateFile, extForKind } from '@/lib/fileValidation'
+import { uploadAditusFile } from '@/lib/aditus'
+import { ausenciaProps, encodeArchivoRef } from '@/lib/aditusSolicitudes'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -60,11 +60,25 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await archivo.arrayBuffer())
     const check = validateFile(buffer, 'pdf-or-image')
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
-    const filename = `${user.employeeId}-${Date.now()}.${extForKind(check.kind)}`
-    const dest = path.join(process.cwd(), 'public', 'uploads', 'ausencias', filename)
-    await mkdir(path.dirname(dest), { recursive: true })
-    await writeFile(dest, buffer)
-    archivoUrl = `/uploads/ausencias/${filename}`
+
+    const [emp, tipoAus] = await Promise.all([
+      prisma.employee.findUnique({ where: { id: user.employeeId }, select: { legajo: true, cuil: true } }),
+      prisma.tipoAusencia.findUnique({ where: { id: Number(tipoAusenciaId) }, select: { nombre: true } }),
+    ])
+    if (!emp) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
+
+    const fileName = archivo.name || `ausencia.${extForKind(check.kind)}`
+    try {
+      const aditusId = await uploadAditusFile({
+        content: buffer,
+        fileName,
+        contentType: archivo.type || 'application/octet-stream',
+        properties: ausenciaProps({ empleado: emp, tipoAusenciaNombre: tipoAus?.nombre ?? null, fileName }),
+      })
+      archivoUrl = `/api/ausencias/archivo?file=${encodeURIComponent(encodeArchivoRef(aditusId, fileName))}`
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
+    }
   }
 
   const autoAprobar = await esTopDelOrganigrama(user.employeeId)

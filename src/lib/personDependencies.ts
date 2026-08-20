@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { unlink } from 'fs/promises'
+import { deleteAditusFile } from '@/lib/aditus'
+import { parseArchivoRef, refFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 async function tryUnlink(paths: string[]) {
   const results = await Promise.allSettled(paths.filter(Boolean).map(p => unlink(p)))
@@ -8,6 +10,16 @@ async function tryUnlink(paths: string[]) {
     .filter((p): p is string => !!p)
   if (fallidos.length > 0) {
     console.warn('[cleanup] archivos huérfanos que no pudieron eliminarse:', fallidos)
+  }
+}
+
+async function tryDeleteAditus(ids: string[]) {
+  const results = await Promise.allSettled(ids.filter(Boolean).map(id => deleteAditusFile(id)))
+  const fallidos = results
+    .map((r, i) => (r.status === 'rejected' ? ids[i] : null))
+    .filter((p): p is string => !!p)
+  if (fallidos.length > 0) {
+    console.warn('[cleanup] archivos Aditus huérfanos que no pudieron eliminarse:', fallidos)
   }
 }
 
@@ -103,19 +115,69 @@ export async function deletePersonaCascade(
   employeeId: number | null,
   userId: number | null
 ) {
-  // Recolectar rutas de archivos ANTES del transaction para borrarlos después
+  // Recolectar refs a archivos ANTES del transaction para borrarlos después
   const filesToDelete: string[] = []
+  const aditusIdsToDelete: string[] = []
   if (employeeId) {
-    const docs = await prisma.document.findMany({ where: { employeeId }, select: { filePath: true } })
-    filesToDelete.push(...docs.map(d => d.filePath))
+    const docs = await prisma.document.findMany({ where: { employeeId }, select: { aditusId: true } })
+    aditusIdsToDelete.push(...docs.map(d => d.aditusId!).filter(Boolean))
+
+    // Ausencias: archivoUrl ahora es una URL de nuestro endpoint con ?file=<ref>
     const ausencias = await prisma.solicitudAusencia.findMany({
       where: { employeeId, archivoUrl: { not: null } }, select: { archivoUrl: true },
     })
-    filesToDelete.push(...ausencias.map(a => a.archivoUrl!).filter(Boolean))
+    for (const a of ausencias) {
+      if (!a.archivoUrl) continue
+      const ref = refFromArchivoUrl(a.archivoUrl)
+      if (ref) {
+        const { aditusId } = parseArchivoRef(ref)
+        if (aditusId) aditusIdsToDelete.push(aditusId)
+      } else {
+        // legacy: /uploads/ausencias/...
+        filesToDelete.push(a.archivoUrl)
+      }
+    }
+
+    // Respuestas de formulario: scan datos JSON por campos tipo archivo
+    const respuestas = await prisma.respuestaFormulario.findMany({
+      where: { employeeId },
+      select: { datos: true, asignacion: { select: { plantilla: { select: { campos: { select: { nombre: true, tipo: true } } } } } } },
+    })
+    for (const r of respuestas) {
+      const archivoNombres = new Set(r.asignacion.plantilla.campos.filter(c => c.tipo === 'archivo').map(c => c.nombre))
+      try {
+        const datos = JSON.parse(r.datos) as Record<string, string>
+        for (const [k, v] of Object.entries(datos)) {
+          if (archivoNombres.has(k) && typeof v === 'string' && v) {
+            const { aditusId } = parseArchivoRef(v)
+            if (aditusId) aditusIdsToDelete.push(aditusId)
+          }
+        }
+      } catch { /* ignorar */ }
+    }
+
+    // Solicitudes de documento: scan metadata JSON por campos tipo archivo
+    const solicitudes = await prisma.solicitudDocumento.findMany({
+      where: { employeeId },
+      select: { metadata: true, tipo: { select: { campos: true } } },
+    })
+    for (const s of solicitudes) {
+      try {
+        const campos = (Array.isArray(s.tipo.campos) ? s.tipo.campos : JSON.parse(String(s.tipo.campos))) as Array<{ nombre: string; tipo: string }>
+        const archivoNombres = new Set(campos.filter(c => c.tipo === 'archivo').map(c => c.nombre))
+        const meta = JSON.parse(s.metadata ?? '{}') as Record<string, string>
+        for (const [k, v] of Object.entries(meta)) {
+          if (archivoNombres.has(k) && typeof v === 'string' && v) {
+            const { aditusId } = parseArchivoRef(v)
+            if (aditusId) aditusIdsToDelete.push(aditusId)
+          }
+        }
+      } catch { /* ignorar */ }
+    }
   }
   if (userId) {
-    const docs = await prisma.document.findMany({ where: { cargadoPorId: userId }, select: { filePath: true } })
-    filesToDelete.push(...docs.map(d => d.filePath))
+    const docs = await prisma.document.findMany({ where: { cargadoPorId: userId }, select: { aditusId: true } })
+    aditusIdsToDelete.push(...docs.map(d => d.aditusId!).filter(Boolean))
   }
 
   await prisma.$transaction(async tx => {
@@ -166,6 +228,7 @@ export async function deletePersonaCascade(
     }
   })
 
-  // Fuera del transaction: borrar archivos del disco (best-effort)
+  // Fuera del transaction: borrar archivos (best-effort)
   await tryUnlink(filesToDelete)
+  await tryDeleteAditus(aditusIdsToDelete)
 }

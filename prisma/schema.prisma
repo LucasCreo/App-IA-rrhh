@@ -114,7 +114,7 @@ model Category {
 model Document {
   id              Int       @id @default(autoincrement())
   nombreArchivo   String
-  filePath        String
+  aditusId        String?
   periodo         String?
   metadata        String?   @db.NVarChar(Max)
   fechaCarga      DateTime  @default(now())
@@ -197,7 +197,7 @@ model TipoDocumento {
 model DocumentoGrupo {
   id              Int      @id @default(autoincrement())
   nombreArchivo   String
-  filePath        String
+  aditusId        String?
   periodo         String?
   tipoDocumentoId Int?
   cargadoPorId    Int
@@ -254,7 +254,7 @@ model LoteEmpleado {
 model LoteArchivoPendiente {
   id               Int      @id @default(autoincrement())
   loteId           Int
-  filePath         String
+  aditusId         String?
   nombreArchivo    String
   legajoDetectado  String?
   detectando       Boolean  @default(false)

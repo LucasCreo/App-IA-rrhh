@@ -4,8 +4,8 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
-import { unlink } from 'fs/promises'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
+import { deleteAditusFile } from '@/lib/aditus'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_DOCUMENTOS)
@@ -108,7 +108,9 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   if (!grupo) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   await prisma.documentoGrupo.delete({ where: { id: grupoId } })
-  try { await unlink(grupo.filePath) } catch { /* no-op */ }
+  if (grupo.aditusId) {
+    try { await deleteAditusFile(grupo.aditusId) } catch { /* best-effort */ }
+  }
 
   await logAction(user.userId, 'ELIMINAR_DOCUMENTO_GRUPO', 'Documento', `Grupo ${grupoId}: ${grupo.nombreArchivo}`)
   return NextResponse.json({ ok: true })

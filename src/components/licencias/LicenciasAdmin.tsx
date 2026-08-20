@@ -15,6 +15,7 @@ import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { TabSaldos } from '@/components/ausencias/AusenciasAdmin'
 import Link from 'next/link'
 import { Calendar, CalendarOff, Check, CheckCircle2, Clock, Paperclip, Search, X, XCircle } from 'lucide-react'
+import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 interface SolicitudAus {
   id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
@@ -353,7 +354,7 @@ function SolicitudesAusencia() {
               )}
               {review.archivoUrl && (
                 <button
-                  onClick={() => setPreview({ url: review.archivoUrl!, filename: review.archivoUrl!.split('/').pop() ?? undefined })}
+                  onClick={() => setPreview({ url: review.archivoUrl!, filename: displayNameFromArchivoUrl(review.archivoUrl) || undefined })}
                   className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
                 >
                   <Paperclip size={13} /> Ver adjunto

@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useRouter } from 'next/navigation'
-import { FileText, Plus, Search, Trash2, Send, Tag, Pencil } from 'lucide-react'
+import { FileText, Plus, Search, Trash2, Send, Tag, Pencil, Eye, X } from 'lucide-react'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { DocumentoGrupoEditarDialog } from './DocumentoGrupoEditarDialog'
 
@@ -56,6 +56,7 @@ export function DocumentosGruposTable() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
+  const [preview, setPreview] = useState<{ id: number; nombre: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -145,7 +146,8 @@ export function DocumentosGruposTable() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 min-h-0">
+      <div className="flex-1 min-w-0 overflow-auto p-4 sm:p-6 space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -190,8 +192,8 @@ export function DocumentosGruposTable() {
           </p>
         </div>
       ) : (
-        <div className="border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-muted">
               <tr>
                 <th className="w-10 px-3 py-2.5">
@@ -269,9 +271,14 @@ export function DocumentosGruposTable() {
                             <Send size={12} className="mr-1" /> {g.stats.borradores}
                           </Button>
                         )}
-                        <a href={`/api/documentos-grupos/${g.id}/archivo`} target="_blank" title="Ver archivo">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText size={13} /></Button>
-                        </a>
+                        <Button
+                          size="sm" variant="ghost"
+                          className={`h-7 w-7 p-0 ${preview?.id === g.id ? 'bg-muted' : ''}`}
+                          onClick={() => setPreview(preview?.id === g.id ? null : { id: g.id, nombre: g.nombreArchivo })}
+                          title={preview?.id === g.id ? 'Cerrar vista' : 'Ver archivo'}
+                        >
+                          <Eye size={13} />
+                        </Button>
                         <Button
                           size="sm" variant="ghost"
                           className="h-7 w-7 p-0"
@@ -351,6 +358,31 @@ export function DocumentosGruposTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
+
+      {preview !== null && (
+        <aside className="w-full sm:w-[420px] lg:w-[520px] shrink-0 border-l bg-card flex flex-col h-full">
+          <div className="h-12 flex items-center justify-between px-4 border-b bg-muted/30 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText size={14} className="text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate" title={preview.nombre}>{preview.nombre}</span>
+            </div>
+            <button
+              onClick={() => setPreview(null)}
+              className="p-1.5 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
+              title="Cerrar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <iframe
+            key={preview.id}
+            src={`/api/documentos-grupos/${preview.id}/archivo`}
+            className="flex-1 w-full bg-muted"
+            title={preview.nombre}
+          />
+        </aside>
+      )}
     </div>
   )
 }

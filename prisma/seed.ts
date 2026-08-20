@@ -11,6 +11,12 @@ async function main() {
     prisma.category.upsert({ where: { nombre: 'Gerente' }, update: {}, create: { nombre: 'Gerente' } }),
   ])
 
+  const areaGeneral = await prisma.area.upsert({
+    where: { nombre: 'General' },
+    update: {},
+    create: { nombre: 'General' },
+  })
+
   await prisma.user.upsert({
     where: { email: 'admin@empresa.com' },
     update: {},
@@ -32,6 +38,7 @@ async function main() {
       email: 'juan.garcia@empresa.com',
       telefono: '011-4444-5555',
       fechaIngreso: new Date('2022-03-01'),
+      areaId: areaGeneral.id,
       categoriaId: cats[0].id,
       estado: 'ACTIVO',
     },
@@ -58,6 +65,7 @@ async function main() {
       cuil: '27-98765432-1',
       email: 'maria.lopez@empresa.com',
       fechaIngreso: new Date('2021-06-15'),
+      areaId: areaGeneral.id,
       categoriaId: cats[2].id,
       estado: 'ACTIVO',
     },

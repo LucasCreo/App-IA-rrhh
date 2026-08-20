@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -18,8 +18,10 @@ export function GoogleCalendarSync({ connected: initialConnected, lastSync: init
   const searchParams = useSearchParams()
 
   const googleParam = searchParams.get('google')
-  if (googleParam === 'ok' && !connected) setConnected(true)
-  if (googleParam === 'error') toast.error('No se pudo conectar Google Calendar')
+  useEffect(() => {
+    if (googleParam === 'ok') setConnected(true)
+    if (googleParam === 'error') toast.error('No se pudo conectar Google Calendar')
+  }, [googleParam])
 
   async function handleDisconnect() {
     const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })

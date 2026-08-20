@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { DocumentosEmpleadoTabs } from '@/components/empleado/DocumentosEmpleadoTabs'
+import { MisDocumentos } from '@/components/empleado/MisDocumentos'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -22,7 +22,7 @@ export default async function DocumentosPage() {
         <h1 className="font-semibold text-green-900 dark:text-green-400">Documentos</h1>
       </header>
       <div className="flex-1 overflow-auto p-6">
-        <DocumentosEmpleadoTabs employeeId={decoded.employeeId} />
+        <MisDocumentos />
       </div>
     </div>
   )

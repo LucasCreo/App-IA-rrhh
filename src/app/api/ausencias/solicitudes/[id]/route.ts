@@ -103,7 +103,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         resultado: esAprobada ? 'aprobada' : 'rechazada',
         bloqueComentario: comentarioAdmin ? `<p><em>Comentario del administrador:</em> ${comentarioAdmin}</p>` : '',
       },
-      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/ausencias`,
+      ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/empleado/licencias`,
     }).catch(e => console.error('[email/ausencia-resolucion] fallo:', e))
   }
 

@@ -66,7 +66,7 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
         <ul className="divide-y">
           {posts.map(p => (
             <li key={p.id}>
-              <Link href={baseHref} className="block px-5 py-3 hover:bg-muted/40 transition-colors">
+              <Link href={`${baseHref}#post-${p.id}`} className="block px-5 py-3 hover:bg-muted/40 transition-colors">
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground">

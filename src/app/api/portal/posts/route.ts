@@ -19,15 +19,17 @@ export async function GET(req: NextRequest) {
   // Cap por defecto de 200 posts para evitar respuestas gigantes cuando el historial crezca
   const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : 200
 
-  // Categoría del usuario (si es empleado) para filtrar posts con alcance CATEGORIA
+  // Área y categoría del usuario (si es empleado) para filtrar posts con alcance restringido
   let miCategoriaId: number | null = null
+  let miAreaId: number | null = null
   let miCategoriaNombre: string | null = null
   if (user.employeeId) {
     const emp = await prisma.employee.findUnique({
       where: { id: user.employeeId },
-      select: { categoriaId: true, categoria: { select: { nombre: true } } },
+      select: { categoriaId: true, areaId: true, categoria: { select: { nombre: true } } },
     })
     miCategoriaId = emp?.categoriaId ?? null
+    miAreaId = emp?.areaId ?? null
     miCategoriaNombre = emp?.categoria?.nombre ?? null
   }
 
@@ -37,6 +39,10 @@ export async function GET(req: NextRequest) {
         { alcance: 'GLOBAL' },
         { autorId: user.userId },
         ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
+        ...(miAreaId ? [{ alcance: 'AREA', areaId: miAreaId }] : []),
+        ...(miAreaId && miCategoriaId
+          ? [{ alcance: 'AREA_CATEGORIA', areaId: miAreaId, categoriaId: miCategoriaId }]
+          : []),
       ],
     },
     orderBy: [{ pinned: 'desc' }, { pinnedAt: 'desc' }, { createdAt: 'desc' }] as any,
@@ -49,6 +55,7 @@ export async function GET(req: NextRequest) {
         },
       },
       categoria: { select: { id: true, nombre: true } },
+      area: { select: { id: true, nombre: true } },
       _count: { select: { comentarios: true, reacciones: true } },
       reacciones: { where: { userId: user.userId }, select: { tipo: true } },
     },
@@ -72,6 +79,7 @@ export async function GET(req: NextRequest) {
       imagenUrl: p.imagenUrl,
       alcance: p.alcance,
       categoria: p.categoria,
+      area: p.area,
       pinned: (p as any).pinned ?? false,
       createdAt: p.createdAt,
       editedAt: p.editedAt,
@@ -106,24 +114,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El post no puede estar vacío' }, { status: 400 })
   }
 
-  // Empleados solo pueden publicar en su propia categoría
+  // Empleados solo pueden publicar en su propia área+categoría (post interno)
   let alcance: string
-  let categoriaId: number | null
+  let categoriaId: number | null = null
+  let areaId: number | null = null
   if (esAdmin) {
     alcance = (formData.get('alcance') as string) || 'GLOBAL'
-    if (alcance !== 'GLOBAL' && alcance !== 'CATEGORIA') {
+    if (!['GLOBAL', 'AREA', 'CATEGORIA', 'AREA_CATEGORIA'].includes(alcance)) {
       return NextResponse.json({ error: 'Alcance inválido' }, { status: 400 })
     }
-    const raw = formData.get('categoriaId')
-    categoriaId = alcance === 'CATEGORIA' && raw ? Number(raw) : null
-    if (alcance === 'CATEGORIA' && !categoriaId) {
-      return NextResponse.json({ error: 'Seleccioná una categoría para el alcance limitado' }, { status: 400 })
+    const rawArea = formData.get('areaId')
+    const rawCat = formData.get('categoriaId')
+    areaId = (alcance === 'AREA' || alcance === 'AREA_CATEGORIA') && rawArea ? Number(rawArea) : null
+    categoriaId = (alcance === 'CATEGORIA' || alcance === 'AREA_CATEGORIA') && rawCat ? Number(rawCat) : null
+    if ((alcance === 'AREA' || alcance === 'AREA_CATEGORIA') && !areaId) {
+      return NextResponse.json({ error: 'Seleccioná un área' }, { status: 400 })
+    }
+    if ((alcance === 'CATEGORIA' || alcance === 'AREA_CATEGORIA') && !categoriaId) {
+      return NextResponse.json({ error: 'Seleccioná una categoría' }, { status: 400 })
+    }
+    // Verificar que los IDs existan
+    if (areaId) {
+      const exists = await prisma.area.findUnique({ where: { id: areaId }, select: { id: true } })
+      if (!exists) return NextResponse.json({ error: 'Área inexistente' }, { status: 400 })
+    }
+    if (categoriaId) {
+      const exists = await prisma.category.findUnique({ where: { id: categoriaId }, select: { id: true } })
+      if (!exists) return NextResponse.json({ error: 'Categoría inexistente' }, { status: 400 })
     }
   } else {
     if (!user.employeeId) return NextResponse.json({ error: 'Sin empleado asociado' }, { status: 400 })
-    const emp = await prisma.employee.findUnique({ where: { id: user.employeeId }, select: { categoriaId: true } })
+    const emp = await prisma.employee.findUnique({ where: { id: user.employeeId }, select: { categoriaId: true, areaId: true } })
     if (!emp) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 400 })
-    alcance = 'CATEGORIA'
+    alcance = 'AREA_CATEGORIA'
+    areaId = emp.areaId
     categoriaId = emp.categoriaId
   }
 
@@ -148,6 +172,7 @@ export async function POST(req: NextRequest) {
       contenido: contenido ? sanitizePostHtml(contenido) : '',
       imagenUrl,
       alcance,
+      areaId,
       categoriaId,
     },
   })
@@ -157,14 +182,15 @@ export async function POST(req: NextRequest) {
   const notificar = formData.get('notificar') !== 'false'
   if (notificar) {
     // Destinatarios: empleados con acceso al sistema del scope del post, excepto el autor
+    const empFilter: Record<string, unknown> = { estado: 'ACTIVO' }
+    if (areaId) empFilter.areaId = areaId
+    if (categoriaId) empFilter.categoriaId = categoriaId
     const destinatarios = await prisma.user.findMany({
       where: {
         id: { not: user.userId },
         email: { not: '' },
         employeeId: { not: null },
-        ...(alcance === 'CATEGORIA' && categoriaId
-          ? { employee: { categoriaId, estado: 'ACTIVO' } }
-          : { employee: { estado: 'ACTIVO' } }),
+        employee: empFilter,
       },
       select: {
         email: true,

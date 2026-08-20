@@ -4,6 +4,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { validateFile } from '@/lib/fileValidation'
 import { uploadAditusFile, getAditusFile } from '@/lib/aditus'
 import { formularioProps, encodeArchivoRef, parseArchivoRef, displayNameFromRef } from '@/lib/aditusSolicitudes'
+import { marcarSubidoPor, fueSubidoRecientementePor } from '@/lib/archivosSubidos'
+import { getScopedEmployeeIds } from '@/lib/scope'
 
 const MAX_SIZE = 10 * 1024 * 1024
 
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
         fileName: file.name,
       }),
     })
+    marcarSubidoPor(aditusId, user.userId)
     return NextResponse.json({ fileName: encodeArchivoRef(aditusId, file.name), nombre: file.name })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
@@ -61,6 +64,24 @@ export async function GET(req: NextRequest) {
 
   const { aditusId, nombre } = parseArchivoRef(ref)
   if (!aditusId) return NextResponse.json({ error: 'Ref inválida' }, { status: 400 })
+
+  // Autorización: dueño de la respuesta, admin con scope, o quien acaba de subirlo
+  const owner = await prisma.respuestaFormulario.findFirst({
+    where: { datos: { contains: aditusId } },
+    select: { employeeId: true },
+  })
+  if (owner) {
+    if (user.role === 'ADMIN') {
+      const scope = await getScopedEmployeeIds(user.userId)
+      if (scope && !scope.has(owner.employeeId)) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+      }
+    } else if (owner.employeeId !== user.employeeId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+  } else if (!fueSubidoRecientementePor(aditusId, user.userId)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   try {
     const f = await getAditusFile(aditusId, { download: true })

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { FileText, BookOpen, Pen, Download, Search } from 'lucide-react'
+import { FileText, BookOpen, Pen, Download, Search, Eye, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination, paginate } from '@/components/ui/pagination'
 import { FirmarDocumentoDialog } from '@/components/empleado/FirmarDocumentoDialog'
+import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { cn } from '@/lib/utils'
 
 interface AsignacionApi {
@@ -48,6 +49,7 @@ export function MisDocumentos({ employeeId }: Props) {
   const [acting, setActing] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [preview, setPreview] = useState<{ grupoId: number; nombre: string } | null>(null)
 
   useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro])
 
@@ -57,8 +59,9 @@ export function MisDocumentos({ employeeId }: Props) {
     setLoading(true)
     const url = employeeId ? `/api/asignaciones/mis?employeeId=${employeeId}` : `/api/asignaciones/mis`
     fetch(url)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then(d => setAsigns(d.asignaciones ?? []))
+      .catch(() => toast.error('No se pudieron cargar los documentos'))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [employeeId])
@@ -152,7 +155,7 @@ export function MisDocumentos({ employeeId }: Props) {
 
       {loading ? (
         <div className="space-y-2">
-          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
@@ -160,25 +163,91 @@ export function MisDocumentos({ employeeId }: Props) {
           <p className="text-sm">Sin resultados</p>
         </div>
       ) : (
-        <div className="divide-y">
-          {paginate(filtered, page, pageSize).map(item => (
-            <div key={item.key} className="flex flex-col sm:flex-row sm:items-center gap-3 px-3 sm:px-5 py-4">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{item.titulo}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {item.subtitulo ? `${item.subtitulo} · ` : ''}
-                    {new Date(item.fecha).toLocaleDateString('es-AR')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="sm:shrink-0">
-                <AsignActions asign={item.asign} acting={acting} onFirmar={setFirmaAsign} onMarcarLeido={marcarLeido} />
-              </div>
-            </div>
-          ))}
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-muted">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-medium">Documento</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Tipo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Fecha</th>
+                <th className="text-left px-4 py-2.5 font-medium">Estado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginate(filtered, page, pageSize).map(item => {
+                const accion = item.asign.grupo.tipoDocumento?.accion
+                const url = `/api/documentos-grupos/${item.asign.grupo.id}/archivo`
+                return (
+                  <tr key={item.key} className="border-t hover:bg-muted/40 transition-colors">
+                    <td className="px-4 py-2 font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={13} className="text-muted-foreground shrink-0" />
+                        <span className="truncate" title={item.titulo}>{item.titulo}</span>
+                      </div>
+                      {item.subtitulo && (
+                        <p className="text-[11px] text-muted-foreground pl-5 truncate">{item.subtitulo}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      {item.asign.grupo.tipoDocumento?.nombre ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                          <Tag size={10} />
+                          {item.asign.grupo.tipoDocumento.nombre}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell">
+                      {new Date(item.fecha).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge estado={item.asign.estado} accion={accion} pov="empleado" />
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        {accion === 'LECTURA' && item.asign.estado === 'ENVIADO_A_FIRMA' && (
+                          <Button
+                            size="sm"
+                            className="bg-green-700 hover:bg-green-800 text-white h-7 text-xs"
+                            disabled={acting === item.asign.id}
+                            onClick={() => marcarLeido(item.asign.id)}
+                          >
+                            <BookOpen size={12} className="mr-1" />
+                            {acting === item.asign.id ? '...' : 'Marcar leído'}
+                          </Button>
+                        )}
+                        {accion === 'FIRMA' && item.asign.estado === 'ENVIADO_A_FIRMA' && (
+                          <Button
+                            size="sm"
+                            className="bg-green-700 hover:bg-green-800 text-white h-7 text-xs"
+                            onClick={() => setFirmaAsign(item.asign)}
+                          >
+                            <Pen size={12} className="mr-1" /> Firmar
+                          </Button>
+                        )}
+                        <Button
+                          size="sm" variant="ghost"
+                          className={`h-7 w-7 p-0 ${preview?.grupoId === item.asign.grupo.id ? 'bg-muted' : ''}`}
+                          onClick={() => setPreview({ grupoId: item.asign.grupo.id, nombre: item.asign.grupo.nombreArchivo })}
+                          title="Ver archivo"
+                          aria-label="Ver archivo"
+                        >
+                          <Eye size={13} />
+                        </Button>
+                        <a href={url} download={item.asign.grupo.nombreArchivo} aria-label="Descargar documento">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Descargar" aria-label="Descargar documento">
+                            <Download size={13} />
+                          </Button>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -200,45 +269,13 @@ export function MisDocumentos({ employeeId }: Props) {
         onClose={() => setFirmaAsign(null)}
         onFirmado={load}
       />
+
+      <ArchivoPreviewDialog
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        url={preview ? `/api/documentos-grupos/${preview.grupoId}/archivo` : null}
+        filename={preview?.nombre ?? null}
+      />
     </div>
   )
 }
-
-function AsignActions({ asign, acting, onFirmar, onMarcarLeido }: {
-  asign: AsignacionApi
-  acting: number | null
-  onFirmar: (a: AsignacionApi) => void
-  onMarcarLeido: (id: number) => void
-}) {
-  const accion = asign.grupo.tipoDocumento?.accion
-  const pendienteFirma = accion === 'FIRMA' && asign.estado === 'ENVIADO_A_FIRMA'
-  const pendienteLectura = accion === 'LECTURA' && asign.estado === 'ENVIADO_A_FIRMA'
-  const url = `/api/documentos-grupos/${asign.grupo.id}/archivo`
-  return (
-    <div className="flex items-center gap-2 shrink-0">
-      <StatusBadge estado={asign.estado} accion={accion} pov="empleado" />
-      {pendienteLectura && (
-        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" disabled={acting === asign.id} onClick={() => onMarcarLeido(asign.id)}>
-          <BookOpen size={13} className="mr-1" />
-          {acting === asign.id ? '...' : 'Marcar leído'}
-        </Button>
-      )}
-      {pendienteFirma && (
-        <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-8 text-xs" onClick={() => onFirmar(asign)}>
-          <Pen size={13} className="mr-1" /> Firmar
-        </Button>
-      )}
-      {!pendienteFirma && !pendienteLectura && (
-        <div className="flex items-center gap-1">
-          <a href={url} target="_blank">
-            <Button size="sm" variant="ghost" className="h-8 w-8 p-0"><FileText size={14} /></Button>
-          </a>
-          <a href={url} download={asign.grupo.nombreArchivo}>
-            <Button size="sm" variant="ghost" className="h-8 w-8 p-0"><Download size={14} /></Button>
-          </a>
-        </div>
-      )}
-    </div>
-  )
-}
-

@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
+import { puedeAccederAPost } from '@/lib/portalAcceso'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
+  const postId = Number(id)
+  if (!(await puedeAccederAPost(user, postId))) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const reacciones = await prisma.postReaction.findMany({
-    where: { postId: Number(id) },
+    where: { postId },
     orderBy: { createdAt: 'desc' },
     include: {
       user: {

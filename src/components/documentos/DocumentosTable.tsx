@@ -26,7 +26,7 @@ interface Doc {
   id: number; nombreArchivo: string; periodo: string | null; estado: string
   fechaCarga: string; fechaFirma?: string
   firmaConforme?: boolean | null
-  employee: { nombre: string; apellido: string; legajo: string }
+  employee: { nombre: string; apellido: string; legajo: string; puesto?: string | null; area?: { nombre: string } | null }
   cargadoPor: { email: string }
   tipoDocumento?: { id: number; nombre: string; accion: string } | null
   lote?: { id: number; nombre: string } | null
@@ -64,6 +64,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const [filtTipoId, setFiltTipoId] = useState('todos')
   const [filtEmpleadoId, setFiltEmpleadoId] = useState('todos')
   const [filtCategoriaId, setFiltCategoriaId] = useState('todos')
+  const [filtAreaId, setFiltAreaId] = useState('todos')
   const [filtLoteId, setFiltLoteId] = useState('todos')
   const [filtQ, setFiltQ] = useState('')
   const [filtQDebounced, setFiltQDebounced] = useState('')
@@ -71,6 +72,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const [tipos, setTipos] = useState<{ id: number; nombre: string }[]>([])
   const [empleados, setEmpleados] = useState<{ id: number; nombre: string; apellido: string; legajo: string; categoria?: { id: number; nombre: string } | null }[]>([])
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
+  const [areas, setAreas] = useState<{ id: number; nombre: string }[]>([])
   const [lotes, setLotes] = useState<{ id: number; nombre: string; periodo: string }[]>([])
   const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
@@ -89,6 +91,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
     if (filtTipoId !== 'todos') params.set('tipoDocumentoId', filtTipoId)
     if (filtEmpleadoId !== 'todos') params.set('employeeId', filtEmpleadoId)
     if (filtCategoriaId !== 'todos') params.set('categoriaId', filtCategoriaId)
+    if (filtAreaId !== 'todos') params.set('areaId', filtAreaId)
     if (filtLoteId !== 'todos') params.set('loteId', filtLoteId)
     if (filtQDebounced.trim()) params.set('q', filtQDebounced.trim())
     if (esRecibo !== undefined) params.set('recibo', String(esRecibo))
@@ -105,7 +108,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
         setSelected(new Set())
       })
       .finally(() => setLoading(false))
-  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtLoteId, filtQDebounced, filtConformidad, esRecibo, employeeId, sinLote, page])
+  }, [filtPeriodo, filtEstado, filtTipoId, filtEmpleadoId, filtCategoriaId, filtAreaId, filtLoteId, filtQDebounced, filtConformidad, esRecibo, employeeId, sinLote, page])
 
   useEffect(() => { load() }, [load])
 
@@ -125,6 +128,7 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
           setEmpleados(d.employees ?? [])
         })
       fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+      fetch('/api/areas').then(r => r.json()).then(d => setAreas(Array.isArray(d) ? d : []))
       // Lotes solo tienen sentido para recibos en scope global
       if (esRecibo === true) {
         fetch('/api/lotes').then(r => r.json()).then(d => setLotes(Array.isArray(d) ? d : []))
@@ -474,6 +478,18 @@ function exportCSV() {
             </div>
           </div>
         )}
+        {!employeeId && areas.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Área</p>
+            <Select value={filtAreaId} onValueChange={v => { setFiltAreaId(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas</SelectItem>
+                {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {!employeeId && categorias.length > 0 && (
           <div>
             <p className="text-xs text-muted-foreground mb-1">Categoría</p>
@@ -655,7 +671,11 @@ function exportCSV() {
                     {!employeeId && (
                       <TableCell>
                         <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
-                        <div className="text-xs text-muted-foreground">{doc.employee.legajo}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {doc.employee.legajo}
+                          {doc.employee.area?.nombre && <> · {doc.employee.area.nombre}</>}
+                          {doc.employee.puesto && <> · {doc.employee.puesto}</>}
+                        </div>
                       </TableCell>
                     )}
                     {esRecibo !== false && (

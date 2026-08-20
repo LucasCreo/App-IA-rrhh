@@ -4,16 +4,18 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, CalendarDays, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, GripVertical, IdCard, Plane } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, Menu, X, Shield, Newspaper, GripVertical, Plane, FileText, FolderOpen, ClipboardList } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 
 const NAV_INICIO = { href: '/empleado', label: 'Inicio', icon: LayoutDashboard }
 const NAV_DRAGGABLE = [
-  { href: '/empleado/mi-legajo', label: 'Mi Legajo', icon: IdCard },
+  { href: '/empleado/recibos', label: 'Recibos', icon: FileText },
+  { href: '/empleado/documentos', label: 'Documentos', icon: FolderOpen },
+  { href: '/empleado/solicitudes', label: 'Solicitudes', icon: ClipboardList },
+  { href: '/empleado/licencias', label: 'Licencias', icon: Plane },
   { href: '/empleado/portal', label: 'Avisos', icon: Newspaper },
   { href: '/empleado/calendario', label: 'Calendario', icon: CalendarDays },
-  { href: '/empleado/licencias', label: 'Licencias', icon: Plane },
 ]
 
 interface Props {
@@ -174,12 +176,11 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
           const active = pathname.startsWith(href)
           const tourKey = href.replace('/empleado', '').replace('/', '') || 'inicio'
           let badge = 0
-          let badgeColor = 'bg-blue-500'
           if (href === '/empleado/portal') badge = avisosUnread
-          else if (href === '/empleado/documentos') { badge = badges.documentos ?? 0; badgeColor = 'bg-blue-500' }
-          else if (href === '/empleado/recibos') { badge = badges.recibos ?? 0; badgeColor = 'bg-blue-500' }
-          else if (href === '/empleado/solicitudes') { badge = badges.solicitudes ?? 0; badgeColor = 'bg-blue-500' }
-          else if (href === '/empleado/licencias') { badge = badges.licencias ?? 0; badgeColor = 'bg-blue-500' }
+          else if (href === '/empleado/documentos') badge = badges.documentos ?? 0
+          else if (href === '/empleado/recibos') badge = badges.recibos ?? 0
+          else if (href === '/empleado/solicitudes') badge = badges.solicitudes ?? 0
+          else if (href === '/empleado/licencias') badge = badges.licencias ?? 0
           return (
             <div
               key={href}
@@ -208,11 +209,11 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
                 {!collapsed && <span className="flex-1">{label}</span>}
                 {badge > 0 && (
                   collapsed ? (
-                    <span className={cn('absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
+                    <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
                       {badge > 9 ? '9+' : badge}
                     </span>
                   ) : (
-                    <span className={cn('min-w-5 h-5 px-1.5 rounded-full text-white text-[10px] font-bold flex items-center justify-center', badgeColor)}>
+                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
                       {badge > 99 ? '99+' : badge}
                     </span>
                   )

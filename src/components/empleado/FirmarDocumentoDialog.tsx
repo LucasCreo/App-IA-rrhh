@@ -10,6 +10,21 @@ import { Eye, EyeOff } from 'lucide-react'
 
 const TIEMPO_MIN_SEG_DEFAULT = 10
 
+let firmaMinSegCache: number | null = null
+async function loadFirmaMinSeg(): Promise<number | null> {
+  if (firmaMinSegCache !== null) return firmaMinSegCache
+  try {
+    const r = await fetch('/api/configuracion/general')
+    if (!r.ok) return null
+    const cfg = await r.json()
+    if (typeof cfg?.firmaMinSec === 'number' && cfg.firmaMinSec >= 0) {
+      firmaMinSegCache = cfg.firmaMinSec
+      return firmaMinSegCache
+    }
+  } catch {}
+  return null
+}
+
 interface Props {
   open: boolean
   docId: number | null
@@ -41,12 +56,12 @@ export function FirmarDocumentoDialog({ open, docId, endpoint = 'documentos', ar
     setComentario('')
     setPasoFirma(false)
     setSegundosRestantes(tiempoMinSeg)
-    fetch('/api/configuracion/general').then(r => r.ok ? r.json() : null).then(cfg => {
-      if (cfg && typeof cfg.firmaMinSec === 'number' && cfg.firmaMinSec >= 0) {
-        setTiempoMinSeg(cfg.firmaMinSec)
-        setSegundosRestantes(cfg.firmaMinSec)
+    loadFirmaMinSeg().then(v => {
+      if (v !== null) {
+        setTiempoMinSeg(v)
+        setSegundosRestantes(v)
       }
-    }).catch(() => {})
+    })
     intervalRef.current = setInterval(() => {
       setSegundosRestantes(s => {
         if (s <= 1) {

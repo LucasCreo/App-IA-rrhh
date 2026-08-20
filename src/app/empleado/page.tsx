@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { FileText, Send, CalendarDays, Tag, ChevronRight, IdCard, ArrowUpRight, FolderOpen } from 'lucide-react'
+import { FileText, Send, CalendarDays, Tag, ChevronRight, User, ArrowUpRight, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { TourEmpleado } from '@/components/empleado/TourEmpleado'
@@ -59,7 +59,7 @@ export default async function EmpleadoPage() {
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Bienvenida */}
         <Link
-          href="/empleado/mi-legajo"
+          href="/empleado/perfil"
           className="block rounded-xl border bg-card p-5 shadow-sm hover:shadow-md hover:border-green-500/60 transition-all group"
         >
           <div className="flex items-center gap-4">
@@ -83,7 +83,7 @@ export default async function EmpleadoPage() {
               </p>
             </div>
             <span className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 opacity-70 group-hover:opacity-100 transition-opacity shrink-0">
-              <IdCard size={13} /> Mi legajo <ChevronRight size={12} />
+              <User size={13} /> Mi perfil <ChevronRight size={12} />
             </span>
           </div>
         </Link>

@@ -83,11 +83,14 @@ model Employee {
   email        String   @unique
   telefono     String?
   fechaIngreso DateTime
+  areaId       Int
   categoriaId  Int
+  puesto       String?
   estado       String   @default("ACTIVO")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  area                    Area                    @relation(fields: [areaId], references: [id])
   categoria               Category                @relation(fields: [categoriaId], references: [id])
   user                    User?
   documents               Document[]
@@ -105,6 +108,13 @@ model Employee {
 }
 
 model Category {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  employees Employee[]
+  posts     Post[]
+}
+
+model Area {
   id        Int        @id @default(autoincrement())
   nombre    String     @unique
   employees Employee[]
@@ -139,7 +149,8 @@ model Post {
   autorId     Int
   contenido   String    @db.NVarChar(Max)
   imagenUrl   String?
-  alcance     String    @default("GLOBAL") // GLOBAL | CATEGORIA
+  alcance     String    @default("GLOBAL") // GLOBAL | AREA | CATEGORIA | AREA_CATEGORIA
+  areaId      Int?
   categoriaId Int?
   pinned      Boolean   @default(false)
   pinnedAt    DateTime?
@@ -148,6 +159,7 @@ model Post {
   editedAt    DateTime?
 
   autor       User           @relation("PostAutor", fields: [autorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  area        Area?          @relation(fields: [areaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   categoria   Category?      @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reacciones  PostReaction[]
   comentarios PostComment[]

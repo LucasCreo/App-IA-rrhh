@@ -25,9 +25,12 @@ import { BloqueoEliminacionDialog } from '@/components/shared/BloqueoEliminacion
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 
 interface Categoria { id: number; nombre: string }
+interface Area { id: number; nombre: string }
 interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
   email: string; telefono?: string; fechaIngreso: string; estado: string
+  puesto?: string | null
+  area?: { nombre: string } | null; areaId?: number
   categoria: { nombre: string }; categoriaId: number
   user?: {
     avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null
@@ -66,8 +69,10 @@ export function EmpleadosTable() {
   const [qDebounced, setQDebounced] = useState(q)
   const [estado, setEstado] = useState(() => searchParams.get('estado') ?? '')
   const [categoriaId, setCategoriaId] = useState(() => searchParams.get('categoriaId') ?? '')
+  const [areaId, setAreaId] = useState(() => searchParams.get('areaId') ?? '')
   const [sinAcceso, setSinAcceso] = useState(() => searchParams.get('sinAcceso') === 'true')
   const [cats, setCats] = useState<Categoria[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
   const [page, setPage] = useState(() => Number(searchParams.get('page') ?? '1') || 1)
   const [pageSize, setPageSize] = useState<number>(() => {
     const l = Number(searchParams.get('limit') ?? '20')
@@ -88,6 +93,7 @@ export function EmpleadosTable() {
 
   useEffect(() => {
     fetch('/api/categorias').then(r => r.json()).then(setCats)
+    fetch('/api/areas').then(r => r.json()).then(setAreas)
   }, [])
 
   // Debounce del input de búsqueda (300ms)
@@ -102,6 +108,7 @@ export function EmpleadosTable() {
     if (qDebounced) params.set('q', qDebounced)
     if (estado) params.set('estado', estado)
     if (categoriaId) params.set('categoriaId', categoriaId)
+    if (areaId) params.set('areaId', areaId)
     if (sinAcceso) params.set('sinAcceso', 'true')
     if (page > 1) params.set('page', String(page))
     if (pageSize !== 20) params.set('limit', String(pageSize))
@@ -109,13 +116,14 @@ export function EmpleadosTable() {
     if (sortOrder !== 'asc') params.set('sortOrder', sortOrder)
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [qDebounced, estado, categoriaId, sinAcceso, page, pageSize, sortBy, sortOrder, pathname, router])
+  }, [qDebounced, estado, categoriaId, areaId, sinAcceso, page, pageSize, sortBy, sortOrder, pathname, router])
 
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams({ q: qDebounced, page: String(page), limit: String(pageSize) })
     if (estado) params.set('estado', estado)
     if (categoriaId) params.set('categoriaId', categoriaId)
+    if (areaId) params.set('areaId', areaId)
     if (sinAcceso) params.set('sinAcceso', 'true')
     params.set('sortBy', sortBy)
     params.set('sortOrder', sortOrder)
@@ -123,7 +131,7 @@ export function EmpleadosTable() {
       .then(r => r.json())
       .then(setData)
       .finally(() => setLoading(false))
-  }, [qDebounced, estado, categoriaId, sinAcceso, page, pageSize, sortBy, sortOrder])
+  }, [qDebounced, estado, categoriaId, areaId, sinAcceso, page, pageSize, sortBy, sortOrder])
 
   useEffect(() => { load() }, [load])
 
@@ -156,7 +164,8 @@ export function EmpleadosTable() {
     const ws = XLSX.utils.json_to_sheet(empsSel.map(e => ({
       'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
       'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono ?? '',
-      'Categoría': e.categoria.nombre, 'Estado': e.estado,
+      'Área': e.area?.nombre ?? '', 'Categoría': e.categoria.nombre,
+      'Puesto': e.puesto ?? '', 'Estado': e.estado,
       'Fecha Ingreso': e.fechaIngreso,
     })))
     const wb = XLSX.utils.book_new()
@@ -215,6 +224,7 @@ export function EmpleadosTable() {
 
   const activeFilters = [
     estado && { key: 'estado', label: estado === 'ACTIVO' ? 'Activo' : 'Inactivo', clear: () => { setEstado(''); setPage(1) } },
+    areaId && { key: 'area', label: areas.find(a => String(a.id) === areaId)?.nombre ?? '', clear: () => { setAreaId(''); setPage(1) } },
     categoriaId && { key: 'cat', label: cats.find(c => String(c.id) === categoriaId)?.nombre ?? '', clear: () => { setCategoriaId(''); setPage(1) } },
     sinAcceso && { key: 'sinAcceso', label: 'Sin acceso al sistema', clear: () => { setSinAcceso(false); setPage(1) } },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[]
@@ -276,6 +286,38 @@ export function EmpleadosTable() {
                   </div>
                 </div>
 
+                {/* Área */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Área</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => { setAreaId(''); setPage(1) }}
+                      className={cn(
+                        'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                        areaId === ''
+                          ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                          : 'border-input hover:bg-muted text-muted-foreground',
+                      )}
+                    >
+                      Todas
+                    </button>
+                    {areas.map(a => (
+                      <button
+                        key={a.id}
+                        onClick={() => { setAreaId(String(a.id)); setPage(1) }}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                          areaId === String(a.id)
+                            ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                            : 'border-input hover:bg-muted text-muted-foreground',
+                        )}
+                      >
+                        {a.nombre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Categoría */}
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Categoría</p>
@@ -323,7 +365,7 @@ export function EmpleadosTable() {
 
                 {filterCount > 0 && (
                   <button
-                    onClick={() => { setEstado(''); setCategoriaId(''); setSinAcceso(false); setPage(1) }}
+                    onClick={() => { setEstado(''); setCategoriaId(''); setAreaId(''); setSinAcceso(false); setPage(1) }}
                     className="w-full rounded-md border border-input px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
                   >
                     Limpiar filtros
@@ -359,6 +401,7 @@ export function EmpleadosTable() {
             if (qDebounced) params.set('q', qDebounced)
             if (estado) params.set('estado', estado)
             if (categoriaId) params.set('categoriaId', categoriaId)
+            if (areaId) params.set('areaId', areaId)
             const qs = params.toString()
             const data = await fetch(`/api/empleados/export${qs ? `?${qs}` : ''}`).then(r => r.json())
             const campos: Array<{ nombre: string }> = data.campos ?? []
@@ -367,7 +410,10 @@ export function EmpleadosTable() {
               const base: Record<string, string> = {
                 'Legajo': e.legajo, 'Apellido': e.apellido, 'Nombre': e.nombre,
                 'CUIL': e.cuil, 'Email': e.email, 'Teléfono': e.telefono,
-                'Categoría': e.categoria, 'Estado': e.estado, 'Fecha Ingreso': e.fechaIngreso,
+                'Área': (e as Record<string, string>).area ?? '',
+                'Categoría': e.categoria,
+                'Puesto': (e as Record<string, string>).puesto ?? '',
+                'Estado': e.estado, 'Fecha Ingreso': e.fechaIngreso,
               }
               for (const c of campos) base[c.nombre] = e.valores?.[c.nombre] ?? ''
               return base
@@ -403,7 +449,7 @@ export function EmpleadosTable() {
             </span>
           ))}
           <button
-            onClick={() => { setEstado(''); setCategoriaId(''); setSinAcceso(false); setPage(1) }}
+            onClick={() => { setEstado(''); setCategoriaId(''); setAreaId(''); setSinAcceso(false); setPage(1) }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Limpiar todo
@@ -436,7 +482,9 @@ export function EmpleadosTable() {
                 <SortableHead campo="apellido" label="Nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>CUIL</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Área</TableHead>
                 <SortableHead campo="categoria" label="Categoría" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <TableHead>Puesto</TableHead>
                 <TableHead>Reporta a</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -445,7 +493,7 @@ export function EmpleadosTable() {
             <TableBody>
               {data.employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground text-sm">
                     No se encontraron empleados
                   </TableCell>
                 </TableRow>
@@ -481,7 +529,11 @@ export function EmpleadosTable() {
                   </TableCell>
                   <TableCell className="font-mono text-sm">{emp.cuil ? formatearCuil(emp.cuil) : ''}</TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate max-w-xs">{emp.email}</TableCell>
+                  <TableCell className="text-sm">{emp.area?.nombre ?? <span className="text-muted-foreground italic">—</span>}</TableCell>
                   <TableCell>{emp.categoria.nombre}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground truncate max-w-[160px]">
+                    {emp.puesto ?? <span className="italic text-xs">—</span>}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate max-w-[180px]">
                     {emp.user?.manager?.employee
                       ? `${emp.user.manager.employee.apellido}, ${emp.user.manager.employee.nombre}`

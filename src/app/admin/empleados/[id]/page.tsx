@@ -28,9 +28,11 @@ import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft, Network } from 'lucide-react'
 
 interface Categoria { id: number; nombre: string }
+interface Area { id: number; nombre: string }
 interface Empleado {
   id: number; legajo: string; nombre: string; apellido: string; cuil: string
-  email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
+  email: string; telefono?: string; fechaIngreso: string
+  areaId: number; categoriaId: number; puesto?: string; estado: string
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean }
@@ -46,6 +48,7 @@ export default function EmpleadoDetailPage() {
   const fromDashboard = searchParams.get('from') === 'dashboard'
   const [form, setForm] = useState<Empleado | null>(null)
   const [cats, setCats] = useState<Categoria[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -78,11 +81,13 @@ export default function EmpleadoDetailPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/categorias').then(r => r.json()),
+      fetch('/api/areas').then(r => r.json()),
       fetch('/api/configuracion/empleados-campos').then(r => r.json()),
       fetch('/api/configuracion/campos-personalizados').then(r => r.json()),
       fetch(`/api/empleados/${id}`).then(r => r.json()),
-    ]).then(([catsData, fieldCfg, camposCfg, empData]) => {
+    ]).then(([catsData, areasData, fieldCfg, camposCfg, empData]) => {
       setCats(catsData)
+      setAreas(areasData)
       setFieldConfig(fieldCfg)
       setCamposCustom(camposCfg)
       setForm({
@@ -94,7 +99,9 @@ export default function EmpleadoDetailPage() {
         email: empData.email,
         telefono: empData.telefono ?? '',
         fechaIngreso: empData.fechaIngreso,
+        areaId: empData.areaId,
         categoriaId: empData.categoriaId,
+        puesto: empData.puesto ?? '',
         estado: empData.estado,
       })
       const map: Record<number, string> = {}
@@ -174,6 +181,7 @@ export default function EmpleadoDetailPage() {
     }
     if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
+    if (!form.areaId) errs.add('area')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
@@ -353,6 +361,19 @@ export default function EmpleadoDetailPage() {
                 />
               </div>
             )}
+            <div>
+              <Label className="mb-1.5">Área <span className="text-red-500 ml-1">*</span></Label>
+              <Select value={form.areaId ? String(form.areaId) : ''} onValueChange={v => { if (v) { setField('areaId')(v); clearError('area') } }}>
+                <SelectTrigger className={cn('mt-1 w-full', err('area') && 'border-red-500 focus:ring-red-500')}>
+                  <SelectValue placeholder="Seleccionar">
+                    {areas.find(a => a.id === Number(form.areaId))?.nombre ?? 'Seleccionar'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
+                  {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             {isVisible('categoria') && (
               <div>
                 <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
@@ -368,6 +389,15 @@ export default function EmpleadoDetailPage() {
                 </Select>
               </div>
             )}
+            <div>
+              <Label className="mb-1.5">Puesto <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input
+                value={form.puesto ?? ''}
+                onChange={e => setField('puesto')(e.target.value)}
+                placeholder="Ej: Diseñador Gráfico"
+                className="mt-1"
+              />
+            </div>
             {isVisible('estado') && (
               <div>
                 <Label className="mb-1.5">Estado</Label>
@@ -511,21 +541,11 @@ export default function EmpleadoDetailPage() {
           </div>
         )}
 
-        {/* Acceso al sistema */}
+        {/* Acceso al sistema — solo cuando el empleado NO tiene usuario aún */}
+        {!existingUser && (
         <div className="rounded-xl border bg-card shadow-sm p-5 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acceso al sistema</p>
-          {existingUser ? (
-            <div>
-              <Label className="mb-1.5">Nombre de usuario</Label>
-              <Input
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="Sin nombre de usuario"
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Email: {existingUser.email}</p>
-            </div>
-          ) : (
+          {(
             <>
               <div className="flex items-center gap-2">
                 <Checkbox id="crearUsuario" checked={crearUsuario} onCheckedChange={v => setCrearUsuario(!!v)} />
@@ -619,6 +639,7 @@ export default function EmpleadoDetailPage() {
             </>
           )}
         </div>
+        )}
 
         <div className="flex justify-end gap-2 pb-8">
           <Button variant="outline" onClick={() => router.push('/admin/empleados')}>Cancelar</Button>

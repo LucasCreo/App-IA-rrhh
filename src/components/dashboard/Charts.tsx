@@ -8,7 +8,7 @@ const CAT_COLORS = ['#16a34a', '#2563eb', '#ca8a04', '#dc2626', '#7c3aed', '#089
 interface Props {
   solicitudesPorEstado?: Array<{ name: string; value: number; color: string }>
   recibosPorEstado?: Array<{ name: string; value: number; color: string }>
-  empleadosPorCategoria: Array<{ nombre: string; cantidad: number }>
+  empleadosPorArea: Array<{ nombre: string; cantidad: number }>
 }
 
 const lightTooltip = {
@@ -40,7 +40,7 @@ function Legend({ items }: { items: Array<{ label: string; color: string; value:
   )
 }
 
-export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorCategoria }: Props) {
+export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorArea }: Props) {
   const { theme } = useTheme()
   const tooltip = theme === 'dark' ? darkTooltip : lightTooltip
 
@@ -52,14 +52,14 @@ export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorCat
     .filter(d => d.value > 0)
     .map(d => ({ id: d.name, label: d.name, value: d.value, color: d.color }))
 
-  const catPieData = empleadosPorCategoria.map((e, i) => ({
+  const areaPieData = empleadosPorArea.map((e, i) => ({
     id: e.nombre, label: e.nombre, value: e.cantidad,
     color: CAT_COLORS[i % CAT_COLORS.length],
   }))
 
   const totalSolicitudes = (solicitudesPorEstado ?? []).reduce((s, d) => s + d.value, 0)
   const totalRecibos = (recibosPorEstado ?? []).reduce((s, d) => s + d.value, 0)
-  const totalEmps = catPieData.reduce((s, d) => s + d.value, 0)
+  const totalEmps = areaPieData.reduce((s, d) => s + d.value, 0)
 
   const pieConfig = {
     innerRadius: 0,
@@ -113,20 +113,20 @@ export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorCat
       </div>
 
       <div className="bg-card rounded-xl border border-border p-5">
-        <p className="font-semibold text-foreground">Empleados por Categoría</p>
+        <p className="font-semibold text-foreground">Empleados por Área</p>
         <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalEmps} empleados en total</p>
-        {catPieData.length === 0 ? (
+        {areaPieData.length === 0 ? (
           <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
         ) : (
           <>
             <div className="h-[200px]">
               <ResponsivePie
-                data={catPieData}
+                data={areaPieData}
                 colors={{ datum: 'data.color' }}
                 {...pieConfig}
               />
             </div>
-            <Legend items={catPieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
+            <Legend items={areaPieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
           </>
         )}
       </div>

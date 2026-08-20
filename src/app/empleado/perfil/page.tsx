@@ -20,7 +20,7 @@ export default async function PerfilPage() {
   const [employee, dbUser] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: decoded.employeeId },
-      include: { categoria: true, valoresCampos: { include: { campo: true } } },
+      include: { area: true, categoria: true, valoresCampos: { include: { campo: true } } },
     }),
     prisma.user.findUnique({ where: { employeeId: decoded.employeeId }, select: { avatarUrl: true, avatarBgColor: true, avatarTextColor: true, googleRefreshToken: true, googleLastSync: true } }),
   ])
@@ -68,19 +68,39 @@ export default async function PerfilPage() {
               </dd>
             </div>
             <div className="col-span-2">
+              <dt className="text-xs text-muted-foreground mb-0.5">Área</dt>
+              <dd className="font-medium">{employee.area?.nombre ?? '—'}</dd>
+            </div>
+            <div className="col-span-2">
               <dt className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1"><Tag size={10} /> Categoría</dt>
               <dd className="font-medium">{employee.categoria.nombre}</dd>
             </div>
+            {employee.puesto && (
+              <div className="col-span-2">
+                <dt className="text-xs text-muted-foreground mb-0.5">Puesto</dt>
+                <dd className="font-medium">{employee.puesto}</dd>
+              </div>
+            )}
             <div className="col-span-2">
               <dt className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1"><CalendarDays size={10} /> Fecha de ingreso</dt>
               <dd className="font-medium">
                 {new Date(employee.fechaIngreso).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </dd>
             </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-muted-foreground mb-0.5">CUIL</dt>
+              <dd className="font-mono font-medium">{employee.cuil}</dd>
+            </div>
+            {employee.telefono && (
+              <div className="col-span-2">
+                <dt className="text-xs text-muted-foreground mb-0.5">Teléfono</dt>
+                <dd className="font-medium">{employee.telefono}</dd>
+              </div>
+            )}
             {employee.email && (
               <div className="col-span-4">
                 <dt className="text-xs text-muted-foreground mb-0.5">Email</dt>
-                <dd className="font-medium">{employee.email}</dd>
+                <dd className="font-medium break-all">{employee.email}</dd>
               </div>
             )}
           </dl>

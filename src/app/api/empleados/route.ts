@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q') ?? ''
   const estado = searchParams.get('estado') ?? undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const areaId = searchParams.get('areaId') ? Number(searchParams.get('areaId')) : undefined
   const sinAcceso = searchParams.get('sinAcceso') === 'true'
   const all = searchParams.get('all') === 'true'
   const page = Number(searchParams.get('page') ?? '1')
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
       } : {},
       estado ? { estado } : {},
       categoriaId ? { categoriaId } : {},
+      areaId ? { areaId } : {},
       sinAcceso ? { user: { is: null } } : {},
       scope ? { id: { in: [...scope] } } : {},
     ],
@@ -54,7 +56,8 @@ export async function GET(req: NextRequest) {
     const employees = await prisma.employee.findMany({
       where,
       select: {
-        id: true, nombre: true, apellido: true, legajo: true,
+        id: true, nombre: true, apellido: true, legajo: true, puesto: true,
+        area: { select: { id: true, nombre: true } },
         categoria: { select: { id: true, nombre: true } },
       },
       orderBy: { apellido: 'asc' },
@@ -68,6 +71,7 @@ export async function GET(req: NextRequest) {
     prisma.employee.findMany({
       where,
       include: {
+        area: true,
         categoria: true,
         user: {
           select: {
@@ -130,7 +134,9 @@ export async function POST(req: NextRequest) {
           email: body.email,
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
+          areaId: Number(body.areaId),
           categoriaId: Number(body.categoriaId),
+          puesto: body.puesto?.trim() || null,
           estado: body.estado ?? 'ACTIVO',
         },
       })

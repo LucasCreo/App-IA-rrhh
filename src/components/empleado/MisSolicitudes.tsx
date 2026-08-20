@@ -11,7 +11,7 @@ import { Pagination, paginate } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { FormularioDialog, FormularioRespuesta } from '@/components/empleado/FormularioDialog'
@@ -70,6 +70,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro, vista])
+  useEffect(() => { setFiltro('todos'); setEstadoFiltro('') }, [vista])
 
   const [nuevaOpen, setNuevaOpen] = useState(false)
   const [tipoSel, setTipoSel] = useState<TipoSolicitud | null>(null)
@@ -81,8 +82,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [pendingCampo, setPendingCampo] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
   const campoFileRef = useRef<HTMLInputElement>(null)
-
-  const _router = useRouter()
 
   function load() {
     setLoading(true)
@@ -254,87 +253,106 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
           <p className="text-sm">Sin resultados</p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border overflow-hidden">
-          {paginate(filtered, page, pageSize).map(item => {
-            const vencido = item.kind === 'form' && item.estado === 'PENDIENTE' && !!item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
-            const clickable = !(item.kind === 'form' && vencido)
-            const onRowClick = () => {
-              if (item.kind === 'doc') setDetalle(item)
-              else if (item.kind === 'form') {
-                if (vencido) return
-                if (item.estado === 'PENDIENTE') setEditForm(item.data)
-                else setViewForm(item.data)
-              }
-            }
-            return (
-            <div
-              key={item.key}
-              className={cn(
-                'flex items-start gap-3 px-4 py-3 bg-card transition-colors',
-                clickable && 'cursor-pointer hover:bg-muted/50'
-              )}
-              onClick={clickable ? onRowClick : undefined}
-            >
-              {item.kind === 'doc' && <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />}
-              {item.kind === 'form' && <ClipboardList size={16} className="text-blue-500 shrink-0 mt-0.5" />}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">
-                  {item.kind === 'doc' && item.data.tipo.nombre}
-                  {item.kind === 'form' && item.data.asignacion.nombre}
-                </p>
-                {item.kind === 'doc' && item.data.descripcion && (
-                  <p className="text-xs text-muted-foreground truncate">{item.data.descripcion}</p>
-                )}
-                {item.kind === 'form' && (
-                  <p className="text-xs text-muted-foreground truncate">{item.data.asignacion.plantilla.nombre}</p>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                {item.kind === 'doc' && <StatusBadge estado={item.estado} />}
-                {item.kind === 'form' && (() => {
-                  const vencido = item.estado === 'PENDIENTE' && item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
-                  if (vencido) return (
-                    <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
-                      <XCircle size={11} /> Vencido
-                    </span>
-                  )
-                  if (item.estado === 'PENDIENTE') return (
-                    <span className="inline-flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
-                      <Circle size={11} /> Pendiente
-                    </span>
-                  )
-                  return (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                      <CheckCircle2 size={11} /> Completado
-                    </span>
-                  )
-                })()}
-                {item.kind === 'form' ? (() => {
-                  const vencido = item.estado === 'PENDIENTE' && item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
-                  if (vencido) return (
-                    <span className="text-xs text-muted-foreground italic" title="La fecha límite venció. Contactá al admin.">
-                      No se puede completar
-                    </span>
-                  )
-                  if (item.estado === 'PENDIENTE') return (
-                    <button className="text-xs font-medium text-green-700 dark:text-green-400 hover:underline" onClick={() => setEditForm(item.data)}>
-                      Completar
-                    </button>
-                  )
-                  return (
-                    <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setViewForm(item.data)}>
-                      Ver
-                    </button>
-                  )
-                })() : (
-                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetalle(item)}>
-                    Ver
-                  </button>
-                )}
-              </div>
-            </div>
-            )
-          })}
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-muted">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-medium">Solicitud</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Tipo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Fecha</th>
+                <th className="text-left px-4 py-2.5 font-medium">Estado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginate(filtered, page, pageSize).map(item => {
+                const vencido = item.kind === 'form' && item.estado === 'PENDIENTE' && !!item.data.asignacion.fechaLimite && new Date(item.data.asignacion.fechaLimite) < new Date()
+                const clickable = !(item.kind === 'form' && vencido)
+                const onRowClick = () => {
+                  if (item.kind === 'doc') setDetalle(item)
+                  else if (item.kind === 'form') {
+                    if (vencido) return
+                    if (item.estado === 'PENDIENTE') setEditForm(item.data)
+                    else setViewForm(item.data)
+                  }
+                }
+                return (
+                  <tr
+                    key={item.key}
+                    className={cn(
+                      'border-t transition-colors',
+                      clickable && 'cursor-pointer hover:bg-muted/40'
+                    )}
+                    onClick={clickable ? onRowClick : undefined}
+                  >
+                    <td className="px-4 py-2 font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {item.kind === 'doc' && <FileText size={13} className="text-muted-foreground shrink-0" />}
+                        {item.kind === 'form' && <ClipboardList size={13} className="text-blue-500 shrink-0" />}
+                        <span className="truncate">
+                          {item.kind === 'doc' ? item.data.tipo.nombre : item.data.asignacion.nombre}
+                        </span>
+                      </div>
+                      {item.kind === 'doc' && item.data.descripcion && (
+                        <p className="text-[11px] text-muted-foreground pl-5 truncate">{item.data.descripcion}</p>
+                      )}
+                      {item.kind === 'form' && (
+                        <p className="text-[11px] text-muted-foreground pl-5 truncate">{item.data.asignacion.plantilla.nombre}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                        {item.kind === 'doc' ? 'Documento' : 'Formulario'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell">
+                      {fmt(item.fecha)}
+                    </td>
+                    <td className="px-4 py-2">
+                      {item.kind === 'doc' ? (
+                        <StatusBadge estado={item.estado} />
+                      ) : vencido ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                          <XCircle size={11} /> Vencido
+                        </span>
+                      ) : item.estado === 'PENDIENTE' ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+                          <Circle size={11} /> Pendiente
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                          <CheckCircle2 size={11} /> Completado
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {item.kind === 'form' ? (
+                          vencido ? (
+                            <span className="text-xs text-muted-foreground italic px-2" title="La fecha límite venció. Contactá al admin.">
+                              No se puede completar
+                            </span>
+                          ) : item.estado === 'PENDIENTE' ? (
+                            <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white h-7 text-xs" onClick={() => setEditForm(item.data)}>
+                              Completar
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setViewForm(item.data)}>
+                              Ver
+                            </Button>
+                          )
+                        ) : (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDetalle(item)}>
+                            Ver
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

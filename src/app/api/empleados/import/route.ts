@@ -39,13 +39,15 @@ interface ParsedRow {
   email: string
   telefono: string | null
   fechaIngreso: Date | null
+  area: string
   categoria: string
+  puesto: string | null
   password: string
   username: string | null
   rowErrors: string[]
 }
 
-function parseRow(raw: Record<string, unknown>, rowNum: number, catByName: Map<string, number>): ParsedRow {
+function parseRow(raw: Record<string, unknown>, rowNum: number, catByName: Map<string, number>, areaByName: Map<string, number>): ParsedRow {
   const norm = Object.fromEntries(
     Object.entries(raw).map(([k, v]) => [k.trim().toLowerCase(), typeof v === 'string' ? v.trim() : v])
   ) as Record<string, any>
@@ -58,6 +60,8 @@ function parseRow(raw: Record<string, unknown>, rowNum: number, catByName: Map<s
   const telefono = String(norm.telefono ?? '').trim() || null
   const fechaIngreso = parseFecha(norm['fechaingreso'] ?? norm['fecha ingreso'] ?? norm['fecha_ingreso'])
   const categoria = String(norm.categoria ?? '').trim()
+  const area = String(norm.area ?? '').trim() || 'General'
+  const puesto = String(norm.puesto ?? '').trim() || null
   const password = String(norm.password ?? norm['contraseña'] ?? norm.contrasena ?? '').trim()
   const username = String(norm.username ?? norm['nombre de usuario'] ?? norm.usuario ?? '').trim() || null
 
@@ -77,8 +81,9 @@ function parseRow(raw: Record<string, unknown>, rowNum: number, catByName: Map<s
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) rowErrors.push(`Email "${email}" inválido`)
   if (cuil && !validarCuil(cuil)) rowErrors.push(`CUIL "${cuil}" inválido`)
   if (categoria && !catByName.has(categoria.toLowerCase())) rowErrors.push(`Categoría "${categoria}" no existe`)
+  if (area && !areaByName.has(area.toLowerCase())) rowErrors.push(`Área "${area}" no existe`)
 
-  return { rowNum, legajo, nombre, apellido, cuil, email, telefono, fechaIngreso, categoria, password, username, rowErrors }
+  return { rowNum, legajo, nombre, apellido, cuil, email, telefono, fechaIngreso, area, categoria, puesto, password, username, rowErrors }
 }
 
 export async function POST(req: NextRequest) {
@@ -88,6 +93,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get('file') as File | null
   const createMissingCategorias = formData.get('createMissingCategorias') === 'true'
+  const createMissingAreas = formData.get('createMissingAreas') === 'true'
   const preview = formData.get('preview') === 'true'
   const skipExisting = formData.get('skipExisting') === 'true'
   if (!file) return NextResponse.json({ error: 'Archivo requerido' }, { status: 400 })
@@ -102,6 +108,11 @@ export async function POST(req: NextRequest) {
   let cats = await prisma.category.findMany({ select: { id: true, nombre: true } })
   let catByName = new Map(cats.map(c => [c.nombre.toLowerCase(), c.id]))
 
+  // Asegurar que exista el área "General" (default para importaciones sin columna area)
+  await prisma.area.upsert({ where: { nombre: 'General' }, update: {}, create: { nombre: 'General' } })
+  let areas = await prisma.area.findMany({ select: { id: true, nombre: true } })
+  let areaByName = new Map(areas.map(a => [a.nombre.toLowerCase(), a.id]))
+
   const catsEnPlanilla = new Map<string, string>()
   for (const raw of rows) {
     const c = String((raw as Record<string, unknown>)['categoria'] ?? (raw as Record<string, unknown>)['Categoria'] ?? '').trim()
@@ -111,9 +122,27 @@ export async function POST(req: NextRequest) {
     .filter(([lower]) => !catByName.has(lower))
     .map(([, original]) => original)
 
-  // En preview, si faltan categorías, todavía las mostramos pero seguimos con el resto
-  if (missingCategorias.length > 0 && !createMissingCategorias && !preview) {
-    return NextResponse.json({ needsConfirmation: true, missingCategorias, total: rows.length })
+  // Detectar áreas faltantes en planilla
+  const areasEnPlanilla = new Map<string, string>()
+  for (const raw of rows) {
+    const a = String((raw as Record<string, unknown>)['area'] ?? (raw as Record<string, unknown>)['Area'] ?? (raw as Record<string, unknown>)['Área'] ?? '').trim()
+    if (a && !areasEnPlanilla.has(a.toLowerCase())) areasEnPlanilla.set(a.toLowerCase(), a)
+  }
+  const missingAreas = [...areasEnPlanilla.entries()]
+    .filter(([lower]) => !areaByName.has(lower))
+    .map(([, original]) => original)
+
+  // En preview, seguimos con el resto. Sin preview y con nuevas categorías/áreas → pedir confirmación
+  if (!preview && (
+    (missingCategorias.length > 0 && !createMissingCategorias) ||
+    (missingAreas.length > 0 && !createMissingAreas)
+  )) {
+    return NextResponse.json({
+      needsConfirmation: true,
+      missingCategorias,
+      missingAreas,
+      total: rows.length,
+    })
   }
 
   if (missingCategorias.length > 0 && createMissingCategorias) {
@@ -122,8 +151,14 @@ export async function POST(req: NextRequest) {
     catByName = new Map(cats.map(c => [c.nombre.toLowerCase(), c.id]))
   }
 
+  if (missingAreas.length > 0 && createMissingAreas) {
+    await prisma.area.createMany({ data: missingAreas.map(nombre => ({ nombre })) })
+    areas = await prisma.area.findMany({ select: { id: true, nombre: true } })
+    areaByName = new Map(areas.map(a => [a.nombre.toLowerCase(), a.id]))
+  }
+
   // Parsear todas las filas
-  const parsed = rows.map((raw, i) => parseRow(raw, i + 2, catByName))
+  const parsed = rows.map((raw, i) => parseRow(raw, i + 2, catByName, areaByName))
 
   // Buscar existentes en DB por legajo, email, cuil (dedupe query)
   const legajos = [...new Set(parsed.filter(p => p.legajo).map(p => p.legajo))]
@@ -186,7 +221,9 @@ export async function POST(req: NextRequest) {
       existing,
       invalid,
       missingCategorias,
+      missingAreas,
       categoriasCreadas: createMissingCategorias ? missingCategorias : [],
+      areasCreadas: createMissingAreas ? missingAreas : [],
     })
   }
 
@@ -195,6 +232,7 @@ export async function POST(req: NextRequest) {
   let created = 0
   const skippedExisting: ExistingRow[] = []
   const categoriasCreadas = createMissingCategorias ? missingCategorias : []
+  const areasCreadas = createMissingAreas ? missingAreas : []
 
   for (const p of parsed) {
     const matches: string[] = []
@@ -222,7 +260,10 @@ export async function POST(req: NextRequest) {
         const emp = await tx.employee.create({
           data: {
             legajo: p.legajo, nombre: p.nombre, apellido: p.apellido, cuil: p.cuil, email: p.email,
-            telefono: p.telefono, fechaIngreso: p.fechaIngreso!, categoriaId: catByName.get(p.categoria.toLowerCase())!, estado: 'ACTIVO',
+            telefono: p.telefono, fechaIngreso: p.fechaIngreso!,
+            areaId: areaByName.get(p.area.toLowerCase())!,
+            categoriaId: catByName.get(p.categoria.toLowerCase())!,
+            puesto: p.puesto, estado: 'ACTIVO',
           },
         })
         await tx.user.create({
@@ -239,6 +280,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await logAction(user.userId, 'IMPORTAR_EMPLEADOS', 'Empleado', `${created} creados · ${errors.length} errores${skippedExisting.length ? ` · ${skippedExisting.length} omitidos por existir` : ''}${categoriasCreadas.length ? ` · ${categoriasCreadas.length} categorías creadas` : ''}`)
-  return NextResponse.json({ created, errors, total: rows.length, categoriasCreadas, skippedExisting })
+  await logAction(user.userId, 'IMPORTAR_EMPLEADOS', 'Empleado', `${created} creados · ${errors.length} errores${skippedExisting.length ? ` · ${skippedExisting.length} omitidos por existir` : ''}${categoriasCreadas.length ? ` · ${categoriasCreadas.length} categorías creadas` : ''}${areasCreadas.length ? ` · ${areasCreadas.length} áreas creadas` : ''}`)
+  return NextResponse.json({ created, errors, total: rows.length, categoriasCreadas, areasCreadas, skippedExisting })
 }

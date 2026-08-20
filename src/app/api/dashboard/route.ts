@@ -20,7 +20,7 @@ export async function GET() {
 
   const [
     totalEmpleados, activos, inactivos,
-    totalDocs, docsByEstado, empByCategoria,
+    totalDocs, docsByEstado, empByArea,
     pendingSolicitudesDoc, pendingSolicitudesMod,
     recentSolicitudes, recentEmpleados,
     pendingAusencias,
@@ -32,9 +32,9 @@ export async function GET() {
     prisma.employee.count(),
     prisma.employee.count({ where: { estado: 'ACTIVO' } }),
     prisma.employee.count({ where: { estado: 'INACTIVO' } }),
-    prisma.document.count({ where: { OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: 'Recibo de Sueldo' } } }] } }),
-    prisma.document.groupBy({ by: ['estado'], _count: true, where: { OR: [{ tipoDocumentoId: null }, { tipoDocumento: { nombre: { not: 'Recibo de Sueldo' } } }] } }),
-    prisma.employee.groupBy({ by: ['categoriaId'], _count: true, where: { estado: 'ACTIVO' } }),
+    prisma.documentoGrupo.count(),
+    prisma.documentoAsignacion.groupBy({ by: ['estado'], _count: true }),
+    prisma.employee.groupBy({ by: ['areaId'], _count: true, where: { estado: 'ACTIVO' } }),
     prisma.solicitudDocumento.count({ where: { estado: 'PENDIENTE' } }),
     prisma.solicitudModificacion.count({ where: { estado: 'PENDIENTE' } }),
     prisma.solicitudDocumento.findMany({
@@ -75,8 +75,16 @@ export async function GET() {
     prisma.solicitudAusencia.groupBy({ by: ['estado'], _count: true }),
   ])
 
-  const categories = await prisma.category.findMany()
-  const catMap = Object.fromEntries(categories.map(c => [c.id, c.nombre]))
+  const [totalSolDoc, totalSolMod, totalSolAus, totalRespFormularios] = await Promise.all([
+    prisma.solicitudDocumento.count(),
+    prisma.solicitudModificacion.count(),
+    prisma.solicitudAusencia.count(),
+    prisma.respuestaFormulario.count(),
+  ])
+  const totalSolicitudes = totalSolDoc + totalSolMod + totalSolAus + totalRespFormularios
+
+  const areas = await prisma.area.findMany()
+  const areaMap = Object.fromEntries(areas.map(a => [a.id, a.nombre]))
 
   const documentsByEstado = Object.fromEntries(docsByEstado.map(d => [d.estado, d._count]))
   const recibosByEstadoMap = Object.fromEntries(recibosByEstado.map(d => [d.estado, d._count]))
@@ -134,6 +142,7 @@ export async function GET() {
     borradores: documentsByEstado['BORRADOR'] ?? 0,
     pendingSolicitudesDoc,
     pendingSolicitudesMod,
+    totalSolicitudes,
     totalRecibos,
     pendientesRevision,
     recentSolicitudes: recentSolicitudes.map(s => ({
@@ -154,8 +163,8 @@ export async function GET() {
       avatarBgColor: e.user?.avatarBgColor ?? null,
       avatarTextColor: e.user?.avatarTextColor ?? null,
     })),
-    empleadosPorCategoria: empByCategoria.map(e => ({
-      nombre: catMap[e.categoriaId] ?? 'N/A',
+    empleadosPorArea: empByArea.map(e => ({
+      nombre: areaMap[e.areaId] ?? 'N/A',
       cantidad: e._count,
     })),
     recibosPorEstado: [

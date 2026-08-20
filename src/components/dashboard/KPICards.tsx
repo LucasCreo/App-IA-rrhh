@@ -7,6 +7,7 @@ interface DashboardData {
   recibosPorEstado?: { name: string; value: number }[]
   totalDocs: number
   rechazados: number
+  totalSolicitudes: number
   pendingSolicitudesDoc: number
   pendingSolicitudesMod: number
   pendingAusencias: number
@@ -77,8 +78,8 @@ export function KPICards({ data }: { data: Record<string, any> }) {
           </div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-none">Solicitudes</span>
         </div>
-        <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{totalPendientes}</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">pendientes de revisar</p>
+        <p className="text-2xl font-bold tabular-nums leading-none text-foreground">{d.totalSolicitudes ?? 0}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">acumulado histórico</p>
       </Link>
     </div>
   )

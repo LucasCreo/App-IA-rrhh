@@ -20,7 +20,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
   const emp = await prisma.employee.findUnique({
     where: { id: empId },
-    include: { categoria: true, valoresCampos: true, user: { select: { id: true, email: true, username: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true } } },
+    include: { area: true, categoria: true, valoresCampos: true, user: { select: { id: true, email: true, username: true, avatarUrl: true, avatarBgColor: true, avatarTextColor: true } } },
   })
   if (!emp) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   return NextResponse.json(emp)
@@ -80,10 +80,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           email: body.email,
           telefono: body.telefono ?? null,
           fechaIngreso: new Date(body.fechaIngreso),
+          areaId: Number(body.areaId),
           categoriaId: Number(body.categoriaId),
+          puesto: body.puesto?.trim() || null,
           estado: body.estado,
         },
-        include: { categoria: true },
+        include: { area: true, categoria: true },
       })
       if (body.camposPersonalizados) {
         await Promise.all(

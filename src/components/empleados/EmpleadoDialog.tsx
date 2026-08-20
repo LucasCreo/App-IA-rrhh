@@ -17,9 +17,11 @@ import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 import { validarCuil, maskCuilInput } from '@/lib/cuil'
 
 interface Categoria { id: number; nombre: string }
+interface Area { id: number; nombre: string }
 interface Empleado {
   id?: number; legajo: string; nombre: string; apellido: string; cuil: string
-  email: string; telefono?: string; fechaIngreso: string; categoriaId: number; estado: string
+  email: string; telefono?: string; fechaIngreso: string
+  areaId: number; categoriaId: number; puesto?: string; estado: string
 }
 interface FieldConfig { campo: string; visible: boolean; requerido: boolean; eliminado: boolean; visibleEnAlta: boolean }
 interface CampoPersonalizado { id: number; nombre: string; tipo: string; visible: boolean; requerido: boolean; visibleEnAlta: boolean }
@@ -27,7 +29,7 @@ interface Props { open: boolean; onClose: () => void; onSaved: () => void; emple
 
 const empty: Empleado = {
   legajo: '', nombre: '', apellido: '', cuil: '', email: '',
-  telefono: '', fechaIngreso: '', categoriaId: 0, estado: 'ACTIVO',
+  telefono: '', fechaIngreso: '', areaId: 0, categoriaId: 0, puesto: '', estado: 'ACTIVO',
 }
 
 const TEXT_FIELDS: Array<[keyof Empleado, string]> = [
@@ -41,6 +43,8 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   const [form, setForm] = useState<Empleado>(empleado ?? empty)
   const [cats, setCats] = useState<Categoria[]>([])
   const [catsLoaded, setCatsLoaded] = useState(false)
+  const [areas, setAreas] = useState<Area[]>([])
+  const [areasLoaded, setAreasLoaded] = useState(false)
   const [fieldConfig, setFieldConfig] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [valoresCustom, setValoresCustom] = useState<Record<number, string>>({})
@@ -55,8 +59,10 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   useEffect(() => {
     if (!open) return
     setCatsLoaded(false)
+    setAreasLoaded(false)
     setStep(1)
     fetch('/api/categorias').then(r => r.json()).then(data => { setCats(data); setCatsLoaded(true) })
+    fetch('/api/areas').then(r => r.json()).then(data => { setAreas(data); setAreasLoaded(true) })
     fetch('/api/configuracion/empleados-campos').then(r => r.json()).then(setFieldConfig)
     fetch('/api/configuracion/campos-personalizados').then(r => r.json()).then(setCamposCustom)
     setForm(empleado ?? empty)
@@ -133,6 +139,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
         errs.add(k as string)
     }
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
+    if (!form.areaId) errs.add('area')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
     if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
@@ -153,6 +160,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
         errs.add(k as string)
     }
     if (isVisible('fechaIngreso') && isRequired('fechaIngreso') && !form.fechaIngreso) errs.add('fechaIngreso')
+    if (!form.areaId) errs.add('area')
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
     if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
@@ -367,6 +375,27 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   />
                 </div>
               )
+              if (k === 'area') return (
+                <div key="area">
+                  <Label className="mb-1.5">Área <span className="text-red-500 ml-1">*</span></Label>
+                  {!areasLoaded ? (
+                    <Skeleton className="h-9 w-full rounded-md" />
+                  ) : (
+                    <Select value={form.areaId ? String(form.areaId) : ''} onValueChange={v => { if (v) { set('areaId')(v); clearError('area') } }}>
+                      <SelectTrigger className={cn('w-full', err('area') && 'border-red-500 focus:ring-red-500')}>
+                        <SelectValue placeholder="Seleccionar">
+                          {areas.find(a => a.id === Number(form.areaId))?.nombre ?? 'Seleccionar'}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent side="bottom" alignItemWithTrigger={false}>
+                        {areas.map(a => (
+                          <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )
               if (k === 'categoria') return (
                 <div key="categoria">
                   <Label className="mb-1.5">Categoría{isRequired('categoria') && <span className="text-red-500 ml-1">*</span>}</Label>
@@ -386,6 +415,16 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+              )
+              if (k === 'puesto') return (
+                <div key="puesto">
+                  <Label className="mb-1.5">Puesto <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+                  <Input
+                    value={form.puesto ?? ''}
+                    onChange={e => set('puesto')(e.target.value)}
+                    placeholder="Ej: Diseñador Gráfico"
+                  />
                 </div>
               )
               if (k === 'estado') return (
@@ -459,12 +498,14 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
               </div>
             )
 
-            const STD_ORDER = ['legajo', 'cuil', 'email', 'telefono', 'fechaIngreso', 'categoria', 'estado']
+            const STD_ORDER = ['legajo', 'cuil', 'email', 'telefono', 'fechaIngreso', 'area', 'categoria', 'puesto', 'estado']
+            const alwaysMain = new Set(['area', 'puesto'])
             const stdMain = STD_ORDER.filter(k => {
               if (isNew && k === 'email') return false
+              if (alwaysMain.has(k)) return true
               return isInMain(k)
             })
-            const stdAdicional = STD_ORDER.filter(k => isInAdicional(k))
+            const stdAdicional = STD_ORDER.filter(k => !alwaysMain.has(k) && isInAdicional(k))
             const customMain = camposCustom.filter(c => c.visible && c.visibleEnAlta)
             const customAdicional = !isNew ? camposCustom.filter(c => c.visible && !c.visibleEnAlta) : []
             const hasAdicional = stdAdicional.length + customAdicional.length > 0

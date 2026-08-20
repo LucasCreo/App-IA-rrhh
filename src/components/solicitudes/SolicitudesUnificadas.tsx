@@ -41,6 +41,10 @@ export function SolicitudesUnificadas() {
   const [docs, setDocs] = useState<SolicitudDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [areaId, setAreaId] = useState('')
+  const [categoriaId, setCategoriaId] = useState('')
+  const [areas, setAreas] = useState<Array<{ id: number; nombre: string }>>([])
+  const [categorias, setCategorias] = useState<Array<{ id: number; nombre: string }>>([])
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
 
@@ -59,7 +63,12 @@ export function SolicitudesUnificadas() {
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
 
-  useEffect(() => { setPage(1) }, [estadoFiltro, qDebounced])
+  useEffect(() => { setPage(1) }, [estadoFiltro, qDebounced, areaId, categoriaId])
+
+  useEffect(() => {
+    fetch('/api/areas').then(r => r.json()).then(d => setAreas(Array.isArray(d) ? d : []))
+    fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
@@ -71,6 +80,8 @@ export function SolicitudesUnificadas() {
     const params = new URLSearchParams()
     if (estadoFiltro) params.set('estado', estadoFiltro)
     if (qDebounced) params.set('q', qDebounced)
+    if (areaId) params.set('areaId', areaId)
+    if (categoriaId) params.set('categoriaId', categoriaId)
     params.set('page', String(page))
     params.set('limit', String(pageSize))
     fetch(`/api/solicitudes?${params}`)
@@ -80,7 +91,7 @@ export function SolicitudesUnificadas() {
         else { setDocs(d.items ?? []); setTotal(d.total ?? 0) }
       })
       .finally(() => setLoading(false))
-  }, [estadoFiltro, qDebounced, page, pageSize])
+  }, [estadoFiltro, qDebounced, areaId, categoriaId, page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -159,6 +170,22 @@ export function SolicitudesUnificadas() {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={areaId}
+          onChange={e => setAreaId(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="">Todas las áreas</option>
+          {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+        </select>
+        <select
+          value={categoriaId}
+          onChange={e => setCategoriaId(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="">Todas las categorías</option>
+          {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
         <div className="relative flex-1 min-w-56 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input

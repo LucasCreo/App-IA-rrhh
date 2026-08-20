@@ -72,12 +72,12 @@ export function MisLicencias() {
   const load = useCallback(() => {
     setLoading(true)
     fetch('/api/empleado/ausencias')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then(a => {
         setAusencias(a?.solicitudes ?? [])
         setSaldo(a?.saldo ?? null)
       })
-      .catch(() => {})
+      .catch(() => toast.error('No se pudieron cargar las licencias'))
       .finally(() => setLoading(false))
   }, [])
 

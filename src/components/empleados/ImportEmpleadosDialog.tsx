@@ -28,6 +28,8 @@ interface Preview {
   invalid: RowError[]
   missingCategorias: string[]
   categoriasCreadas: string[]
+  missingAreas?: string[]
+  areasCreadas?: string[]
 }
 
 interface Result {
@@ -35,12 +37,14 @@ interface Result {
   total: number
   errors: RowError[]
   categoriasCreadas?: string[]
+  areasCreadas?: string[]
   skippedExisting?: ExistingRow[]
 }
 
 interface NeedsConfirmation {
   needsConfirmation: true
   missingCategorias: string[]
+  missingAreas?: string[]
   total: number
 }
 
@@ -56,8 +60,8 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
 
   function downloadTemplate() {
     const rows = [
-      ['legajo', 'nombre', 'apellido', 'cuil', 'email', 'telefono', 'fechaIngreso', 'categoria', 'username', 'password'],
-      ['001', 'Juan', 'Pérez', '20-12345678-9', 'juan.perez@empresa.com', '2611234567', '2024-01-15', 'Operario', 'jperez', 'cambiar123'],
+      ['legajo', 'nombre', 'apellido', 'cuil', 'email', 'telefono', 'fechaIngreso', 'area', 'categoria', 'puesto', 'username', 'password'],
+      ['001', 'Juan', 'Pérez', '20-12345678-9', 'juan.perez@empresa.com', '2611234567', '2024-01-15', 'Marketing', 'Sr', 'Diseñador Gráfico', 'jperez', 'cambiar123'],
     ]
     const ws = XLSX.utils.aoa_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -65,14 +69,17 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
     XLSX.writeFile(wb, 'plantilla-empleados.xlsx')
   }
 
-  async function runPreview(createMissingCategorias = false) {
+  async function runPreview(createMissing = false) {
     if (!file) return
     setUploading(true)
     try {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('preview', 'true')
-      if (createMissingCategorias) fd.append('createMissingCategorias', 'true')
+      if (createMissing) {
+        fd.append('createMissingCategorias', 'true')
+        fd.append('createMissingAreas', 'true')
+      }
       const r = await fetch('/api/empleados/import', { method: 'POST', body: fd })
       if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
@@ -91,9 +98,8 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('skipExisting', 'true')
-      // Si el preview ya reportó que se crearon las categorías, indicarlo
-      if (preview && preview.categoriasCreadas.length > 0) fd.append('createMissingCategorias', 'true')
-      if (preview && preview.missingCategorias.length > 0 && preview.categoriasCreadas.length === 0) fd.append('createMissingCategorias', 'true')
+      if (preview && preview.missingCategorias.length > 0) fd.append('createMissingCategorias', 'true')
+      if (preview && (preview.missingAreas?.length ?? 0) > 0) fd.append('createMissingAreas', 'true')
       const r = await fetch('/api/empleados/import', { method: 'POST', body: fd })
       if (!r.ok) { await handleApiError(r, href => router.push(href)); return }
       const data = await r.json()
@@ -106,6 +112,9 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
       }
       if (data.categoriasCreadas?.length) {
         toast.success(`${data.categoriasCreadas.length} categoría${data.categoriasCreadas.length !== 1 ? 's' : ''} creada${data.categoriasCreadas.length !== 1 ? 's' : ''}`)
+      }
+      if (data.areasCreadas?.length) {
+        toast.success(`${data.areasCreadas.length} área${data.areasCreadas.length !== 1 ? 's' : ''} creada${data.areasCreadas.length !== 1 ? 's' : ''}`)
       }
     } finally {
       setUploading(false)
@@ -126,7 +135,7 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
             <>
               <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                 Columnas requeridas: <code>legajo, nombre, apellido, cuil, email, fechaIngreso, categoria, password</code>.
-                Opcionales: <code>telefono, username</code>. La categoría se identifica por nombre exacto. Cada empleado debería cambiar su contraseña al primer login.
+                Opcionales: <code>telefono, area, puesto, username</code>. Si no ponés área se asigna a "General". Categorías/áreas se identifican por nombre exacto (podés crear las que falten al validar). Cada empleado debería cambiar su contraseña al primer login.
               </div>
 
               <Button variant="outline" size="sm" onClick={downloadTemplate} type="button">
@@ -148,16 +157,32 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
           {confirmCats && (
             <div className="flex items-start gap-2 rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 p-3">
               <AlertCircle size={16} className="text-yellow-600 shrink-0 mt-0.5" />
-              <div className="space-y-2 flex-1 min-w-0">
-                <p className="text-sm">
-                  La planilla incluye <strong>{confirmCats.missingCategorias.length} categoría{confirmCats.missingCategorias.length !== 1 ? 's' : ''}</strong> que no existe{confirmCats.missingCategorias.length !== 1 ? 'n' : ''} todavía:
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {confirmCats.missingCategorias.map(c => (
-                    <span key={c} className="text-xs bg-background border rounded px-2 py-0.5">{c}</span>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">¿Querés crearlas y continuar con la validación?</p>
+              <div className="space-y-3 flex-1 min-w-0">
+                {confirmCats.missingCategorias.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-sm">
+                      <strong>{confirmCats.missingCategorias.length} categoría{confirmCats.missingCategorias.length !== 1 ? 's' : ''}</strong> nueva{confirmCats.missingCategorias.length !== 1 ? 's' : ''}:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {confirmCats.missingCategorias.map(c => (
+                        <span key={c} className="text-xs bg-background border rounded px-2 py-0.5">{c}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(confirmCats.missingAreas?.length ?? 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-sm">
+                      <strong>{confirmCats.missingAreas!.length} área{confirmCats.missingAreas!.length !== 1 ? 's' : ''}</strong> nueva{confirmCats.missingAreas!.length !== 1 ? 's' : ''}:
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {confirmCats.missingAreas!.map(a => (
+                        <span key={a} className="text-xs bg-background border rounded px-2 py-0.5">{a}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Revisá que no sean typos. ¿Querés crearlas y continuar con la validación?</p>
               </div>
             </div>
           )}
@@ -185,6 +210,15 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
                   <div>
                     Se van a crear <strong>{preview.missingCategorias.length}</strong> categoría{preview.missingCategorias.length !== 1 ? 's' : ''} nueva{preview.missingCategorias.length !== 1 ? 's' : ''}:{' '}
                     {preview.missingCategorias.join(', ')}
+                  </div>
+                </div>
+              )}
+              {(preview.missingAreas?.length ?? 0) > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 p-2.5 text-xs">
+                  <AlertCircle size={13} className="text-yellow-600 shrink-0 mt-0.5" />
+                  <div>
+                    Se van a crear <strong>{preview.missingAreas!.length}</strong> área{preview.missingAreas!.length !== 1 ? 's' : ''} nueva{preview.missingAreas!.length !== 1 ? 's' : ''}:{' '}
+                    {preview.missingAreas!.join(', ')}
                   </div>
                 </div>
               )}
@@ -305,7 +339,7 @@ export function ImportEmpleadosDialog({ open, onClose, onImported }: Props) {
                 onClick={() => runPreview(true)}
                 disabled={uploading}
               >
-                {uploading ? 'Validando…' : 'Crear categorías y validar'}
+                {uploading ? 'Validando…' : 'Crear y validar'}
               </Button>
             </>
           ) : preview ? (

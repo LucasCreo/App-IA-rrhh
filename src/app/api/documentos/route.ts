@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const loteIdParam = searchParams.get('loteId')
   const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const areaId = searchParams.get('areaId') ? Number(searchParams.get('areaId')) : undefined
   const q = searchParams.get('q')?.trim() ?? ''
   const conformidadParam = searchParams.get('conformidad')
   const conformidadFilter = conformidadParam === 'true' ? { firmaConforme: true }
@@ -65,7 +66,9 @@ export async function GET(req: NextRequest) {
     ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO'] } } : {}),
     ...(periodo ? { periodo: { contains: periodo } } : {}),
     ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
-    ...(categoriaId ? { employee: { categoriaId } } : {}),
+    ...(categoriaId || areaId
+      ? { employee: { ...(categoriaId ? { categoriaId } : {}), ...(areaId ? { areaId } : {}) } }
+      : {}),
     ...(q ? {
       OR: [
         { nombreArchivo: { contains: q } },
@@ -88,7 +91,7 @@ export async function GET(req: NextRequest) {
     prisma.document.findMany({
       where,
       include: {
-        employee: { select: { nombre: true, apellido: true, legajo: true } },
+        employee: { select: { nombre: true, apellido: true, legajo: true, puesto: true, area: { select: { nombre: true } } } },
         cargadoPor: { select: { email: true } },
         tipoDocumento: { select: { id: true, nombre: true, accion: true } },
         lote: { select: { id: true, nombre: true } },
@@ -165,7 +168,7 @@ export async function POST(req: NextRequest) {
         ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
       },
       include: {
-        employee: { select: { nombre: true, apellido: true, legajo: true } },
+        employee: { select: { nombre: true, apellido: true, legajo: true, puesto: true, area: { select: { nombre: true } } } },
       },
     })
   } catch (e) {

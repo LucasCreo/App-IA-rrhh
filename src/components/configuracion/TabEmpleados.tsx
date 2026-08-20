@@ -12,6 +12,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { CategoriasTable, type CategoriasTableHandle } from '@/components/categorias/CategoriasTable'
+import { AreasTable, type AreasTableHandle } from '@/components/areas/AreasTable'
 import { Plus } from 'lucide-react'
 
 const LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ interface PendingDelete { id: number; nombre: string; count: number }
 
 export function TabEmpleados() {
   const categoriasRef = useRef<CategoriasTableHandle>(null)
+  const areasRef = useRef<AreasTableHandle>(null)
   const [fields, setFields] = useState<FieldConfig[]>([])
   const [camposCustom, setCamposCustom] = useState<CampoPersonalizado[]>([])
   const [showFormCampo, setShowFormCampo] = useState(false)
@@ -280,8 +282,29 @@ export function TabEmpleados() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
+              <CardTitle>Áreas</CardTitle>
+              <CardDescription>Definí las áreas o departamentos de la empresa.</CardDescription>
+            </div>
+            <Button
+              size="sm"
+              className="bg-green-700 hover:bg-green-800 shrink-0"
+              onClick={() => areasRef.current?.openNew()}
+            >
+              <Plus size={14} className="mr-1" /> Nueva
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <AreasTable ref={areasRef} showTopButton={false} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
               <CardTitle>Categorías</CardTitle>
-              <CardDescription>Definí las categorías laborales disponibles para los empleados.</CardDescription>
+              <CardDescription>Definí las categorías laborales, transversales a las áreas.</CardDescription>
             </div>
             <Button
               size="sm"

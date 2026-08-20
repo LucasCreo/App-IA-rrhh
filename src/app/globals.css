@@ -239,3 +239,21 @@
 .tippy-content { padding: 0; }
 .tippy-box[data-placement^='bottom'] > .tippy-arrow { display: none; }
 
+/* Ocultar reveal/clear nativos en inputs password (usamos toggle propio).
+   Cubre Edge/IE (::-ms-*) y Chromium (::-webkit-*), incluso cuando el input
+   está en foco o el navegador inyecta autofill buttons. */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear,
+input[type='password']::-webkit-credentials-auto-fill-button,
+input[type='password']::-webkit-strong-password-auto-fill-button,
+input[type='password']::-webkit-contacts-auto-fill-button,
+input[type='password']::-webkit-caps-lock-indicator {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+

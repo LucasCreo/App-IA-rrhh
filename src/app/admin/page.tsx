@@ -124,7 +124,7 @@ export default function AdminDashboard() {
                   key={id}
                   solicitudesPorEstado={data.solicitudesPorEstado}
                   recibosPorEstado={data.recibosPorEstado}
-                  empleadosPorCategoria={data.empleadosPorCategoria}
+                  empleadosPorArea={data.empleadosPorArea}
                 />
               )
               if (id === 'eventos') return (

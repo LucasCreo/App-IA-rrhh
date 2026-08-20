@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Layers, ChevronRight, Trash2 } from 'lucide-react'
+import { Plus, Layers, ChevronRight, Trash2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/ui/pagination'
 import { CrearLoteDialog } from './CrearLoteDialog'
@@ -49,11 +51,26 @@ export function LotesTable() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
+  const [q, setQ] = useState('')
+  const [qDebounced, setQDebounced] = useState('')
+  const [anio, setAnio] = useState('')
+  const [sortBy, setSortBy] = useState<'createdAt' | 'nombre' | 'periodo'>('createdAt')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  useEffect(() => {
+    const t = setTimeout(() => setQDebounced(q.trim()), 300)
+    return () => clearTimeout(t)
+  }, [q])
+
+  useEffect(() => { setPage(1) }, [qDebounced, anio, sortBy, sortOrder])
 
   const fetchLotes = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`/api/lotes?page=${page}&limit=${pageSize}`)
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize), sortBy, sortOrder })
+      if (qDebounced) params.set('q', qDebounced)
+      if (anio) params.set('periodo', anio)
+      const r = await fetch(`/api/lotes?${params}`)
       if (r.ok) {
         const d = await r.json()
         setLotes(d.items ?? [])
@@ -62,7 +79,7 @@ export function LotesTable() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize])
+  }, [page, pageSize, qDebounced, anio, sortBy, sortOrder])
 
   useEffect(() => { fetchLotes() }, [fetchLotes])
 
@@ -113,9 +130,47 @@ export function LotesTable() {
     }
   }
 
+  const anioActual = new Date().getFullYear()
+  const aniosDisponibles = Array.from({ length: 6 }, (_, i) => String(anioActual - i))
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-56 max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-8 h-9"
+            placeholder="Buscar por nombre o descripción…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+        </div>
+        <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
+          <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Año" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los años</SelectItem>
+            {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select
+          value={`${sortBy}_${sortOrder}`}
+          onValueChange={v => {
+            const [by, order] = (v ?? 'createdAt_desc').split('_')
+            setSortBy(by as 'createdAt' | 'nombre' | 'periodo')
+            setSortOrder(order as 'asc' | 'desc')
+          }}
+        >
+          <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="createdAt_desc">Más recientes primero</SelectItem>
+            <SelectItem value="createdAt_asc">Más antiguos primero</SelectItem>
+            <SelectItem value="nombre_asc">Nombre (A–Z)</SelectItem>
+            <SelectItem value="nombre_desc">Nombre (Z–A)</SelectItem>
+            <SelectItem value="periodo_desc">Período (recientes)</SelectItem>
+            <SelectItem value="periodo_asc">Período (antiguos)</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="ml-auto flex items-center gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -130,6 +185,7 @@ export function LotesTable() {
         <Button size="sm" className="bg-green-700 hover:bg-green-800" onClick={() => setDialogOpen(true)}>
           <Plus size={16} className="mr-1.5" />Nuevo Lote
         </Button>
+        </div>
       </div>
 
       <div>

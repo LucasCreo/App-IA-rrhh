@@ -19,8 +19,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   })
   if (!respuesta) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  if (decoded.employeeId && respuesta.employeeId !== decoded.employeeId)
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!decoded.employeeId || respuesta.employeeId !== decoded.employeeId) {
+    return NextResponse.json({ error: 'Solo el empleado dueño puede responder este formulario' }, { status: 403 })
+  }
 
   if (respuesta.estado === 'PENDIENTE' && respuesta.asignacion.fechaLimite && respuesta.asignacion.fechaLimite < new Date()) {
     return NextResponse.json({ error: 'La fecha límite del formulario ya venció. Contactá al administrador para extenderla.' }, { status: 400 })

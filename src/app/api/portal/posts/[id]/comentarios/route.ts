@@ -3,14 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizePostHtml } from '@/lib/richContent'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
+import { puedeAccederAPost } from '@/lib/portalAcceso'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { id } = await params
+  const postId = Number(id)
+  if (!(await puedeAccederAPost(user, postId))) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const comentarios = await prisma.postComment.findMany({
-    where: { postId: Number(id) },
+    where: { postId },
     orderBy: { createdAt: 'asc' },
     include: {
       autor: {
@@ -49,6 +54,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const postId = Number(id)
+  if (!(await puedeAccederAPost(user, postId))) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const body = await req.json()
   const contenido: string = body.contenido
   if (!contenido?.trim()) return NextResponse.json({ error: 'Comentario vacío' }, { status: 400 })

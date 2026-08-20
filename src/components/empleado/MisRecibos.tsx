@@ -54,8 +54,9 @@ export function MisRecibos({ employeeId }: Props) {
   function load() {
     setLoading(true)
     fetch(`/api/documentos?employeeId=${employeeId}&recibo=true`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then(data => setDocs(data.docs ?? []))
+      .catch(() => toast.error('No se pudieron cargar los recibos'))
       .finally(() => setLoading(false))
   }
 
@@ -252,11 +253,11 @@ export function MisRecibos({ employeeId }: Props) {
                             <Pen size={14} className="mr-1" /> Firmar
                           </Button>
                         )}
-                        <a href={`/api/documentos/${doc.id}/archivo`} target="_blank">
-                          <Button size="sm" variant="outline"><FileText size={14} /></Button>
+                        <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" aria-label="Ver recibo">
+                          <Button size="sm" variant="outline" aria-label="Ver recibo"><FileText size={14} /></Button>
                         </a>
-                        <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo}>
-                          <Button size="sm" variant="outline"><Download size={14} /></Button>
+                        <a href={`/api/documentos/${doc.id}/archivo`} download={doc.nombreArchivo} aria-label="Descargar recibo">
+                          <Button size="sm" variant="outline" aria-label="Descargar recibo"><Download size={14} /></Button>
                         </a>
                       </TableCell>
                     </TableRow>

@@ -14,12 +14,12 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { handleApiError } from '@/lib/apiErrors'
 import { cn } from '@/lib/utils'
 
-let EDIT_WINDOW_MIN = 60 * 24
-function dentroDeVentanaEdicion(createdAt: string): boolean {
-  return (Date.now() - new Date(createdAt).getTime()) / 60000 <= EDIT_WINDOW_MIN
+const EDIT_WINDOW_MIN_DEFAULT = 60 * 24
+function dentroDeVentanaEdicion(createdAt: string, windowMin: number): boolean {
+  return (Date.now() - new Date(createdAt).getTime()) / 60000 <= windowMin
 }
-function minutosRestantesEdicion(createdAt: string): number {
-  return Math.max(0, EDIT_WINDOW_MIN - (Date.now() - new Date(createdAt).getTime()) / 60000)
+function minutosRestantesEdicion(createdAt: string, windowMin: number): number {
+  return Math.max(0, windowMin - (Date.now() - new Date(createdAt).getTime()) / 60000)
 }
 function formatoTiempoRestante(min: number): string {
   if (min < 60) return `${Math.ceil(min)} min`
@@ -53,12 +53,14 @@ interface Autor {
   nombreCompleto: string
   rolNombre: string | null
 }
+interface Area { id: number; nombre: string }
 interface Post {
   id: number
   contenido: string
   imagenUrl: string | null
-  alcance: 'GLOBAL' | 'CATEGORIA'
+  alcance: 'GLOBAL' | 'CATEGORIA' | 'AREA' | 'AREA_CATEGORIA'
   categoria: { id: number; nombre: string } | null
+  area: { id: number; nombre: string } | null
   pinned?: boolean
   createdAt: string
   editedAt?: string | null
@@ -105,10 +107,13 @@ function Avatar({ autor, size = 40 }: { autor: { nombreCompleto: string; avatarU
   )
 }
 
-function NuevoPost({ onCreated, categorias, isAdmin, miCategoriaNombre }: { onCreated: () => void; categorias: Categoria[]; isAdmin: boolean; miCategoriaNombre: string | null }) {
+type AlcancePost = 'GLOBAL' | 'AREA' | 'AREA_CATEGORIA' | 'CATEGORIA'
+
+function NuevoPost({ onCreated, categorias, areas, isAdmin, miCategoriaNombre }: { onCreated: () => void; categorias: Categoria[]; areas: Area[]; isAdmin: boolean; miCategoriaNombre: string | null }) {
   const [expandido, setExpandido] = useState(false)
   const [contenido, setContenido] = useState('')
-  const [alcance, setAlcance] = useState<'GLOBAL' | 'CATEGORIA'>('GLOBAL')
+  const [alcance, setAlcance] = useState<AlcancePost>('GLOBAL')
+  const [areaId, setAreaId] = useState<string>('')
   const [categoriaId, setCategoriaId] = useState<string>('')
   const [notificar, setNotificar] = useState(true)
   const [publicando, setPublicando] = useState(false)
@@ -117,19 +122,22 @@ function NuevoPost({ onCreated, categorias, isAdmin, miCategoriaNombre }: { onCr
     setExpandido(false)
     setContenido('')
     setAlcance('GLOBAL')
+    setAreaId('')
     setCategoriaId('')
     setNotificar(true)
   }
 
   async function handlePublish() {
     if (esContenidoVacio(contenido)) { toast.error('Escribí algo o insertá un archivo'); return }
-    if (alcance === 'CATEGORIA' && !categoriaId) { toast.error('Elegí una categoría'); return }
+    if ((alcance === 'AREA' || alcance === 'AREA_CATEGORIA') && !areaId) { toast.error('Elegí un área'); return }
+    if ((alcance === 'CATEGORIA' || alcance === 'AREA_CATEGORIA') && !categoriaId) { toast.error('Elegí una categoría'); return }
 
     setPublicando(true)
     const fd = new FormData()
     fd.append('contenido', contenido)
     fd.append('alcance', alcance)
-    if (alcance === 'CATEGORIA') fd.append('categoriaId', categoriaId)
+    if (alcance === 'AREA' || alcance === 'AREA_CATEGORIA') fd.append('areaId', areaId)
+    if (alcance === 'CATEGORIA' || alcance === 'AREA_CATEGORIA') fd.append('categoriaId', categoriaId)
     fd.append('notificar', notificar ? 'true' : 'false')
 
     const r = await fetch('/api/portal/posts', { method: 'POST', body: fd })
@@ -187,20 +195,34 @@ function NuevoPost({ onCreated, categorias, isAdmin, miCategoriaNombre }: { onCr
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
           {isAdmin && (
             <>
-              <Select value={alcance} onValueChange={v => setAlcance(v as any)}>
+              <Select value={alcance} onValueChange={v => setAlcance(v as AlcancePost)}>
                 <SelectTrigger className="w-full sm:w-52 h-9 text-sm">
                   <SelectValue>
-                    {alcance === 'GLOBAL' ? 'Todos los empleados' : 'Por categoría'}
+                    {alcance === 'GLOBAL' ? 'Todos los empleados'
+                      : alcance === 'AREA' ? 'Por área'
+                      : alcance === 'AREA_CATEGORIA' ? 'Área + categoría'
+                      : 'Por categoría'}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="GLOBAL">Todos los empleados</SelectItem>
-                  <SelectItem value="CATEGORIA">Por categoría</SelectItem>
+                  <SelectItem value="AREA">Por área</SelectItem>
+                  <SelectItem value="AREA_CATEGORIA">Área + categoría</SelectItem>
                 </SelectContent>
               </Select>
-              {alcance === 'CATEGORIA' && (
+              {(alcance === 'AREA' || alcance === 'AREA_CATEGORIA') && (
+                <Select value={areaId} onValueChange={v => setAreaId(v ?? '')}>
+                  <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue placeholder="Área…" /></SelectTrigger>
+                  <SelectContent>
+                    {areas.map(a => (
+                      <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {(alcance === 'CATEGORIA' || alcance === 'AREA_CATEGORIA') && (
                 <Select value={categoriaId} onValueChange={v => setCategoriaId(v ?? '')}>
-                  <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue placeholder="Elegir…" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue placeholder="Categoría…" /></SelectTrigger>
                   <SelectContent>
                     {categorias.map(c => (
                       <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
@@ -233,11 +255,12 @@ function NuevoPost({ onCreated, categorias, isAdmin, miCategoriaNombre }: { onCr
   )
 }
 
-function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
+function PostCard({ post, userId, isAdmin, esNuevo, editWindowMin, onDeleted, onUpdate }: {
   post: Post
   userId: number
   isAdmin: boolean
   esNuevo?: boolean
+  editWindowMin: number
   onDeleted: () => void
   onUpdate: (id: number, changes: Partial<Post>) => void
 }) {
@@ -258,7 +281,7 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
   const [respuesta, setRespuesta] = useState('')
   const [enviandoRespuesta, setEnviandoRespuesta] = useState(false)
   const puedeBorrar = post.autor.id === userId
-  const puedeEditarPost = post.autor.id === userId && dentroDeVentanaEdicion(post.createdAt)
+  const puedeEditarPost = post.autor.id === userId && dentroDeVentanaEdicion(post.createdAt, editWindowMin)
 
   function iniciarEdicionPost() {
     setContenidoEdit(post.contenido)
@@ -397,8 +420,8 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
   }
 
   return (
-    <div className={cn(
-      'bg-card border rounded-xl shadow-sm',
+    <div id={`post-${post.id}`} className={cn(
+      'bg-card border rounded-xl shadow-sm scroll-mt-4',
       post.pinned ? 'border-green-500/70 dark:border-green-500/50' : 'border-border'
     )}>
       <div className="p-4 flex items-start gap-3">
@@ -414,9 +437,15 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
                 {timeAgo(post.createdAt)}
                 {post.editedAt && <span className="italic">· editado</span>}
                 {' · '}
-                {post.alcance === 'GLOBAL'
-                  ? <><Globe size={10} /> Todos</>
-                  : <><Users size={10} /> {post.categoria?.nombre}</>}
+                {post.alcance === 'GLOBAL' ? (
+                  <><Globe size={10} /> Todos</>
+                ) : post.alcance === 'AREA' ? (
+                  <><Users size={10} /> Área: {post.area?.nombre}</>
+                ) : post.alcance === 'AREA_CATEGORIA' ? (
+                  <><Users size={10} /> {post.area?.nombre} · {post.categoria?.nombre}</>
+                ) : (
+                  <><Users size={10} /> {post.categoria?.nombre}</>
+                )}
                 {post.pinned && (
                   <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400 font-medium">
                     · <Pin size={10} /> Fijado
@@ -428,7 +457,7 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
                   </span>
                 )}
                 {puedeEditarPost && !editando && (() => {
-                  const min = minutosRestantesEdicion(post.createdAt)
+                  const min = minutosRestantesEdicion(post.createdAt, editWindowMin)
                   const urgente = min < 120
                   return (
                     <span className={urgente ? 'text-amber-600 dark:text-amber-400' : ''}>
@@ -457,7 +486,7 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
                 <button
                   onClick={iniciarEdicionPost}
                   className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
-                  title={`Editar (queda ${formatoTiempoRestante(minutosRestantesEdicion(post.createdAt))})`}
+                  title={`Editar (queda ${formatoTiempoRestante(minutosRestantesEdicion(post.createdAt, editWindowMin))})`}
                 >
                   <Pencil size={14} />
                 </button>
@@ -552,7 +581,7 @@ function PostCard({ post, userId, isAdmin, esNuevo, onDeleted, onUpdate }: {
               }
             }
             const renderComentario = (c: Comentario, esRespuesta: boolean) => {
-              const puedeEditarComentario = c.autor.id === userId && dentroDeVentanaEdicion(c.createdAt)
+              const puedeEditarComentario = c.autor.id === userId && dentroDeVentanaEdicion(c.createdAt, editWindowMin)
               const editandoEste = comentarioEditId === c.id
               return (
                 <div key={c.id} className="flex items-start gap-2 group">
@@ -752,16 +781,19 @@ export function PortalFeed() {
   const [puedePublicar, setPuedePublicar] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
   const [miCategoriaNombre, setMiCategoriaNombre] = useState<string | null>(null)
   const [lastSeenAt, setLastSeenAt] = useState<string | null>(null)
+  const [editWindowMin, setEditWindowMin] = useState<number>(EDIT_WINDOW_MIN_DEFAULT)
   const [search, setSearch] = useState('')
   const [orden, setOrden] = useState<'recientes' | 'destacados' | 'menciones'>('recientes')
 
   async function load() {
     setLoading(true)
-    const [rPosts, rCats, rCfg] = await Promise.all([
+    const [rPosts, rCats, rAreas, rCfg] = await Promise.all([
       fetch('/api/portal/posts'),
       fetch('/api/categorias'),
+      fetch('/api/areas'),
       fetch('/api/configuracion/general'),
     ])
     if (rPosts.ok) {
@@ -774,9 +806,10 @@ export function PortalFeed() {
       setLastSeenAt(data.avisosLastSeenAt ?? null)
     }
     if (rCats.ok) setCategorias(await rCats.json())
+    if (rAreas.ok) setAreas(await rAreas.json())
     if (rCfg.ok) {
       const cfg = await rCfg.json()
-      if (typeof cfg?.editWindowMin === 'number' && cfg.editWindowMin > 0) EDIT_WINDOW_MIN = cfg.editWindowMin
+      if (typeof cfg?.editWindowMin === 'number' && cfg.editWindowMin > 0) setEditWindowMin(cfg.editWindowMin)
     }
     fetch('/api/portal/posts/mark-seen', { method: 'POST' }).catch(() => {})
     setLoading(false)
@@ -785,12 +818,12 @@ export function PortalFeed() {
   useEffect(() => { load() }, [])
 
   const q = search.trim().toLowerCase()
-  const mencionRegex = new RegExp(`data-id=["']${userId}["']`)
+  const mencionRegex = userId > 0 ? new RegExp(`data-id=["']${userId}["']`) : null
   const engagement = (p: Post) => p.totalReacciones + p.totalComentarios
   const postsFiltrados = posts
     .filter(p => {
       if (orden === 'destacados' && engagement(p) === 0) return false
-      if (orden === 'menciones' && !mencionRegex.test(p.contenido || '')) return false
+      if (orden === 'menciones' && (!mencionRegex || !mencionRegex.test(p.contenido || ''))) return false
       if (q) {
         const texto = (p.contenido || '').replace(/<[^>]+>/g, ' ').toLowerCase()
         const autor = p.autor.nombreCompleto.toLowerCase()
@@ -810,7 +843,7 @@ export function PortalFeed() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {puedePublicar && <NuevoPost onCreated={load} categorias={categorias} isAdmin={isAdmin} miCategoriaNombre={miCategoriaNombre} />}
+      {puedePublicar && <NuevoPost onCreated={load} categorias={categorias} areas={areas} isAdmin={isAdmin} miCategoriaNombre={miCategoriaNombre} />}
       {posts.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
@@ -855,6 +888,7 @@ export function PortalFeed() {
               userId={userId}
               isAdmin={isAdmin}
               esNuevo={esNuevo}
+              editWindowMin={editWindowMin}
               onDeleted={load}
               onUpdate={(id, changes) => setPosts(prev => prev.map(x => x.id === id ? { ...x, ...changes } : x))}
             />

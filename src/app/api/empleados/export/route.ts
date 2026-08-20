@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q') ?? ''
   const estado = searchParams.get('estado') ?? undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const areaId = searchParams.get('areaId') ? Number(searchParams.get('areaId')) : undefined
 
   const scope = await getScopedEmployeeIds(user.userId)
   const where: Prisma.EmployeeWhereInput = {
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
       } : {},
       estado ? { estado } : {},
       categoriaId ? { categoriaId } : {},
+      areaId ? { areaId } : {},
       scope ? { id: { in: [...scope] } } : {},
     ],
   }
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
     prisma.employee.findMany({
       where,
       include: {
+        area: true,
         categoria: true,
         valoresCampos: { include: { campo: true } },
       },
@@ -61,7 +64,9 @@ export async function GET(req: NextRequest) {
         cuil: e.cuil,
         email: e.email,
         telefono: e.telefono ?? '',
+        area: e.area?.nombre ?? '',
         categoria: e.categoria.nombre,
+        puesto: e.puesto ?? '',
         estado: e.estado,
         fechaIngreso: e.fechaIngreso.toISOString().slice(0, 10),
         valores,

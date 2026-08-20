@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { MisSolicitudes } from './MisSolicitudes'
 import { cn } from '@/lib/utils'
 
@@ -12,7 +13,20 @@ const TABS = [
 type Tab = typeof TABS[number]['id']
 
 export function SolicitudesEmpleadoTabs() {
-  const [tab, setTab] = useState<Tab>('enviadas')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const initial = searchParams.get('vista')
+  const [tab, setTab] = useState<Tab>(
+    TABS.some(t => t.id === initial) ? (initial as Tab) : 'enviadas',
+  )
+
+  function seleccionar(id: Tab) {
+    setTab(id)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('vista', id)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <div className="space-y-4">
@@ -20,7 +34,7 @@ export function SolicitudesEmpleadoTabs() {
         {TABS.map(t => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => seleccionar(t.id)}
             className={cn(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === t.id

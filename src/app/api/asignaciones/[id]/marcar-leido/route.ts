@@ -14,8 +14,8 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
     include: { grupo: { include: { tipoDocumento: { select: { accion: true } } } } },
   })
   if (!asign) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  if (asign.employeeId !== user.employeeId) {
-    return NextResponse.json({ error: 'Prohibido' }, { status: 403 })
+  if (!user.employeeId || asign.employeeId !== user.employeeId) {
+    return NextResponse.json({ error: 'Solo el empleado dueño puede marcar como leído' }, { status: 403 })
   }
   if (asign.grupo.tipoDocumento?.accion !== 'LECTURA') {
     return NextResponse.json({ error: 'Este documento no es de tipo lectura' }, { status: 400 })

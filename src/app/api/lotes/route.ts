@@ -17,6 +17,13 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim() ?? ''
+  const periodo = searchParams.get('periodo')?.trim() ?? ''
+  const sortByRaw = searchParams.get('sortBy') ?? 'createdAt'
+  const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc'
+  const SORT_ALLOWED: Record<string, 'nombre' | 'periodo' | 'createdAt'> = {
+    nombre: 'nombre', periodo: 'periodo', createdAt: 'createdAt',
+  }
+  const sortBy = SORT_ALLOWED[sortByRaw] ?? 'createdAt'
   const pageParam = searchParams.get('page')
   const paged = pageParam !== null
   const page = Math.max(1, Number(pageParam ?? 1) || 1)
@@ -25,7 +32,13 @@ export async function GET(req: NextRequest) {
   const scope = await getScopedEmployeeIds(user.userId)
   const where = {
     ...(scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {}),
-    ...(q ? { nombre: { contains: q } } : {}),
+    ...(q ? {
+      OR: [
+        { nombre: { contains: q } },
+        { descripcion: { contains: q } },
+      ],
+    } : {}),
+    ...(periodo ? { periodo: { contains: periodo } } : {}),
   }
 
   const [total, lotes] = await Promise.all([
@@ -38,7 +51,7 @@ export async function GET(req: NextRequest) {
         empleados: { select: { employeeId: true } },
         pendientes: { select: { id: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { [sortBy]: sortOrder },
       ...(paged ? { skip: (page - 1) * limit, take: limit } : {}),
     }),
   ])

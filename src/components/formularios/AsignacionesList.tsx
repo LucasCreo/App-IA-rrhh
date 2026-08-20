@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -26,7 +28,9 @@ interface SolicitudFormulario {
 
 interface Campo { nombre: string; label: string; tipo: string; opciones?: string; rellena?: 'admin' | 'empleado' }
 interface Plantilla { id: number; nombre: string; activo: boolean; campos: Campo[] }
-interface Empleado { id: number; nombre: string; apellido: string; legajo: string }
+interface Empleado { id: number; nombre: string; apellido: string; legajo: string; area?: { id: number; nombre: string } | null; categoria?: { id: number; nombre: string } | null }
+interface Area { id: number; nombre: string }
+interface Categoria { id: number; nombre: string }
 
 export function AsignacionesList() {
   const router = useRouter()
@@ -55,6 +59,13 @@ export function AsignacionesList() {
   const [busqueda, setBusqueda] = useState('')
   const [busquedaDebounced, setBusquedaDebounced] = useState('')
   const [plantillaFiltro, setPlantillaFiltro] = useState<string>('todas')
+  const [areas, setAreas] = useState<Area[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [dialogAreaId, setDialogAreaId] = useState<string>('')
+  const [dialogCategoriaId, setDialogCategoriaId] = useState<string>('')
+  const [selectedListaAsig, setSelectedListaAsig] = useState<Set<number>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 300)
@@ -88,20 +99,27 @@ export function AsignacionesList() {
   }, [])
 
   async function openDialog() {
-    const [pRes, eRes] = await Promise.all([
+    const [pRes, eRes, aRes, cRes] = await Promise.all([
       fetch('/api/configuracion/plantillas-formulario').then(r => r.json()),
       fetch('/api/empleados?all=true').then(r => r.json()),
+      fetch('/api/areas').then(r => r.json()),
+      fetch('/api/categorias').then(r => r.json()),
     ])
     setPlantillas((pRes as Plantilla[]).filter(p => p.activo))
     const list = (eRes as { employees?: Empleado[] }).employees ?? (eRes as Empleado[])
     setEmpleados(list)
+    setAreas(Array.isArray(aRes) ? aRes : [])
+    setCategorias(Array.isArray(cRes) ? cRes : [])
     setNombre(''); setPlantillaId(''); setFechaLimite(''); setSearch(''); setSelected([]); setDatosAdmin({})
+    setDialogAreaId(''); setDialogCategoriaId('')
     setOpen(true)
   }
 
-  const filtered = empleados.filter(e =>
-    `${e.nombre} ${e.apellido} ${e.legajo}`.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = empleados.filter(e => {
+    if (dialogAreaId && String(e.area?.id ?? '') !== dialogAreaId) return false
+    if (dialogCategoriaId && String(e.categoria?.id ?? '') !== dialogCategoriaId) return false
+    return `${e.nombre} ${e.apellido} ${e.legajo}`.toLowerCase().includes(search.toLowerCase())
+  })
 
   function toggleEmpleado(id: number) {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -154,6 +172,36 @@ export function AsignacionesList() {
     toast.success('Solicitud eliminada')
   }
 
+  async function handleBulkDelete() {
+    if (selectedListaAsig.size === 0) return
+    setBulkDeleting(true)
+    const results = await Promise.all(
+      Array.from(selectedListaAsig).map(id => fetch(`/api/formularios/asignaciones/${id}`, { method: 'DELETE' }))
+    )
+    const ok = results.filter(r => r.ok).length
+    const fail = results.length - ok
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+    setSelectedListaAsig(new Set())
+    if (ok > 0) toast.success(ok === 1 ? '1 solicitud eliminada' : `${ok} solicitudes eliminadas`)
+    if (fail > 0) toast.error(`${fail} no se pudo(ieron) eliminar`)
+    load()
+  }
+
+  const allListaSelected = solicitudes.length > 0 && solicitudes.every(a => selectedListaAsig.has(a.id))
+  const someListaSelected = selectedListaAsig.size > 0 && !allListaSelected
+  function toggleListaOne(id: number) {
+    setSelectedListaAsig(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  function toggleListaAll() {
+    if (allListaSelected) setSelectedListaAsig(new Set())
+    else setSelectedListaAsig(new Set(solicitudes.map(a => a.id)))
+  }
+
   async function handleCrear() {
     if (!nombre.trim()) { toast.error('Ingresá un nombre'); return }
     if (!plantillaId) { toast.error('Seleccioná una plantilla'); return }
@@ -191,6 +239,17 @@ export function AsignacionesList() {
             {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
+          onClick={() => setBulkDeleteOpen(true)}
+          disabled={selectedListaAsig.size === 0}
+          title={selectedListaAsig.size === 0 ? 'Seleccioná una o más solicitudes' : undefined}
+        >
+          <Trash2 size={14} className="mr-1" />
+          {selectedListaAsig.size > 0 ? `Eliminar ${selectedListaAsig.size}` : 'Eliminar'}
+        </Button>
         <Button className="bg-green-700 hover:bg-green-800 gap-1.5" onClick={openDialog}>
           <Plus size={15} /> Nueva solicitud
         </Button>
@@ -206,6 +265,9 @@ export function AsignacionesList() {
           <table className="w-full text-sm">
             <thead className="bg-muted">
               <tr>
+                <th className="w-10 px-3 py-2.5">
+                  <Checkbox checked={allListaSelected} indeterminate={someListaSelected} onCheckedChange={toggleListaAll} aria-label="Seleccionar todos" />
+                </th>
                 <th className="text-left px-4 py-2.5 font-medium">Nombre</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Plantilla</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Asignados a</th>
@@ -219,9 +281,12 @@ export function AsignacionesList() {
               {solicitudes.map(a => (
                 <tr
                   key={a.id}
-                  className="border-t hover:bg-muted/40 cursor-pointer transition-colors"
+                  className={cn('border-t hover:bg-muted/40 cursor-pointer transition-colors', selectedListaAsig.has(a.id) && 'bg-green-50/50 dark:bg-green-950/10')}
                   onClick={() => router.push(`/admin/formularios/${a.id}`)}
                 >
+                  <td className="w-10 px-3" onClick={e => e.stopPropagation()}>
+                    <Checkbox checked={selectedListaAsig.has(a.id)} onCheckedChange={() => toggleListaOne(a.id)} aria-label={`Seleccionar ${a.nombre}`} />
+                  </td>
                   <td className="px-4 py-3 font-medium">{a.nombre}</td>
                   <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
                     <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400">
@@ -357,6 +422,23 @@ export function AsignacionesList() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={o => { if (!o && !bulkDeleting) setBulkDeleteOpen(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedListaAsig.size} solicitud{selectedListaAsig.size === 1 ? '' : 'es'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán las solicitudes seleccionadas junto con todas sus respuestas. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleBulkDelete} disabled={bulkDeleting}>
+              {bulkDeleting ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={open} onOpenChange={v => !v && setOpen(false)}>
         <DialogContent className="sm:max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
           <DialogHeader className="shrink-0">
@@ -414,6 +496,22 @@ export function AsignacionesList() {
               <p className="text-xs text-muted-foreground mb-2">
                 Empleados · <span className="font-medium">{selected.length} seleccionado{selected.length !== 1 ? 's' : ''}</span>
               </p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <Select value={dialogAreaId || 'todas'} onValueChange={v => setDialogAreaId(!v || v === 'todas' ? '' : v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Área" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas las áreas</SelectItem>
+                    {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={dialogCategoriaId || 'todas'} onValueChange={v => setDialogCategoriaId(!v || v === 'todas' ? '' : v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoría" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas las categorías</SelectItem>
+                    {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="relative mb-2">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input className="pl-8 h-8 text-xs" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} />

@@ -32,10 +32,11 @@ export interface Dependencia {
 
 export async function getEmployeeDependencies(employeeId: number): Promise<Dependencia[]> {
   const [
-    documentos, ausencias, evaluaciones, respuestasFormulario, solicitudesDoc,
+    documentos, docAsignaciones, ausencias, evaluaciones, respuestasFormulario, solicitudesDoc,
     solicitudesMod, eventos, saldosVac, valoresCampos, lotes,
   ] = await Promise.all([
     prisma.document.count({ where: { employeeId } }),
+    prisma.documentoAsignacion.count({ where: { employeeId } }),
     prisma.solicitudAusencia.count({ where: { employeeId } }),
     prisma.evaluacion.count({ where: { employeeId } }),
     prisma.respuestaFormulario.count({ where: { employeeId } }),
@@ -48,7 +49,8 @@ export async function getEmployeeDependencies(employeeId: number): Promise<Depen
   ])
   void valoresCampos
   return [
-    { key: 'documentos',      label: 'Documentos recibidos',       count: documentos,           href: '/admin/documentos' },
+    { key: 'documentos',      label: 'Recibos individuales',       count: documentos,           href: '/admin/recibos' },
+    { key: 'docAsignaciones', label: 'Documentos asignados',       count: docAsignaciones,      href: '/admin/documentos' },
     { key: 'ausencias',       label: 'Ausencias',                  count: ausencias,            href: '/admin/calendario' },
     { key: 'evaluaciones',    label: 'Evaluaciones',               count: evaluaciones,         href: '/admin/evaluaciones' },
     { key: 'formularios',     label: 'Respuestas de formularios',  count: respuestasFormulario, href: '/admin/solicitudes?tab=enviadas' },
@@ -192,6 +194,7 @@ export async function deletePersonaCascade(
       await tx.solicitudAusencia.deleteMany({ where: { employeeId } })
       await tx.solicitudDocumento.deleteMany({ where: { employeeId } })
       await tx.solicitudModificacion.deleteMany({ where: { employeeId } })
+      await tx.documentoAsignacion.deleteMany({ where: { employeeId } })
       await tx.document.deleteMany({ where: { employeeId } })
       await tx.userInvitation.deleteMany({ where: { employeeId } })
     }

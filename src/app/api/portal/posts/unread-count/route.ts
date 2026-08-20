@@ -8,12 +8,13 @@ export async function GET() {
 
   const [me, lastSeen] = await Promise.all([
     user.employeeId
-      ? prisma.employee.findUnique({ where: { id: user.employeeId }, select: { categoriaId: true } })
+      ? prisma.employee.findUnique({ where: { id: user.employeeId }, select: { categoriaId: true, areaId: true } })
       : Promise.resolve(null),
     prisma.user.findUnique({ where: { id: user.userId }, select: { avisosLastSeenAt: true } }),
   ])
 
   const miCategoriaId = me?.categoriaId ?? null
+  const miAreaId = me?.areaId ?? null
   const since = lastSeen?.avisosLastSeenAt ?? new Date(0)
 
   const count = await prisma.post.count({
@@ -25,6 +26,10 @@ export async function GET() {
           OR: [
             { alcance: 'GLOBAL' },
             ...(miCategoriaId ? [{ alcance: 'CATEGORIA', categoriaId: miCategoriaId }] : []),
+            ...(miAreaId ? [{ alcance: 'AREA', areaId: miAreaId }] : []),
+            ...(miAreaId && miCategoriaId
+              ? [{ alcance: 'AREA_CATEGORIA', areaId: miAreaId, categoriaId: miCategoriaId }]
+              : []),
           ],
         },
   })

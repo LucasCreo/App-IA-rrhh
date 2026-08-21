@@ -33,9 +33,20 @@ export async function GET(req: NextRequest) {
     const owner = await prisma.user.findFirst({ where: { avatarAditusId: file }, select: { id: true } })
     if (!owner) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     try {
-      const f = await getAditusFile(file)
+      // download devuelve el binario original con su content-type real;
+      // el endpoint de preview a veces devuelve un render HTML para imágenes.
+      const f = await getAditusFile(file, { download: true })
+      // Si Aditus devuelve octet-stream u otro no-imagen, detectamos por magic bytes.
+      let mime = f.contentType
+      if (!mime || !mime.startsWith('image/')) {
+        const b = f.content
+        if (b[0] === 0xff && b[1] === 0xd8) mime = 'image/jpeg'
+        else if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) mime = 'image/png'
+        else if (b.length > 12 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) mime = 'image/webp'
+        else mime = 'image/jpeg'
+      }
       return new NextResponse(new Uint8Array(f.content), {
-        headers: { 'Content-Type': f.contentType || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' },
+        headers: { 'Content-Type': mime, 'Cache-Control': 'private, max-age=3600' },
       })
     } catch {
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 })

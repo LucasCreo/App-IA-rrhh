@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
-import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds, isAncestorOfUser } from '@/lib/scope'
 
@@ -50,28 +49,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   if (estado === 'APROBADA') {
-    // Crear evento en el calendario
-    const evento = await prisma.evento.create({
-      data: {
-        titulo: `Ausencia — ${solicitud.tipoAusencia.nombre}`,
-        descripcion: solicitud.motivo ?? null,
-        fechaInicio: solicitud.fechaInicio,
-        fechaFin: solicitud.fechaFin,
-        todoElDia: true,
-        tipo: 'AUSENCIA',
-        subtipo: solicitud.tipoAusencia.nombre,
-        creadoPorId: user.userId,
-        asignados: { create: { employeeId: solicitud.employeeId } },
-      },
-    })
-
-    // Push a Google Calendar del empleado y del admin que aprueba
-    const empleado = await prisma.employee.findUnique({
-      where: { id: solicitud.employeeId },
-      select: { user: { select: { id: true } } },
-    })
-    const empleadoUserId = empleado?.user?.id
-    await pushEventoToGoogleCalendars(evento.id, [empleadoUserId, user.userId].filter((id): id is number => typeof id === 'number'))
+    // No creamos Evento: /api/eventos ya expone las ausencias aprobadas como
+    // eventos virtuales, así que crear uno real duplicaría la entrada en el calendario.
 
     // Descontar del saldo de vacaciones si aplica
     if (solicitud.tipoAusencia.afectaSaldo) {

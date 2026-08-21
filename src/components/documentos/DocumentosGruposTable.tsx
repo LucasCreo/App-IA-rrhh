@@ -13,7 +13,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useRouter } from 'next/navigation'
-import { FileText, Plus, Search, Trash2, Send, Tag, Pencil, Eye, X } from 'lucide-react'
+import { FileText, Plus, Search, Trash2, Send, Tag, Pencil, Eye, X, SlidersHorizontal } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { DocumentoCargarDialog } from './DocumentoCargarDialog'
 import { DocumentoGrupoEditarDialog } from './DocumentoGrupoEditarDialog'
 
@@ -47,6 +48,9 @@ export function DocumentosGruposTable() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState<string>('todos')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [tipos, setTipos] = useState<TipoDocumento[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [editGrupo, setEditGrupo] = useState<Grupo | null>(null)
@@ -58,11 +62,18 @@ export function DocumentosGruposTable() {
   const [total, setTotal] = useState(0)
   const [preview, setPreview] = useState<{ id: number; nombre: string } | null>(null)
 
+  const rangoInvalido = !!desde && !!hasta && hasta < desde
+  const activeFiltersCount = (tipoFiltro !== 'todos' ? 1 : 0) + (desde ? 1 : 0) + (hasta ? 1 : 0)
+  function clearAllFilters() { setTipoFiltro('todos'); setDesde(''); setHasta('') }
+
   const load = useCallback(async () => {
+    if (rangoInvalido) { setGrupos([]); setTotal(0); setLoading(false); return }
     setLoading(true)
     const params = new URLSearchParams()
     if (busqueda) params.set('q', busqueda)
     if (tipoFiltro !== 'todos') params.set('tipoDocumentoId', tipoFiltro)
+    if (desde) params.set('desde', desde)
+    if (hasta) params.set('hasta', hasta)
     params.set('page', String(page))
     params.set('limit', String(pageSize))
     const r = await fetch(`/api/documentos-grupos?${params}`)
@@ -72,7 +83,7 @@ export function DocumentosGruposTable() {
       setTotal(d.total ?? 0)
     }
     setLoading(false)
-  }, [busqueda, tipoFiltro, page, pageSize])
+  }, [busqueda, tipoFiltro, desde, hasta, rangoInvalido, page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -153,21 +164,29 @@ export function DocumentosGruposTable() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input className="pl-9" placeholder="Buscar por nombre de archivo…" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPage(1) }} />
         </div>
-        <Select value={tipoFiltro} onValueChange={v => { setTipoFiltro(v ?? 'todos'); setPage(1) }}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Tipo de documento" />
-          </SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los tipos</SelectItem>
-            {tipos
-              .filter(t => t.nombre.toLowerCase() !== 'recibo de sueldo')
-              .map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-9', activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+          onClick={() => setFiltersOpen(v => !v)}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
-          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
+          className="ml-auto text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
           onClick={() => setBulkDeleteOpen(true)}
           disabled={selected.size === 0}
           title={selected.size === 0 ? 'Seleccioná uno o más documentos para eliminar' : undefined}
@@ -179,6 +198,31 @@ export function DocumentosGruposTable() {
           <Plus size={16} className="mr-1" /> Cargar Documento
         </Button>
       </div>
+
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={tipoFiltro} onValueChange={v => { setTipoFiltro(v ?? 'todos'); setPage(1) }}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos los tipos</SelectItem>
+                {tipos
+                  .filter(t => t.nombre.toLowerCase() !== 'recibo de sueldo')
+                  .map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Cargado desde</p>
+            <Input type="date" value={desde} max={hasta || undefined} onChange={e => { setDesde(e.target.value); setPage(1) }} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Cargado hasta</p>
+            <Input type="date" value={hasta} min={desde || undefined} onChange={e => { setHasta(e.target.value); setPage(1) }} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">

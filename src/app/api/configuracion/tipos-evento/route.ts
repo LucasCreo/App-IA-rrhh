@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 
+// Nombres reservados por otros módulos (Licencias, aniversarios, formularios).
+// No permitir crearlos como TipoEvento para evitar duplicaciones en el calendario.
+const NOMBRES_RESERVADOS = new Set(['AUSENCIA', 'ANIVERSARIO', 'FORMULARIO', 'FORMULARIO_VENCIMIENTO'])
+
 export async function GET() {
   try {
     const user = await getCurrentUser()
@@ -19,9 +23,13 @@ export async function POST(req: NextRequest) {
     if (!user || user.role === 'EMPLOYEE') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     const { nombre, color, permiteAdmin, permiteEmpleado } = await req.json()
     if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
+    const nombreNorm = nombre.trim().toUpperCase()
+    if (NOMBRES_RESERVADOS.has(nombreNorm)) {
+      return NextResponse.json({ error: `"${nombreNorm}" es un nombre reservado por otro módulo del sistema` }, { status: 400 })
+    }
     const tipo = await prisma.tipoEvento.create({
       data: {
-        nombre: nombre.trim().toUpperCase(),
+        nombre: nombreNorm,
         color: color ?? '#6b7280',
         permiteAdmin: permiteAdmin !== false,
         permiteEmpleado: !!permiteEmpleado,

@@ -102,6 +102,10 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     postTitulo: 'Feriado del 15/09',
     comentario: 'Recuerden que ese día también cierra el comedor.',
   },
+  PASSWORD_CAMBIADA: {
+    nombre: 'Juan',
+    fecha: '21/08/2026 15:30',
+  },
 }
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ key: string }> }) {

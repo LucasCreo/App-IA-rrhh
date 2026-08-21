@@ -14,7 +14,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { TabSaldos } from '@/components/ausencias/AusenciasAdmin'
 import Link from 'next/link'
-import { Calendar, CalendarOff, Check, CheckCircle2, Clock, Paperclip, Search, X, XCircle } from 'lucide-react'
+import { Calendar, CalendarOff, Check, CheckCircle2, Clock, Paperclip, Search, SlidersHorizontal, X, XCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination, paginate } from '@/components/ui/pagination'
 import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 interface SolicitudAus {
@@ -24,13 +26,6 @@ interface SolicitudAus {
   employee: { id: number; nombre: string; apellido: string; legajo: string }
   tipoAusencia: { id: number; nombre: string; color: string; afectaSaldo: boolean }
 }
-
-const ESTADO_FILTROS = [
-  { value: '', label: 'Todas' },
-  { value: 'PENDIENTE', label: 'Pendientes' },
-  { value: 'APROBADA', label: 'Aprobadas' },
-  { value: 'RECHAZADA', label: 'Rechazadas' },
-]
 
 const ESTADO_META: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
   PENDIENTE: { icon: <Clock size={11} />, className: 'text-yellow-600 border-yellow-400', label: 'Pendiente' },
@@ -78,18 +73,40 @@ function SolicitudesAusencia() {
   const router = useRouter()
   const [items, setItems] = useState<SolicitudAus[]>([])
   const [loading, setLoading] = useState(true)
-  const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState('todos')
+  const [tipoFiltro, setTipoFiltro] = useState<string>('')
+  const [anio, setAnio] = useState<string>('')
+  const [desde, setDesde] = useState<string>('')
+  const [hasta, setHasta] = useState<string>('')
+  const [vigenteEl, setVigenteEl] = useState<string>('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
   const [review, setReview] = useState<SolicitudAus | null>(null)
   const [comentario, setComentario] = useState('')
   const [saldoReview, setSaldoReview] = useState<{ diasTotales: number; diasUsados: number } | null>(null)
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkReview, setBulkReview] = useState<'APROBADA' | 'RECHAZADA' | null>(null)
   const [bulkComentario, setBulkComentario] = useState('')
   const [bulkProcessing, setBulkProcessing] = useState(false)
+
+  useEffect(() => { setPage(1) }, [estadoFiltro, tipoFiltro, anio, desde, hasta, vigenteEl, qDebounced])
+
+  const activeFiltersCount =
+    (estadoFiltro !== 'todos' ? 1 : 0) +
+    (tipoFiltro ? 1 : 0) +
+    (anio ? 1 : 0) +
+    (desde ? 1 : 0) +
+    (hasta ? 1 : 0) +
+    (vigenteEl ? 1 : 0)
+
+  function clearAllFilters() {
+    setEstadoFiltro('todos'); setTipoFiltro(''); setAnio(''); setDesde(''); setHasta(''); setVigenteEl('')
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
@@ -115,8 +132,19 @@ function SolicitudesAusencia() {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = items.filter(s => {
-    if (estadoFiltro && s.estado !== estadoFiltro) return false
+  const tiposEnItems = [...new Set(items.map(s => s.tipoAusencia.nombre))].sort()
+  const aniosDisponibles = [...new Set(items.map(s => s.fechaInicio.slice(0, 4)))].sort((a, b) => Number(b) - Number(a))
+  const rangoInvalido = !!desde && !!hasta && hasta < desde
+
+  const filtered = (rangoInvalido ? [] : items).filter(s => {
+    if (estadoFiltro !== 'todos' && s.estado !== estadoFiltro) return false
+    if (tipoFiltro && s.tipoAusencia.nombre !== tipoFiltro) return false
+    if (anio && !s.fechaInicio.startsWith(`${anio}-`)) return false
+    const ini = s.fechaInicio.slice(0, 10)
+    const fin = s.fechaFin.slice(0, 10)
+    if (desde && ini < desde) return false
+    if (hasta && ini > hasta) return false
+    if (vigenteEl && (vigenteEl < ini || vigenteEl > fin)) return false
     if (qDebounced) {
       const nombre = `${s.employee.apellido} ${s.employee.nombre}`.toLowerCase()
       if (!nombre.includes(qDebounced) && !s.employee.legajo.toLowerCase().includes(qDebounced)) return false
@@ -182,23 +210,6 @@ function SolicitudesAusencia() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 border-b">
-        {ESTADO_FILTROS.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setEstadoFiltro(f.value)}
-            className={cn(
-              'cursor-pointer px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              estadoFiltro === f.value
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-56 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -209,10 +220,78 @@ function SolicitudesAusencia() {
             onChange={e => setQ(e.target.value)}
           />
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-9', activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+          onClick={() => setFiltersOpen(v => !v)}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         <span className="text-xs text-muted-foreground ml-auto">
           {filtered.length} de {items.length}
         </span>
       </div>
+
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Estado</p>
+            <Select value={estadoFiltro} onValueChange={v => v && setEstadoFiltro(v)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todas</SelectItem>
+                <SelectItem value="PENDIENTE">Pendientes</SelectItem>
+                <SelectItem value="APROBADA">Aprobadas</SelectItem>
+                <SelectItem value="RECHAZADA">Rechazadas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={tipoFiltro || 'todos'} onValueChange={v => setTipoFiltro(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {tiposEnItems.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Año</p>
+            <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Solicitud desde</p>
+            <Input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Solicitud hasta</p>
+            <Input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1" title="Muestra licencias que abarquen ese día">Vigente el</p>
+            <Input type="date" value={vigenteEl} onChange={e => setVigenteEl(e.target.value)} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
 
       {selectedResolvables.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap rounded-md border bg-muted/40 px-3 py-2">
@@ -254,65 +333,113 @@ function SolicitudesAusencia() {
 
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
         </div>
       ) : filtered.length === 0 ? (
         <p className="text-center text-muted-foreground py-12">
-          {items.length === 0 ? 'No hay solicitudes de ausencia.' : 'Sin coincidencias para los filtros aplicados.'}
+          {rangoInvalido ? 'La fecha "Desde" no puede ser posterior a "Hasta"' :
+            items.length === 0 ? 'No hay solicitudes de ausencia.' : 'Sin coincidencias para los filtros aplicados.'}
         </p>
       ) : (
-        <div className="divide-y rounded-lg border overflow-hidden">
-          {filtered.map(s => {
-            const selectable = s.estado === 'PENDIENTE' && s.canApprove
-            const isSelected = selected.has(s.id)
-            const meta = ESTADO_META[s.estado]
-            return (
-              <div key={s.id} className="flex items-start gap-3 px-4 py-3 bg-card">
-                <div className="w-4 mt-1 shrink-0">
-                  {selectable && (
-                    <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(s.id)} aria-label="Seleccionar solicitud" />
-                  )}
-                </div>
-                <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{s.employee.apellido}, {s.employee.nombre}</span>
-                    <span className="text-xs text-muted-foreground">· {s.employee.legajo}</span>
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-muted px-1.5 py-0.5 rounded">
-                      <span className="h-2 w-2 rounded-full" style={{ background: s.tipoAusencia.color }} />
-                      {s.tipoAusencia.nombre}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {fmt(s.fechaInicio)} – {fmt(s.fechaFin)} · {s.dias} día{s.dias !== 1 ? 's' : ''}
-                  </p>
-                  {s.motivo && <p className="text-xs text-muted-foreground mt-1">{s.motivo}</p>}
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right hidden sm:block">
-                    {meta && (
-                      <Badge variant="outline" className={cn('gap-1', meta.className)}>
-                        {meta.icon} {meta.label}
-                      </Badge>
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[860px]">
+            <thead className="bg-muted">
+              <tr>
+                <th className="w-10 px-3 py-2.5"></th>
+                <th className="text-left px-4 py-2.5 font-medium">Empleado</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Legajo</th>
+                <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Motivo</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Desde</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden md:table-cell">Hasta</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Solicitado</th>
+                <th className="text-left px-4 py-2.5 font-medium">Estado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginate(filtered, page, pageSize).map(s => {
+                const selectable = s.estado === 'PENDIENTE' && s.canApprove
+                const isSelected = selected.has(s.id)
+                const meta = ESTADO_META[s.estado]
+                return (
+                  <tr
+                    key={s.id}
+                    className={cn(
+                      'border-t cursor-pointer hover:bg-muted/40 transition-colors',
+                      isSelected && 'bg-green-50/50 dark:bg-green-950/10'
                     )}
-                    <p className="text-xs text-muted-foreground mt-0.5">{new Date(s.createdAt).toLocaleDateString('es-AR')}</p>
-                  </div>
-                  {s.estado === 'APROBADA' && (
-                    <Link
-                      href={`/admin/calendario?range=${s.fechaInicio.slice(0, 10)}:${s.fechaFin.slice(0, 10)}`}
-                      className="inline-flex items-center justify-center h-8 w-8 rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="Ver en el calendario"
-                    >
-                      <Calendar size={14} />
-                    </Link>
-                  )}
-                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setReview(s); setComentario(s.comentarioAdmin ?? '') }}>
-                    {s.estado === 'PENDIENTE' ? 'Revisar' : 'Ver'}
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
+                    onClick={() => { setReview(s); setComentario(s.comentarioAdmin ?? '') }}
+                  >
+                    <td className="px-3 py-2 w-10" onClick={e => e.stopPropagation()}>
+                      {selectable && (
+                        <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(s.id)} aria-label="Seleccionar solicitud" />
+                      )}
+                    </td>
+                    <td className="px-4 py-2 font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CalendarOff size={13} className="text-muted-foreground shrink-0" />
+                        <span className="truncate">{s.employee.apellido}, {s.employee.nombre}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">{s.employee.legajo}</td>
+                    <td className="px-4 py-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ background: s.tipoAusencia.color }} />
+                        <span className="truncate">{s.tipoAusencia.nombre}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden sm:table-cell max-w-[220px]">
+                      <span className="truncate block" title={s.motivo || ''}>{s.motivo || '—'}</span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">{fmt(s.fechaInicio)}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">{fmt(s.fechaFin)}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
+                      {new Date(s.createdAt).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="px-4 py-2">
+                      {meta && (
+                        <Badge variant="outline" className={cn('gap-1', meta.className)}>
+                          {meta.icon} {meta.label}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {s.estado === 'APROBADA' && (
+                          <Link
+                            href={`/admin/calendario?range=${s.fechaInicio.slice(0, 10)}:${s.fechaFin.slice(0, 10)}`}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            title="Ver en el calendario"
+                          >
+                            <Calendar size={13} />
+                          </Link>
+                        )}
+                        <Button
+                          size="sm"
+                          variant={s.estado === 'PENDIENTE' ? 'outline' : 'ghost'}
+                          className={cn(
+                            'h-7 text-xs',
+                            s.estado === 'PENDIENTE' && 'border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30',
+                          )}
+                          onClick={() => { setReview(s); setComentario(s.comentarioAdmin ?? '') }}
+                        >
+                          {s.estado === 'PENDIENTE' ? 'Revisar' : 'Ver'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <div className="px-3 pb-2">
+            <Pagination
+              page={page} pageSize={pageSize} total={filtered.length}
+              itemLabel="licencias"
+              onPageChange={setPage} onPageSizeChange={setPageSize}
+            />
+          </div>
         </div>
       )}
 

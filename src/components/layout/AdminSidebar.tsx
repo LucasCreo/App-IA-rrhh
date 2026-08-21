@@ -36,11 +36,12 @@ interface Props {
   avatarTextColor?: string | null
   pendingModificaciones?: number
   pendingSolicitudes?: number
+  pendingLicencias?: number
   permisos?: string[] | null // null = full access
   hasEmployeeId?: boolean
 }
 
-export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, avatarBgColor, avatarTextColor, pendingModificaciones = 0, pendingSolicitudes = 0, permisos = null, hasEmployeeId = false }: Props) {
+export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, avatarBgColor, avatarTextColor, pendingModificaciones = 0, pendingSolicitudes = 0, pendingLicencias = 0, permisos = null, hasEmployeeId = false }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
@@ -217,6 +218,14 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
                     </span>
                   )}
                   {collapsed && href === '/admin/solicitudes' && pendingSolicitudes > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
+                  )}
+                  {!collapsed && href === '/admin/licencias' && pendingLicencias > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1">
+                      {pendingLicencias}
+                    </span>
+                  )}
+                  {collapsed && href === '/admin/licencias' && pendingLicencias > 0 && (
                     <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-blue-500" />
                   )}
                   {!collapsed && href === '/admin/portal' && avisosUnread > 0 && (

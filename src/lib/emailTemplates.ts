@@ -21,6 +21,7 @@ export type EmailTemplateKey =
   | 'FORMULARIO_COMPLETADO'
   | 'COMENTARIO_NUEVO_EN_POST'
   | 'INVITACION_USUARIO'
+  | 'PASSWORD_CAMBIADA'
 
 interface TemplateDef {
   label: string
@@ -216,6 +217,19 @@ export const DEFAULT_TEMPLATES: Record<EmailTemplateKey, TemplateDef> = {
     ctaLabel: 'Ver mi perfil',
     variables: [
       { name: 'nombre', description: 'Nombre del empleado' },
+    ],
+  },
+  PASSWORD_CAMBIADA: {
+    label: 'Contraseña modificada',
+    description: 'Se envía al usuario después de cambiar su propia contraseña, como aviso de seguridad.',
+    subject: 'Tu contraseña fue modificada',
+    title: 'Cambio de contraseña',
+    bodyHtml: `<p>Hola {{nombre}},</p>
+<p>Tu contraseña del portal de RRHH fue modificada el <strong>{{fecha}}</strong>.</p>
+<p>Si vos hiciste este cambio, ignorá este mail. Si <strong>no</strong> fuiste vos, contactá inmediatamente al administrador del sistema.</p>`,
+    variables: [
+      { name: 'nombre', description: 'Nombre del usuario' },
+      { name: 'fecha', description: 'Fecha y hora del cambio' },
     ],
   },
   INVITACION_USUARIO: {

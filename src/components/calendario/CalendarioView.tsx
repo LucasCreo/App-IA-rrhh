@@ -62,6 +62,8 @@ function toLocalDateStr(d: Date) {
 
 function formatTipoLabel(nombre: string) {
   if (nombre.startsWith('__ausencia__')) return 'Ausencia'
+  if (nombre === '__aniversario__') return 'Aniversario'
+  if (nombre === '__formulario_vencimiento__') return 'Formulario'
   return nombre.charAt(0).toUpperCase() + nombre.slice(1).toLowerCase()
 }
 

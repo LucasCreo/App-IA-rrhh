@@ -4,7 +4,6 @@ import { getCurrentUser } from '@/lib/auth'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { parseClientDate } from '@/lib/dates'
 import { esTopDelOrganigrama } from '@/lib/scope'
-import { pushEventoToGoogleCalendars } from '@/lib/google'
 import { validateFile, extForKind } from '@/lib/fileValidation'
 import { uploadAditusFile } from '@/lib/aditus'
 import { ausenciaProps, encodeArchivoRef } from '@/lib/aditusSolicitudes'
@@ -102,20 +101,8 @@ export async function POST(req: Request) {
   })
 
   if (autoAprobar) {
-    const evento = await prisma.evento.create({
-      data: {
-        titulo: `Ausencia — ${solicitud.tipoAusencia.nombre}`,
-        descripcion: solicitud.motivo ?? null,
-        fechaInicio: solicitud.fechaInicio,
-        fechaFin: solicitud.fechaFin,
-        todoElDia: true,
-        tipo: 'AUSENCIA',
-        subtipo: solicitud.tipoAusencia.nombre,
-        creadoPorId: user.userId,
-        asignados: { create: { employeeId: user.employeeId } },
-      },
-    })
-    await pushEventoToGoogleCalendars(evento.id, [user.userId])
+    // No creamos Evento: /api/eventos ya expone las ausencias aprobadas como
+    // eventos virtuales, así que crear uno real duplicaría la entrada en el calendario.
     if (solicitud.tipoAusencia.afectaSaldo) {
       const anio = solicitud.fechaInicio.getFullYear()
       await prisma.saldoVacaciones.upsert({

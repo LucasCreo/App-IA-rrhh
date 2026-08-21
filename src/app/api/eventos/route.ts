@@ -67,6 +67,72 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    // Extras solo para empleado logueado: aniversario de ingreso + formularios pendientes con fechaLimite
+    const extrasEmpleado: any[] = []
+    if (esEmpleado && desde && hasta) {
+      const emp = await prisma.employee.findUnique({
+        where: { id: user.employeeId! },
+        select: { fechaIngreso: true, nombre: true, apellido: true },
+      })
+      if (emp) {
+        // Aniversario de ingreso: si el mes del calendario coincide con el mes de fechaIngreso
+        const ingresoMes = emp.fechaIngreso.getUTCMonth() + 1
+        const ingresoDia = emp.fechaIngreso.getUTCDate()
+        if (ingresoMes === mes && emp.fechaIngreso.getUTCFullYear() < anio) {
+          const fecha = new Date(Date.UTC(anio, ingresoMes - 1, ingresoDia))
+          if (fecha >= desde && fecha <= hasta) {
+            const anios = anio - emp.fechaIngreso.getUTCFullYear()
+            extrasEmpleado.push({
+              id: -1_000_000 - anio,
+              titulo: `Aniversario de ingreso — ${anios} año${anios !== 1 ? 's' : ''}`,
+              descripcion: null,
+              fechaInicio: fecha,
+              fechaFin: null,
+              todoElDia: true,
+              tipo: '__aniversario__',
+              color: '#16a34a',
+              subtipo: null,
+              comentarioAdmin: null,
+              creadoPorId: 0,
+              creadoPor: null,
+              asignados: [{ employeeId: user.employeeId }],
+              virtual: true,
+            })
+          }
+        }
+      }
+
+      // Formularios pendientes con fechaLimite dentro del rango
+      const respPendientes = await prisma.respuestaFormulario.findMany({
+        where: {
+          employeeId: user.employeeId!,
+          estado: 'PENDIENTE',
+          asignacion: { fechaLimite: { gte: desde, lte: hasta } },
+        },
+        include: { asignacion: { select: { id: true, nombre: true, fechaLimite: true } } },
+      })
+      for (const r of respPendientes) {
+        if (!r.asignacion.fechaLimite) continue
+        extrasEmpleado.push({
+          id: -2_000_000 - r.id,
+          titulo: `Formulario vence: ${r.asignacion.nombre}`,
+          descripcion: null,
+          fechaInicio: r.asignacion.fechaLimite,
+          fechaFin: null,
+          todoElDia: true,
+          tipo: '__formulario_vencimiento__',
+          color: '#f59e0b',
+          subtipo: null,
+          comentarioAdmin: null,
+          creadoPorId: 0,
+          creadoPor: null,
+          asignados: [{ employeeId: user.employeeId }],
+          virtual: true,
+          respuestaFormularioId: r.id,
+        })
+      }
+    }
+
     const virtuales = ausencias.map(a => ({
       id: -a.id, // ID negativo para evitar colisión con eventos reales
       titulo: `${a.employee.apellido}, ${a.employee.nombre} — ${a.tipoAusencia.nombre}`,
@@ -86,7 +152,7 @@ export async function GET(req: NextRequest) {
       solicitudAusenciaId: a.id,
     }))
 
-    return NextResponse.json([...eventos, ...virtuales])
+    return NextResponse.json([...eventos, ...virtuales, ...extrasEmpleado])
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
   }

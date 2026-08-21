@@ -16,12 +16,47 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q')?.trim() ?? ''
   const plantillaIdParam = searchParams.get('plantillaId')
   const plantillaId = plantillaIdParam && plantillaIdParam !== 'todas' ? Number(plantillaIdParam) : null
+  const fechaLimiteDesde = searchParams.get('fechaLimiteDesde')
+  const fechaLimiteHasta = searchParams.get('fechaLimiteHasta')
+  const creadaDesde = searchParams.get('creadaDesde')
+  const creadaHasta = searchParams.get('creadaHasta')
+  const progreso = searchParams.get('progreso') // completadas | con_pendientes | sin_respuestas
 
   const scope = user.role === 'ADMIN' ? await getScopedEmployeeIds(user.userId) : null
+
+  const fechaLimiteRange: { gte?: Date; lte?: Date } = {}
+  if (fechaLimiteDesde) fechaLimiteRange.gte = new Date(`${fechaLimiteDesde}T00:00:00`)
+  if (fechaLimiteHasta) fechaLimiteRange.lte = new Date(`${fechaLimiteHasta}T23:59:59`)
+
+  const creadaRange: { gte?: Date; lte?: Date } = {}
+  if (creadaDesde) creadaRange.gte = new Date(`${creadaDesde}T00:00:00`)
+  if (creadaHasta) creadaRange.lte = new Date(`${creadaHasta}T23:59:59`)
+
+  const progresoFilter =
+    progreso === 'completadas'
+      ? { respuestas: { some: {}, every: { estado: 'ENVIADO' } } }
+      : progreso === 'con_pendientes'
+        ? { respuestas: { some: { estado: 'PENDIENTE' } } }
+        : progreso === 'sin_respuestas'
+          ? { respuestas: { none: {} } }
+          : {}
+
   const where = {
     ...(scope ? { respuestas: { some: { employeeId: { in: [...scope] } } } } : {}),
-    ...(q ? { nombre: { contains: q } } : {}),
+    ...(q ? {
+      OR: [
+        { nombre: { contains: q } },
+        { respuestas: { some: { employee: { OR: [
+          { nombre: { contains: q } },
+          { apellido: { contains: q } },
+          { legajo: { contains: q } },
+        ] } } } },
+      ],
+    } : {}),
     ...(plantillaId ? { plantillaId } : {}),
+    ...(fechaLimiteDesde || fechaLimiteHasta ? { fechaLimite: fechaLimiteRange } : {}),
+    ...(creadaDesde || creadaHasta ? { createdAt: creadaRange } : {}),
+    ...progresoFilter,
   }
 
   const [total, asignaciones, enviadasRaw] = await Promise.all([

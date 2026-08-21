@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 
+const NOMBRES_RESERVADOS = new Set(['AUSENCIA', 'ANIVERSARIO', 'FORMULARIO', 'FORMULARIO_VENCIMIENTO'])
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getCurrentUser()
@@ -15,7 +17,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (color) data.color = color
     if (permiteAdmin !== undefined) data.permiteAdmin = permiteAdmin !== false
     if (permiteEmpleado !== undefined) data.permiteEmpleado = !!permiteEmpleado
-    if (!tipo.protegido && nombre?.trim()) data.nombre = nombre.trim().toUpperCase()
+    if (!tipo.protegido && nombre?.trim()) {
+      const nombreNorm = nombre.trim().toUpperCase()
+      if (NOMBRES_RESERVADOS.has(nombreNorm)) {
+        return NextResponse.json({ error: `"${nombreNorm}" es un nombre reservado por otro módulo del sistema` }, { status: 400 })
+      }
+      data.nombre = nombreNorm
+    }
 
     const updated = await prisma.tipoEvento.update({ where: { id: Number(id) }, data })
     return NextResponse.json(updated)

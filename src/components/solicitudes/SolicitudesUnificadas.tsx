@@ -10,7 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Check, X, Search, Paperclip } from 'lucide-react'
+import { Check, X, Search, Paperclip, SlidersHorizontal } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { Pagination } from '@/components/ui/pagination'
@@ -43,10 +44,13 @@ export function SolicitudesUnificadas() {
   const [estadoFiltro, setEstadoFiltro] = useState('')
   const [areaId, setAreaId] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
+  const [tipoId, setTipoId] = useState('')
   const [areas, setAreas] = useState<Array<{ id: number; nombre: string }>>([])
   const [categorias, setCategorias] = useState<Array<{ id: number; nombre: string }>>([])
+  const [tipos, setTipos] = useState<Array<{ id: number; nombre: string }>>([])
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const [reviewDoc, setReviewDoc] = useState<{ solicitud: SolicitudDoc; estado: 'APROBADO' | 'RECHAZADO' } | null>(null)
   const [viewDoc, setViewDoc] = useState<SolicitudDoc | null>(null)
@@ -63,12 +67,16 @@ export function SolicitudesUnificadas() {
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
 
-  useEffect(() => { setPage(1) }, [estadoFiltro, qDebounced, areaId, categoriaId])
+  useEffect(() => { setPage(1) }, [estadoFiltro, qDebounced, areaId, categoriaId, tipoId])
 
   useEffect(() => {
     fetch('/api/areas').then(r => r.json()).then(d => setAreas(Array.isArray(d) ? d : []))
     fetch('/api/categorias').then(r => r.json()).then(d => setCategorias(Array.isArray(d) ? d : []))
+    fetch('/api/solicitudes/tipos').then(r => r.json()).then(d => setTipos(Array.isArray(d) ? d : []))
   }, [])
+
+  const activeFiltersCount = (areaId ? 1 : 0) + (categoriaId ? 1 : 0) + (tipoId ? 1 : 0)
+  function clearAllFilters() { setAreaId(''); setCategoriaId(''); setTipoId('') }
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim().toLowerCase()), 300)
@@ -82,6 +90,7 @@ export function SolicitudesUnificadas() {
     if (qDebounced) params.set('q', qDebounced)
     if (areaId) params.set('areaId', areaId)
     if (categoriaId) params.set('categoriaId', categoriaId)
+    if (tipoId) params.set('tipoId', tipoId)
     params.set('page', String(page))
     params.set('limit', String(pageSize))
     fetch(`/api/solicitudes?${params}`)
@@ -91,7 +100,7 @@ export function SolicitudesUnificadas() {
         else { setDocs(d.items ?? []); setTotal(d.total ?? 0) }
       })
       .finally(() => setLoading(false))
-  }, [estadoFiltro, qDebounced, areaId, categoriaId, page, pageSize])
+  }, [estadoFiltro, qDebounced, areaId, categoriaId, tipoId, page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -170,22 +179,6 @@ export function SolicitudesUnificadas() {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <select
-          value={areaId}
-          onChange={e => setAreaId(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="">Todas las áreas</option>
-          {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-        </select>
-        <select
-          value={categoriaId}
-          onChange={e => setCategoriaId(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="">Todas las categorías</option>
-          {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
         <div className="relative flex-1 min-w-56 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
@@ -196,10 +189,64 @@ export function SolicitudesUnificadas() {
             onChange={e => setQ(e.target.value)}
           />
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-9', activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+          onClick={() => setFiltersOpen(v => !v)}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         <span className="text-xs text-muted-foreground ml-auto">
           {total} {total === 1 ? 'resultado' : 'resultados'}
         </span>
       </div>
+
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={tipoId || 'todos'} onValueChange={v => setTipoId(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Área</p>
+            <Select value={areaId || 'todos'} onValueChange={v => setAreaId(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todas</SelectItem>
+                {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Categoría</p>
+            <Select value={categoriaId || 'todos'} onValueChange={v => setCategoriaId(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todas</SelectItem>
+                {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {selectedResolvables.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap rounded-md border bg-muted/40 px-3 py-2">

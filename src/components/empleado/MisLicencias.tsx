@@ -12,8 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import Link from 'next/link'
-import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, Upload, XCircle } from 'lucide-react'
+import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, SlidersHorizontal, Upload, X, XCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Pagination, paginate } from '@/components/ui/pagination'
 import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
@@ -67,7 +68,29 @@ export function MisLicencias() {
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'todos' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('todos')
+  const [tipoFiltro, setTipoFiltro] = useState<string>('')
+  const [anio, setAnio] = useState<string>('')
+  const [desde, setDesde] = useState<string>('')
+  const [hasta, setHasta] = useState<string>('')
+  const [vigenteEl, setVigenteEl] = useState<string>('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setPage(1) }, [busqueda, estadoFiltro, tipoFiltro, anio, desde, hasta, vigenteEl])
+
+  const activeFiltersCount =
+    (estadoFiltro !== 'todos' ? 1 : 0) +
+    (tipoFiltro ? 1 : 0) +
+    (anio ? 1 : 0) +
+    (desde ? 1 : 0) +
+    (hasta ? 1 : 0) +
+    (vigenteEl ? 1 : 0)
+
+  function clearAllFilters() {
+    setEstadoFiltro('todos'); setTipoFiltro(''); setAnio(''); setDesde(''); setHasta(''); setVigenteEl('')
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -112,8 +135,19 @@ export function MisLicencias() {
 
   const restantes = saldo ? saldo.diasTotales - saldo.diasUsados : null
   const q = busqueda.trim().toLowerCase()
-  const filtradas = ausencias.filter(s => {
+  const aniosDisponibles = [...new Set(ausencias.map(a => a.fechaInicio.slice(0, 4)))].sort((a, b) => Number(b) - Number(a))
+  const rangoInvalido = !!desde && !!hasta && hasta < desde
+  const filtradas = rangoInvalido ? [] : ausencias.filter(s => {
     if (estadoFiltro !== 'todos' && s.estado !== estadoFiltro) return false
+    if (tipoFiltro && s.tipoAusencia.nombre !== tipoFiltro) return false
+    if (anio && !s.fechaInicio.startsWith(`${anio}-`)) return false
+    const ini = s.fechaInicio.slice(0, 10)
+    const fin = s.fechaFin.slice(0, 10)
+    // "Solicitud entre": la fechaInicio debe caer dentro de [desde, hasta]
+    if (desde && ini < desde) return false
+    if (hasta && ini > hasta) return false
+    // "Vigente el": el día debe caer entre fechaInicio y fechaFin
+    if (vigenteEl && (vigenteEl < ini || vigenteEl > fin)) return false
     if (q) {
       const hay = `${s.tipoAusencia.nombre} ${s.motivo ?? ''}`.toLowerCase()
       if (!hay.includes(q)) return false
@@ -126,19 +160,6 @@ export function MisLicencias() {
     if (aP !== bP) return aP - bP
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
-  const counts = {
-    todos: ausencias.length,
-    PENDIENTE: ausencias.filter(a => a.estado === 'PENDIENTE').length,
-    APROBADA: ausencias.filter(a => a.estado === 'APROBADA').length,
-    RECHAZADA: ausencias.filter(a => a.estado === 'RECHAZADA').length,
-  }
-  const chips: { key: typeof estadoFiltro; label: string }[] = [
-    { key: 'todos', label: 'Todas' },
-    { key: 'PENDIENTE', label: 'Pendientes' },
-    { key: 'APROBADA', label: 'Aprobadas' },
-    { key: 'RECHAZADA', label: 'Rechazadas' },
-  ]
-
   return (
     <div className="space-y-4">
       {saldo && (
@@ -164,86 +185,161 @@ export function MisLicencias() {
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <Select value={estadoFiltro} onValueChange={v => v && setEstadoFiltro(v as typeof estadoFiltro)}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los estados</SelectItem>
-            <SelectItem value="PENDIENTE">Pendiente</SelectItem>
-            <SelectItem value="APROBADA">Aprobada</SelectItem>
-            <SelectItem value="RECHAZADA">Rechazada</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
+        <Button
+          variant="outline"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={cn(activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
+        <Button className="ml-auto bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
           <Plus size={16} className="mr-1" /> Nueva licencia
         </Button>
       </div>
 
-      <div className="flex gap-1 flex-wrap">
-        {chips.map(c => (
-          <button
-            key={c.key}
-            onClick={() => setEstadoFiltro(c.key)}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
-              estadoFiltro === c.key
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
-          >
-            {c.label}
-            <span className="opacity-60">{counts[c.key]}</span>
-          </button>
-        ))}
-      </div>
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Estado</p>
+            <Select value={estadoFiltro} onValueChange={v => v && setEstadoFiltro(v as typeof estadoFiltro)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                <SelectItem value="APROBADA">Aprobada</SelectItem>
+                <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={tipoFiltro || 'todos'} onValueChange={v => setTipoFiltro(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {tiposAus.map(t => <SelectItem key={t.id} value={t.nombre}>{t.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Año</p>
+            <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Solicitud desde</p>
+            <Input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Solicitud hasta</p>
+            <Input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1" title="Muestra licencias que abarquen ese día">Incluye</p>
+            <Input type="date" value={vigenteEl} onChange={e => setVigenteEl(e.target.value)} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">
-          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
         </div>
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <CalendarOff size={32} strokeWidth={1.2} />
-          <p className="text-sm">Sin licencias registradas</p>
+          <p className="text-sm">{rangoInvalido ? 'La fecha "Desde" no puede ser posterior a "Hasta"' : 'Sin licencias registradas'}</p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border overflow-hidden">
-          {sorted.map(s => {
-            const meta = ESTADO_META[s.estado]
-            return (
-              <div key={s.id} className="flex items-start gap-3 px-4 py-3 bg-card">
-                <CalendarOff size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{s.tipoAusencia.nombre}</span>
-                    <span className="h-2 w-2 rounded-full" style={{ background: s.tipoAusencia.color }} />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {fmt(s.fechaInicio)} – {fmt(s.fechaFin)} · {s.dias} día{s.dias !== 1 ? 's' : ''}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {meta && (
-                    <Badge variant="outline" className={cn('gap-1', meta.className)}>
-                      {meta.icon} {meta.label}
-                    </Badge>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {s.estado === 'APROBADA' && (
-                      <Link
-                        href={`/empleado/calendario?range=${s.fechaInicio.slice(0, 10)}:${s.fechaFin.slice(0, 10)}`}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-                        title="Ver en el calendario"
-                      >
-                        <Calendar size={12} /> Calendario
-                      </Link>
-                    )}
-                    <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetalle(s)}>Ver</button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        <div className="border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-muted">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-medium">Licencia</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Período</th>
+                <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Solicitado</th>
+                <th className="text-left px-4 py-2.5 font-medium">Estado</th>
+                <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginate(sorted, page, pageSize).map(s => {
+                const meta = ESTADO_META[s.estado]
+                return (
+                  <tr
+                    key={s.id}
+                    className="border-t cursor-pointer hover:bg-muted/40 transition-colors"
+                    onClick={() => setDetalle(s)}
+                  >
+                    <td className="px-4 py-2 font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ background: s.tipoAusencia.color }} />
+                        <CalendarOff size={13} className="text-muted-foreground shrink-0" />
+                        <span className="truncate">{s.tipoAusencia.nombre}</span>
+                      </div>
+                      {s.motivo && (
+                        <p className="text-[11px] text-muted-foreground pl-7 truncate">{s.motivo}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden sm:table-cell whitespace-nowrap">
+                      {fmt(s.fechaInicio)} – {fmt(s.fechaFin)} · {s.dias} día{s.dias !== 1 ? 's' : ''}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell">
+                      {fmt(s.createdAt)}
+                    </td>
+                    <td className="px-4 py-2">
+                      {meta && (
+                        <Badge variant="outline" className={cn('gap-1', meta.className)}>
+                          {meta.icon} {meta.label}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {s.estado === 'APROBADA' && (
+                          <Link
+                            href={`/empleado/calendario?range=${s.fechaInicio.slice(0, 10)}:${s.fechaFin.slice(0, 10)}`}
+                            className="inline-flex items-center gap-1 h-7 px-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-muted rounded"
+                            title="Ver en el calendario"
+                          >
+                            <Calendar size={12} /> Calendario
+                          </Link>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDetalle(s)}>
+                          Ver
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      {!loading && sorted.length > 0 && (
+        <Pagination
+          page={page} pageSize={pageSize} total={sorted.length}
+          itemLabel="licencias"
+          onPageChange={setPage} onPageSizeChange={setPageSize}
+        />
       )}
 
       {/* Nueva licencia */}

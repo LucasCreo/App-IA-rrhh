@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FileText, Download, BookOpen, Pen, Search, X } from 'lucide-react'
+import { FileText, Download, BookOpen, Pen, Search, X, SlidersHorizontal } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination, paginate } from '@/components/ui/pagination'
@@ -46,10 +46,17 @@ export function MisRecibos({ employeeId }: Props) {
   const [anio, setAnio] = useState<string>('')
   const [mes, setMes] = useState<string>('')
   const [orden, setOrden] = useState<Orden>('DESC')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => { setPage(1) }, [filtro, busqueda, anio, mes, orden])
+
+  const activeFiltersCount =
+    (filtro !== 'TODOS' ? 1 : 0) +
+    (anio ? 1 : 0) +
+    (mes ? 1 : 0) +
+    (orden !== 'DESC' ? 1 : 0)
 
   function load() {
     setLoading(true)
@@ -103,15 +110,7 @@ export function MisRecibos({ employeeId }: Props) {
     return out
   }, [docs, filtro, busqueda, anio, mes, orden])
 
-  const hasActiveFilters = !!busqueda || !!anio || !!mes || orden !== 'DESC'
-  function clearFilters() { setBusqueda(''); setAnio(''); setMes(''); setOrden('DESC') }
-
-  const chips: { key: Filtro; label: string }[] = [
-    { key: 'TODOS', label: 'Todos' },
-    { key: 'PENDIENTES', label: 'Pendientes de firma' },
-    { key: 'CONFORMES', label: 'Conformes' },
-    { key: 'NO_CONFORMES', label: 'No conformes' },
-  ]
+  function clearAllFilters() { setFiltro('TODOS'); setAnio(''); setMes(''); setOrden('DESC') }
 
   async function marcarLeido(id: number) {
     setMarking(id)
@@ -133,53 +132,74 @@ export function MisRecibos({ employeeId }: Props) {
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los años</SelectItem>
-            {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={mes || 'todos'} onValueChange={v => setMes(!v || v === 'todos' ? '' : v)}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los meses</SelectItem>
-            {MESES.map((m, idx) => (
-              <SelectItem key={m} value={String(idx + 1).padStart(2, '0')}>{m}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={orden} onValueChange={v => v && setOrden(v as Orden)}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="DESC">Más nuevos primero</SelectItem>
-            <SelectItem value="ASC">Más viejos primero</SelectItem>
-          </SelectContent>
-        </Select>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
+        <Button
+          variant="outline"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={cn(activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters}>
             <X size={12} className="mr-1" /> Limpiar
           </Button>
         )}
       </div>
 
-      <div className="flex gap-1 flex-wrap">
-        {chips.map(c => (
-          <button
-            key={c.key}
-            onClick={() => setFiltro(c.key)}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500/50',
-              filtro === c.key
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
-          >
-            {c.label}
-            <span className="opacity-60">{counts[c.key]}</span>
-          </button>
-        ))}
-      </div>
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Vista</p>
+            <Select value={filtro} onValueChange={v => v && setFiltro(v as Filtro)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="TODOS">Todos ({counts.TODOS})</SelectItem>
+                <SelectItem value="PENDIENTES">Pendientes de firma ({counts.PENDIENTES})</SelectItem>
+                <SelectItem value="CONFORMES">Conformes ({counts.CONFORMES})</SelectItem>
+                <SelectItem value="NO_CONFORMES">No conformes ({counts.NO_CONFORMES})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Año</p>
+            <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Mes</p>
+            <Select value={mes || 'todos'} onValueChange={v => setMes(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {MESES.map((m, idx) => (
+                  <SelectItem key={m} value={String(idx + 1).padStart(2, '0')}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Orden</p>
+            <Select value={orden} onValueChange={v => v && setOrden(v as Orden)}>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="DESC">Más nuevos primero</SelectItem>
+                <SelectItem value="ASC">Más viejos primero</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">

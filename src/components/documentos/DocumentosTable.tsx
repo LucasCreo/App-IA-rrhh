@@ -74,7 +74,6 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([])
   const [areas, setAreas] = useState<{ id: number; nombre: string }[]>([])
   const [lotes, setLotes] = useState<{ id: number; nombre: string; periodo: string }[]>([])
-  const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
@@ -142,11 +141,6 @@ export function DocumentosTable({ esRecibo, employeeId, sinLote }: Props) {
           ? list.filter((t: { nombre: string }) => t.nombre !== 'Recibo de Sueldo')
           : list)
     })
-    const p = new URLSearchParams()
-    if (esRecibo !== undefined) p.set('recibo', String(esRecibo))
-    if (employeeId) p.set('employeeId', String(employeeId))
-    if (sinLote) p.set('sinLote', 'true')
-    fetch(`/api/documentos/anios?${p}`).then(r => r.json()).then(d => setAniosDisponibles(d.anios ?? []))
   }, [esRecibo, employeeId, sinLote])
 
   async function handleSendToSign(id: number) {
@@ -414,13 +408,15 @@ function exportCSV() {
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1">Año</p>
-          <Select value={filtAno || 'todos'} onValueChange={v => { if (v != null) { setFiltAno(v === 'todos' ? '' : v); setPage(1) } }}>
-            <SelectTrigger className="w-32"><SelectValue placeholder="Todos" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              {aniosDisponibles.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input
+            type="number"
+            min={2000}
+            max={2100}
+            placeholder="Todos"
+            value={filtAno}
+            onChange={e => { setFiltAno(e.target.value.slice(0, 4)); setPage(1) }}
+            className="h-9 w-28"
+          />
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1">Estado</p>

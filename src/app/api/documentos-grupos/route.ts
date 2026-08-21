@@ -12,15 +12,22 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q')?.trim() ?? ''
   const tipoDocumentoId = searchParams.get('tipoDocumentoId') ? Number(searchParams.get('tipoDocumentoId')) : undefined
   const periodo = searchParams.get('periodo') ?? undefined
+  const desde = searchParams.get('desde')
+  const hasta = searchParams.get('hasta')
   const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
   const limit = 50
 
   const scope = await getScopedEmployeeIds(user.userId)
 
+  const createdRange: { gte?: Date; lte?: Date } = {}
+  if (desde) createdRange.gte = new Date(`${desde}T00:00:00`)
+  if (hasta) createdRange.lte = new Date(`${hasta}T23:59:59`)
+
   const where = {
     ...(q ? { nombreArchivo: { contains: q } } : {}),
     ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
     ...(periodo ? { periodo: { contains: periodo } } : {}),
+    ...(desde || hasta ? { createdAt: createdRange } : {}),
     ...(scope ? { asignaciones: { some: { employeeId: { in: [...scope] } } } } : {}),
   }
 

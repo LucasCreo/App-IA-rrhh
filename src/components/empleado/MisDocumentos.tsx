@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { FileText, BookOpen, Pen, Download, Search, Eye, Tag } from 'lucide-react'
+import { FileText, BookOpen, Pen, Download, Search, Eye, Tag, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -46,12 +46,25 @@ export function MisDocumentos({ employeeId }: Props) {
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'firmado' | 'rechazado'>('')
+  const [desde, setDesde] = useState<string>('')
+  const [hasta, setHasta] = useState<string>('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [acting, setActing] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [preview, setPreview] = useState<{ grupoId: number; nombre: string } | null>(null)
 
-  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro])
+  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro, desde, hasta])
+
+  const activeFiltersCount =
+    (filtro !== 'todos' ? 1 : 0) +
+    (estadoFiltro ? 1 : 0) +
+    (desde ? 1 : 0) +
+    (hasta ? 1 : 0)
+
+  function clearAllFilters() {
+    setFiltro('todos'); setEstadoFiltro(''); setDesde(''); setHasta('')
+  }
 
   const [firmaAsign, setFirmaAsign] = useState<AsignacionApi | null>(null)
 
@@ -94,9 +107,13 @@ export function MisDocumentos({ employeeId }: Props) {
 
   const q = busqueda.trim().toLowerCase()
 
-  const filtered = items.filter(i => {
+  const rangoInvalido = !!desde && !!hasta && hasta < desde
+  const filtered = (rangoInvalido ? [] : items).filter(i => {
     if (filtro === 'pendientes' && !i.pendiente) return false
     if (!estadoMatch(i, estadoFiltro)) return false
+    const fecha = i.fecha.slice(0, 10)
+    if (desde && fecha < desde) return false
+    if (hasta && fecha > hasta) return false
     if (q) {
       const hay = `${i.titulo} ${i.subtitulo ?? ''}`.toLowerCase()
       if (!hay.includes(q)) return false
@@ -106,11 +123,6 @@ export function MisDocumentos({ employeeId }: Props) {
     if (a.pendiente !== b.pendiente) return a.pendiente ? -1 : 1
     return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
   })
-
-  const counts = {
-    todos: items.length,
-    pendientes: items.filter(i => i.pendiente).length,
-  }
 
   return (
     <div className="space-y-4">
@@ -124,34 +136,59 @@ export function MisDocumentos({ employeeId }: Props) {
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(v === 'todos' ? '' : (v as typeof estadoFiltro))}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los estados</SelectItem>
-            <SelectItem value="pendiente">Pendiente</SelectItem>
-            <SelectItem value="firmado">Firmado / Completado</SelectItem>
-            <SelectItem value="rechazado">Rechazado</SelectItem>
-          </SelectContent>
-        </Select>
+        <Button
+          variant="outline"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={cn(activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
       </div>
 
-      <div className="flex gap-1 flex-wrap">
-        {FILTROS.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setFiltro(f.value)}
-            className={cn(
-              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500/50',
-              filtro === f.value
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
-          >
-            {f.label}
-            <span className="opacity-60">{counts[f.value]}</span>
-          </button>
-        ))}
-      </div>
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Vista</p>
+            <Select value={filtro} onValueChange={v => v && setFiltro(v as Filtro)}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                {FILTROS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Estado</p>
+            <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(!v || v === 'todos' ? '' : (v as typeof estadoFiltro))}>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="firmado">Firmado / Completado</SelectItem>
+                <SelectItem value="rechazado">Rechazado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Desde</p>
+            <Input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Hasta</p>
+            <Input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-2">
@@ -160,7 +197,7 @@ export function MisDocumentos({ employeeId }: Props) {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <FileText size={32} strokeWidth={1.2} />
-          <p className="text-sm">Sin resultados</p>
+          <p className="text-sm">{rangoInvalido ? 'La fecha "Desde" no puede ser posterior a "Hasta"' : 'Sin resultados'}</p>
         </div>
       ) : (
         <div className="border rounded-xl overflow-x-auto">

@@ -3,12 +3,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Layers, ChevronRight, Trash2, Search } from 'lucide-react'
+import { Plus, Layers, ChevronRight, Trash2, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
+
+const MESES_LIST = [
+  { value: '01', label: 'Enero' }, { value: '02', label: 'Febrero' },
+  { value: '03', label: 'Marzo' }, { value: '04', label: 'Abril' },
+  { value: '05', label: 'Mayo' }, { value: '06', label: 'Junio' },
+  { value: '07', label: 'Julio' }, { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Septiembre' }, { value: '10', label: 'Octubre' },
+  { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' },
+]
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/ui/pagination'
 import { CrearLoteDialog } from './CrearLoteDialog'
@@ -54,22 +64,26 @@ export function LotesTable() {
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
   const [anio, setAnio] = useState('')
-  const [sortBy, setSortBy] = useState<'createdAt' | 'nombre' | 'periodo'>('createdAt')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [mes, setMes] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setQDebounced(q.trim()), 300)
     return () => clearTimeout(t)
   }, [q])
 
-  useEffect(() => { setPage(1) }, [qDebounced, anio, sortBy, sortOrder])
+  useEffect(() => { setPage(1) }, [qDebounced, anio, mes])
+
+  const activeFiltersCount = (anio ? 1 : 0) + (mes ? 1 : 0)
+  function clearAllFilters() { setAnio(''); setMes('') }
 
   const fetchLotes = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(pageSize), sortBy, sortOrder })
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize), sortBy: 'createdAt', sortOrder: 'desc' })
       if (qDebounced) params.set('q', qDebounced)
-      if (anio) params.set('periodo', anio)
+      const periodo = anio && mes ? `${anio}-${mes}` : (anio || mes ? `${anio}${mes ? '-' + mes : ''}` : '')
+      if (periodo) params.set('periodo', periodo)
       const r = await fetch(`/api/lotes?${params}`)
       if (r.ok) {
         const d = await r.json()
@@ -79,7 +93,7 @@ export function LotesTable() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, qDebounced, anio, sortBy, sortOrder])
+  }, [page, pageSize, qDebounced, anio, mes])
 
   useEffect(() => { fetchLotes() }, [fetchLotes])
 
@@ -130,9 +144,6 @@ export function LotesTable() {
     }
   }
 
-  const anioActual = new Date().getFullYear()
-  const aniosDisponibles = Array.from({ length: 6 }, (_, i) => String(anioActual - i))
-
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
@@ -145,31 +156,25 @@ export function LotesTable() {
             onChange={e => setQ(e.target.value)}
           />
         </div>
-        <Select value={anio || 'todos'} onValueChange={v => setAnio(!v || v === 'todos' ? '' : v)}>
-          <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Año" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los años</SelectItem>
-            {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select
-          value={`${sortBy}_${sortOrder}`}
-          onValueChange={v => {
-            const [by, order] = (v ?? 'createdAt_desc').split('_')
-            setSortBy(by as 'createdAt' | 'nombre' | 'periodo')
-            setSortOrder(order as 'asc' | 'desc')
-          }}
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-9', activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+          onClick={() => setFiltersOpen(v => !v)}
         >
-          <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="createdAt_desc">Más recientes primero</SelectItem>
-            <SelectItem value="createdAt_asc">Más antiguos primero</SelectItem>
-            <SelectItem value="nombre_asc">Nombre (A–Z)</SelectItem>
-            <SelectItem value="nombre_desc">Nombre (Z–A)</SelectItem>
-            <SelectItem value="periodo_desc">Período (recientes)</SelectItem>
-            <SelectItem value="periodo_asc">Período (antiguos)</SelectItem>
-          </SelectContent>
-        </Select>
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         <div className="ml-auto flex items-center gap-2">
         <Button
           size="sm"
@@ -187,6 +192,33 @@ export function LotesTable() {
         </Button>
         </div>
       </div>
+
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Año</p>
+            <Input
+              type="number"
+              min={2000}
+              max={2100}
+              placeholder="Todos"
+              value={anio}
+              onChange={e => setAnio(e.target.value.slice(0, 4))}
+              className="h-9 w-28"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Mes</p>
+            <Select value={mes || 'todos'} onValueChange={v => setMes(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {MESES_LIST.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       <div>
         {loading ? (

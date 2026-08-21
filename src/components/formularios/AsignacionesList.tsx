@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle } from 'lucide-react'
+import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle, SlidersHorizontal, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
@@ -59,6 +59,12 @@ export function AsignacionesList() {
   const [busqueda, setBusqueda] = useState('')
   const [busquedaDebounced, setBusquedaDebounced] = useState('')
   const [plantillaFiltro, setPlantillaFiltro] = useState<string>('todas')
+  const [fechaLimiteDesde, setFechaLimiteDesde] = useState('')
+  const [fechaLimiteHasta, setFechaLimiteHasta] = useState('')
+  const [creadaDesde, setCreadaDesde] = useState('')
+  const [creadaHasta, setCreadaHasta] = useState('')
+  const [progreso, setProgreso] = useState<'todas' | 'completadas' | 'con_pendientes' | 'sin_respuestas'>('todas')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [areas, setAreas] = useState<Area[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [dialogAreaId, setDialogAreaId] = useState<string>('')
@@ -72,21 +78,43 @@ export function AsignacionesList() {
     return () => clearTimeout(t)
   }, [busqueda])
 
-  useEffect(() => { setPage(1) }, [busquedaDebounced, plantillaFiltro])
+  useEffect(() => { setPage(1) }, [busquedaDebounced, plantillaFiltro, fechaLimiteDesde, fechaLimiteHasta, creadaDesde, creadaHasta, progreso])
+
+  const rangoLimiteInvalido = !!fechaLimiteDesde && !!fechaLimiteHasta && fechaLimiteHasta < fechaLimiteDesde
+  const rangoCreadaInvalido = !!creadaDesde && !!creadaHasta && creadaHasta < creadaDesde
+
+  const activeFiltersCount =
+    (plantillaFiltro !== 'todas' ? 1 : 0) +
+    (fechaLimiteDesde ? 1 : 0) + (fechaLimiteHasta ? 1 : 0) +
+    (creadaDesde ? 1 : 0) + (creadaHasta ? 1 : 0) +
+    (progreso !== 'todas' ? 1 : 0)
+
+  function clearAllFilters() {
+    setPlantillaFiltro('todas')
+    setFechaLimiteDesde(''); setFechaLimiteHasta('')
+    setCreadaDesde(''); setCreadaHasta('')
+    setProgreso('todas')
+  }
 
   const load = useCallback(() => {
+    if (rangoLimiteInvalido || rangoCreadaInvalido) { setSolicitudes([]); setTotal(0); return }
     const params = new URLSearchParams()
     params.set('page', String(page))
     params.set('limit', String(pageSize))
     if (busquedaDebounced) params.set('q', busquedaDebounced)
     if (plantillaFiltro !== 'todas') params.set('plantillaId', plantillaFiltro)
+    if (fechaLimiteDesde) params.set('fechaLimiteDesde', fechaLimiteDesde)
+    if (fechaLimiteHasta) params.set('fechaLimiteHasta', fechaLimiteHasta)
+    if (creadaDesde) params.set('creadaDesde', creadaDesde)
+    if (creadaHasta) params.set('creadaHasta', creadaHasta)
+    if (progreso !== 'todas') params.set('progreso', progreso)
     fetch(`/api/formularios/asignaciones?${params}`)
       .then(r => r.json())
       .then(d => {
         if (Array.isArray(d)) { setSolicitudes(d); setTotal(d.length) }
         else { setSolicitudes(d.items ?? []); setTotal(d.total ?? 0) }
       })
-  }, [page, pageSize, busquedaDebounced, plantillaFiltro])
+  }, [page, pageSize, busquedaDebounced, plantillaFiltro, fechaLimiteDesde, fechaLimiteHasta, creadaDesde, creadaHasta, progreso, rangoLimiteInvalido, rangoCreadaInvalido])
 
   useEffect(() => { load() }, [load])
 
@@ -218,7 +246,7 @@ export function AsignacionesList() {
     toast.success('Solicitud creada')
   }
 
-  const hasFiltros = !!busqueda.trim() || plantillaFiltro !== 'todas'
+  const hasFiltros = !!busqueda.trim() || activeFiltersCount > 0
 
   return (
     <div className="space-y-4">
@@ -227,22 +255,34 @@ export function AsignacionesList() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9"
-            placeholder="Buscar por nombre…"
+            placeholder="Buscar por nombre, empleado o legajo…"
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <Select value={plantillaFiltro} onValueChange={v => v && setPlantillaFiltro(v)}>
-          <SelectTrigger className="w-52"><SelectValue placeholder="Plantilla" /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todas">Todas las plantillas</SelectItem>
-            {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('h-9', activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+          onClick={() => setFiltersOpen(v => !v)}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
-          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
+          className="ml-auto text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 dark:border-red-900 dark:hover:bg-red-950/30 disabled:opacity-50"
           onClick={() => setBulkDeleteOpen(true)}
           disabled={selectedListaAsig.size === 0}
           title={selectedListaAsig.size === 0 ? 'Seleccioná una o más solicitudes' : undefined}
@@ -254,6 +294,49 @@ export function AsignacionesList() {
           <Plus size={15} /> Nueva solicitud
         </Button>
       </div>
+
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Plantilla</p>
+            <Select value={plantillaFiltro} onValueChange={v => v && setPlantillaFiltro(v)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todas">Todas</SelectItem>
+                {plantillas.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Progreso</p>
+            <Select value={progreso} onValueChange={v => v && setProgreso(v as typeof progreso)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="completadas">Completadas</SelectItem>
+                <SelectItem value="con_pendientes">Con pendientes</SelectItem>
+                <SelectItem value="sin_respuestas">Sin respuestas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Fecha límite desde</p>
+            <Input type="date" value={fechaLimiteDesde} max={fechaLimiteHasta || undefined} onChange={e => setFechaLimiteDesde(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Fecha límite hasta</p>
+            <Input type="date" value={fechaLimiteHasta} min={fechaLimiteDesde || undefined} onChange={e => setFechaLimiteHasta(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Creada desde</p>
+            <Input type="date" value={creadaDesde} max={creadaHasta || undefined} onChange={e => setCreadaDesde(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Creada hasta</p>
+            <Input type="date" value={creadaHasta} min={creadaDesde || undefined} onChange={e => setCreadaHasta(e.target.value)} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
 
       {total === 0 ? (
         <div className="text-center py-16 text-muted-foreground">

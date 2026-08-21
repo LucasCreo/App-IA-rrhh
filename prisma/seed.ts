@@ -82,19 +82,12 @@ async function main() {
     },
   })
 
-  // Tipos de evento protegidos
-  await Promise.all([
-    prisma.tipoEvento.upsert({
-      where: { nombre: 'FERIADO' },
-      update: {},
-      create: { nombre: 'FERIADO', color: '#dc2626', permiteAdmin: true, permiteEmpleado: false, protegido: true },
-    }),
-    prisma.tipoEvento.upsert({
-      where: { nombre: 'AUSENCIA' },
-      update: {},
-      create: { nombre: 'AUSENCIA', color: '#f97316', permiteAdmin: true, permiteEmpleado: false, protegido: true },
-    }),
-  ])
+  // Tipos de evento protegidos (AUSENCIA se removió: lo cubre el módulo Licencias)
+  await prisma.tipoEvento.upsert({
+    where: { nombre: 'FERIADO' },
+    update: {},
+    create: { nombre: 'FERIADO', color: '#dc2626', permiteAdmin: true, permiteEmpleado: false, protegido: true },
+  })
 
   console.log('Seed completado.')
 }

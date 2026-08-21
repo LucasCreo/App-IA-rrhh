@@ -16,7 +16,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     prisma.solicitudAusencia.count({ where: { estado: 'PENDIENTE' } }),
   ])
   if (dbUser?.passwordTemporal) redirect('/cambiar-password')
-  const pendingSolicitudes = pendingSolicitudesDoc + pendingSolicitudesAus
 
   // null = acceso total; array vacío o con items = restrictivo
   const permisos: string[] | null = (dbUser?.permisos?.length ?? 0) > 0
@@ -33,7 +32,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         avatarBgColor={dbUser?.avatarBgColor ?? null}
         avatarTextColor={dbUser?.avatarTextColor ?? null}
         pendingModificaciones={pendingModificaciones}
-        pendingSolicitudes={pendingSolicitudes}
+        pendingSolicitudes={pendingSolicitudesDoc}
+        pendingLicencias={pendingSolicitudesAus}
         permisos={permisos}
         hasEmployeeId={!!user?.employeeId}
       />

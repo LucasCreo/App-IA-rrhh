@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q')?.trim() ?? ''
   const areaId = searchParams.get('areaId') ? Number(searchParams.get('areaId')) : undefined
   const categoriaId = searchParams.get('categoriaId') ? Number(searchParams.get('categoriaId')) : undefined
+  const tipoId = searchParams.get('tipoId') ? Number(searchParams.get('tipoId')) : undefined
   const pageParam = searchParams.get('page')
   const paged = pageParam !== null
   const page = Math.max(1, Number(pageParam ?? 1) || 1)
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       const where = {
         ...(estado ? { estado } : {}),
         ...(scope ? { employeeId: { in: [...scope] } } : {}),
+        ...(tipoId ? { tipoId } : {}),
         ...(areaId || categoriaId
           ? { employee: { ...(areaId ? { areaId } : {}), ...(categoriaId ? { categoriaId } : {}) } }
           : {}),

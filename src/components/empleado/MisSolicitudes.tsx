@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pagination, paginate } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search } from 'lucide-react'
+import { Upload, Paperclip, FileText, ClipboardList, Plus, CheckCircle2, XCircle, Circle, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
@@ -66,11 +66,32 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<'' | 'pendiente' | 'aprobada' | 'rechazada'>('')
   const [detalle, setDetalle] = useState<Item | null>(null)
+  const [desde, setDesde] = useState<string>('')
+  const [hasta, setHasta] = useState<string>('')
+  const [fecha, setFecha] = useState<string>('')
+  const [tipoFiltro, setTipoFiltro] = useState<string>('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro, vista])
-  useEffect(() => { setFiltro('todos'); setEstadoFiltro('') }, [vista])
+  useEffect(() => { setPage(1) }, [filtro, busqueda, estadoFiltro, desde, hasta, fecha, tipoFiltro, vista])
+  useEffect(() => { setFiltro('todos'); setEstadoFiltro(''); setDesde(''); setHasta(''); setFecha(''); setTipoFiltro('') }, [vista])
+
+  // Desde solo aplica a 'todo'; Hasta aplica a 'todo' y 'recibidas'
+  const mostrarDesde = vista === 'todo'
+  const mostrarHasta = vista === 'todo' || vista === 'recibidas'
+
+  const activeFiltersCount =
+    (filtro !== 'todos' ? 1 : 0) +
+    (estadoFiltro ? 1 : 0) +
+    (mostrarDesde && desde ? 1 : 0) +
+    (mostrarHasta && hasta ? 1 : 0) +
+    (fecha ? 1 : 0) +
+    (tipoFiltro ? 1 : 0)
+
+  function clearAllFilters() {
+    setFiltro('todos'); setEstadoFiltro(''); setDesde(''); setHasta(''); setFecha(''); setTipoFiltro('')
+  }
 
   const [nuevaOpen, setNuevaOpen] = useState(false)
   const [tipoSel, setTipoSel] = useState<TipoSolicitud | null>(null)
@@ -125,13 +146,22 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
 
   const q = busqueda.trim().toLowerCase()
 
-  const filtered = items.filter(i => {
+  const rangoInvalido = mostrarDesde && mostrarHasta && !!desde && !!hasta && hasta < desde
+  const filtered = (rangoInvalido ? [] : items).filter(i => {
     if (vista === 'enviadas' && i.kind === 'form') return false
     if (vista === 'recibidas' && i.kind !== 'form') return false
     if (filtro === 'documentos' && i.kind !== 'doc') return false
     if (filtro === 'formularios' && i.kind !== 'form') return false
     if (filtro === 'pendientes' && !i.pendiente) return false
     if (!estadoMatch(i.estado, estadoFiltro)) return false
+    const fechaItem = i.fecha.slice(0, 10)
+    if (mostrarDesde && desde && fechaItem < desde) return false
+    if (mostrarHasta && hasta && fechaItem > hasta) return false
+    if (fecha && fechaItem !== fecha) return false
+    if (tipoFiltro) {
+      const nombre = i.kind === 'doc' ? i.data.tipo.nombre : i.data.asignacion.nombre
+      if (nombre !== tipoFiltro) return false
+    }
     if (q) {
       const nombre =
         i.kind === 'doc' ? i.data.tipo.nombre
@@ -144,6 +174,11 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
     if (a.pendiente !== b.pendiente) return a.pendiente ? -1 : 1
     return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
   })
+
+  const tiposEnItems = [...new Set(items
+    .filter(i => vista === 'todo' || (vista === 'enviadas' ? i.kind === 'doc' : i.kind === 'form'))
+    .map(i => i.kind === 'doc' ? i.data.tipo.nombre : i.data.asignacion.nombre)
+  )].sort()
 
   const counts = {
     todos: items.length,
@@ -207,39 +242,84 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(v === 'todos' ? '' : (v as typeof estadoFiltro))}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent side="bottom" alignItemWithTrigger={false}>
-            <SelectItem value="todos">Todos los estados</SelectItem>
-            <SelectItem value="pendiente">Pendiente</SelectItem>
-            <SelectItem value="aprobada">Aprobada</SelectItem>
-            <SelectItem value="rechazada">Rechazada</SelectItem>
-          </SelectContent>
-        </Select>
+        <Button
+          variant="outline"
+          onClick={() => setFiltersOpen(v => !v)}
+          className={cn(activeFiltersCount > 0 && 'border-green-500 text-green-700 dark:text-green-400')}
+        >
+          <SlidersHorizontal size={14} className="mr-1.5" />
+          Filtros
+          {activeFiltersCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-semibold">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+        {activeFiltersCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+            <X size={12} className="mr-1" /> Limpiar
+          </Button>
+        )}
         {vista !== 'recibidas' && filtro !== 'formularios' && (
-          <Button className="bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
+          <Button className="ml-auto bg-green-700 hover:bg-green-800" onClick={() => setNuevaOpen(true)}>
             <Plus size={16} className="mr-1" /> Nueva solicitud
           </Button>
         )}
       </div>
 
-      {vista === 'todo' && (
-        <div className="flex gap-1 flex-wrap">
-          {FILTROS.map(f => (
-            <button
-              key={f.value}
-              onClick={() => setFiltro(f.value)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors inline-flex items-center gap-1.5',
-                filtro === f.value
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              {f.label}
-              <span className="opacity-60">{counts[f.value]}</span>
-            </button>
-          ))}
+      {filtersOpen && (
+        <div className="flex flex-wrap gap-3 items-end p-4 bg-muted/30 border border-border rounded-lg">
+          {vista === 'todo' && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Vista</p>
+              <Select value={filtro} onValueChange={v => v && setFiltro(v as Filtro)}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent side="bottom" alignItemWithTrigger={false}>
+                  {FILTROS.map(f => (
+                    <SelectItem key={f.value} value={f.value}>{f.label} ({counts[f.value]})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Estado</p>
+            <Select value={estadoFiltro || 'todos'} onValueChange={v => setEstadoFiltro(!v || v === 'todos' ? '' : (v as typeof estadoFiltro))}>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="aprobada">Aprobada</SelectItem>
+                <SelectItem value="rechazada">Rechazada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+            <Select value={tipoFiltro || 'todos'} onValueChange={v => setTipoFiltro(!v || v === 'todos' ? '' : v)}>
+              <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+              <SelectContent side="bottom" alignItemWithTrigger={false}>
+                <SelectItem value="todos">Todos</SelectItem>
+                {tiposEnItems.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Fecha</p>
+            <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="h-9 w-40" />
+          </div>
+          {mostrarDesde && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Desde</p>
+              <Input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} className="h-9 w-40" />
+            </div>
+          )}
+          {mostrarHasta && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Hasta</p>
+              <Input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} className="h-9 w-40" />
+            </div>
+          )}
         </div>
       )}
 
@@ -250,7 +330,7 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
           <FileText size={32} strokeWidth={1.2} />
-          <p className="text-sm">Sin resultados</p>
+          <p className="text-sm">{rangoInvalido ? 'La fecha "Desde" no puede ser posterior a "Hasta"' : 'Sin resultados'}</p>
         </div>
       ) : (
         <div className="border rounded-xl overflow-x-auto">
@@ -258,7 +338,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
             <thead className="bg-muted">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium">Solicitud</th>
-                <th className="text-left px-4 py-2.5 font-medium hidden sm:table-cell">Tipo</th>
                 <th className="text-left px-4 py-2.5 font-medium hidden lg:table-cell">Fecha</th>
                 <th className="text-left px-4 py-2.5 font-medium">Estado</th>
                 <th className="text-right px-4 py-2.5 font-medium">Acciones</th>
@@ -299,11 +378,6 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                       {item.kind === 'form' && (
                         <p className="text-[11px] text-muted-foreground pl-5 truncate">{item.data.asignacion.plantilla.nombre}</p>
                       )}
-                    </td>
-                    <td className="px-4 py-2 hidden sm:table-cell">
-                      <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                        {item.kind === 'doc' ? 'Documento' : 'Formulario'}
-                      </span>
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground hidden lg:table-cell">
                       {fmt(item.fecha)}

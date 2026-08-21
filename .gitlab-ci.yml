@@ -35,6 +35,13 @@ docker_build:
     - sed -i "s|__SMTP_FROM__|$SMTP_FROM|g" .env.production
     - sed -i "s|__GOOGLE_CLIENT_ID__|$GOOGLE_CLIENT_ID|g" .env.production
     - sed -i "s|__GOOGLE_CLIENT_SECRET__|$GOOGLE_CLIENT_SECRET|g" .env.production
+    - sed -i "s|__ADITUS_TOKEN_URL__|$ADITUS_TOKEN_URL|g" .env.production
+    - sed -i "s|__ADITUS_CLIENT_ID__|$ADITUS_CLIENT_ID|g" .env.production
+    - sed -i "s|__ADITUS_USERNAME__|$ADITUS_USERNAME|g" .env.production
+    - sed -i "s|__ADITUS_PASSWORD__|$ADITUS_PASSWORD|g" .env.production
+    - sed -i "s|__ADITUS_BASE_URL__|$ADITUS_BASE_URL|g" .env.production
+    - sed -i "s|__ADITUS_LIBRARY_ID__|$ADITUS_LIBRARY_ID|g" .env.production
+    - sed -i "s|__ADITUS_OBJECT_DEFINITION_ID__|$ADITUS_OBJECT_DEFINITION_ID|g" .env.production
   script:
     - docker login $DOCKER_REGISTRY -u $DEVOPS_LOGIN -p $DEVOPS_PASSWORD
     - docker build -t $IMAGE_ARG:$CI_COMMIT_REF_NAME .

@@ -106,6 +106,14 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     nombre: 'Juan',
     fecha: '21/08/2026 15:30',
   },
+  AUSENCIA_CANCELADA: {
+    apellido: 'García', nombre: 'Juan',
+    tipoAusencia: 'Vacaciones',
+    rango: '01/08/2026 — 10/08/2026',
+    quien: 'el empleado',
+    bloqueMotivo: '<p><em>Motivo:</em> Cambio de plan</p>',
+    bloqueSaldo: '<p>Se devolvieron <strong>8</strong> días al saldo de vacaciones.</p>',
+  },
 }
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ key: string }> }) {

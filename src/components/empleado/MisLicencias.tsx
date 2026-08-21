@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import Link from 'next/link'
-import { Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, SlidersHorizontal, Upload, X, XCircle } from 'lucide-react'
+import { Ban, Calendar, CalendarOff, CheckCircle2, Clock, Paperclip, Plus, Search, SlidersHorizontal, Upload, X, XCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination, paginate } from '@/components/ui/pagination'
 import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
@@ -20,8 +20,15 @@ import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 interface TipoAusencia { id: number; nombre: string; color: string; requiereAprobacion: boolean; activo: boolean; afectaSaldo: boolean }
 interface SolicitudAusencia {
   id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
-  fechaInicio: string; fechaFin: string; createdAt: string
+  fechaInicio: string; fechaFin: string; createdAt: string; updatedAt?: string
   tipoAusencia: { nombre: string; color: string }
+}
+
+function parseCancelacion(comentario?: string): { quien: string; motivo?: string } | null {
+  if (!comentario) return null
+  const m = /^Cancelada por (el empleado|el administrador)(?:: (.+))?$/i.exec(comentario.trim())
+  if (!m) return null
+  return { quien: m[1], motivo: m[2]?.trim() }
 }
 interface Saldo { diasTotales: number; diasUsados: number }
 
@@ -29,6 +36,16 @@ const ESTADO_META: Record<string, { icon: React.ReactNode; className: string; la
   PENDIENTE: { icon: <Clock size={11} />, className: 'text-yellow-600 border-yellow-400', label: 'Pendiente' },
   APROBADA: { icon: <CheckCircle2 size={11} />, className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Aprobada' },
   RECHAZADA: { icon: <XCircle size={11} />, className: 'text-red-500 border-red-400', label: 'Rechazada' },
+  CANCELADA: { icon: <Ban size={11} />, className: 'text-gray-500 border-gray-300', label: 'Cancelada' },
+}
+
+function puedeEmpleadoCancelar(s: { estado: string; fechaInicio: string }): boolean {
+  if (s.estado !== 'PENDIENTE' && s.estado !== 'APROBADA') return false
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const inicio = new Date(s.fechaInicio)
+  inicio.setHours(0, 0, 0, 0)
+  return inicio.getTime() > hoy.getTime()
 }
 
 function fmt(iso: string) {
@@ -67,7 +84,10 @@ export function MisLicencias() {
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState<{ url: string; filename?: string } | null>(null)
   const [busqueda, setBusqueda] = useState('')
-  const [estadoFiltro, setEstadoFiltro] = useState<'todos' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('todos')
+  const [estadoFiltro, setEstadoFiltro] = useState<'todos' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'CANCELADA'>('todos')
+  const [cancelando, setCancelando] = useState<SolicitudAusencia | null>(null)
+  const [motivoCancel, setMotivoCancel] = useState('')
+  const [cancelBusy, setCancelBusy] = useState(false)
   const [tipoFiltro, setTipoFiltro] = useState<string>('')
   const [anio, setAnio] = useState<string>('')
   const [desde, setDesde] = useState<string>('')
@@ -114,6 +134,22 @@ export function MisLicencias() {
     setFile(null)
     if (fileRef.current) fileRef.current.value = ''
   }, [tipoSel])
+
+  async function confirmarCancelar() {
+    if (!cancelando) return
+    setCancelBusy(true)
+    const res = await fetch(`/api/empleado/ausencias/${cancelando.id}/cancelar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo: motivoCancel.trim() || null }),
+    })
+    setCancelBusy(false)
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
+    const data = await res.json().catch(() => ({}))
+    toast.success(data.diasDevueltos > 0 ? `Licencia cancelada · ${data.diasDevueltos} días devueltos al saldo` : 'Licencia cancelada')
+    setCancelando(null); setMotivoCancel(''); setDetalle(null)
+    load()
+  }
 
   async function enviar() {
     if (!tipoSel) return
@@ -168,9 +204,9 @@ export function MisLicencias() {
             <p className="text-3xl font-bold text-green-700 dark:text-green-400">{restantes}</p>
             <p className="text-xs text-muted-foreground mt-0.5">días restantes</p>
           </div>
-          <div className="flex-1 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Días totales</span><span>{saldo.diasTotales}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Días usados</span><span>{saldo.diasUsados}</span></div>
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center gap-3"><span className="text-muted-foreground">Días totales</span><span className="font-medium">{saldo.diasTotales}</span></div>
+            <div className="flex items-center gap-3"><span className="text-muted-foreground">Días usados</span><span className="font-medium">{saldo.diasUsados}</span></div>
           </div>
         </div>
       )}
@@ -219,6 +255,7 @@ export function MisLicencias() {
                 <SelectItem value="PENDIENTE">Pendiente</SelectItem>
                 <SelectItem value="APROBADA">Aprobada</SelectItem>
                 <SelectItem value="RECHAZADA">Rechazada</SelectItem>
+                <SelectItem value="CANCELADA">Cancelada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -320,6 +357,17 @@ export function MisLicencias() {
                           >
                             <Calendar size={12} /> Calendario
                           </Link>
+                        )}
+                        {puedeEmpleadoCancelar(s) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            onClick={() => { setCancelando(s); setMotivoCancel('') }}
+                            title="Cancelar esta licencia"
+                          >
+                            <Ban size={12} className="mr-1" /> Cancelar
+                          </Button>
                         )}
                         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDetalle(s)}>
                           Ver
@@ -430,16 +478,34 @@ export function MisLicencias() {
           <DialogHeader>
             <DialogTitle>{detalle?.tipoAusencia.nombre}</DialogTitle>
           </DialogHeader>
-          {detalle && (
+          {detalle && (() => {
+            const cancel = detalle.estado === 'CANCELADA' ? parseCancelacion(detalle.comentarioAdmin) : null
+            return (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">{fmt(detalle.fechaInicio)} – {fmt(detalle.fechaFin)} · {detalle.dias} día{detalle.dias !== 1 ? 's' : ''}</p>
+              {detalle.estado === 'CANCELADA' && (
+                <div className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm flex items-start gap-2">
+                  <Ban size={14} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-red-700 dark:text-red-300 font-medium">
+                      Licencia cancelada{cancel?.quien ? ` por ${cancel.quien}` : ''}
+                      {detalle.updatedAt ? ` el ${fmt(detalle.updatedAt)}` : ''}
+                    </p>
+                    {cancel?.motivo && (
+                      <p className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">
+                        <span className="text-muted-foreground">Motivo:</span> {cancel.motivo}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               {detalle.motivo && (
                 <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
                   <p className="text-xs text-muted-foreground mb-0.5">Tu motivo</p>
                   <p>{detalle.motivo}</p>
                 </div>
               )}
-              {detalle.comentarioAdmin && (
+              {detalle.comentarioAdmin && detalle.estado !== 'CANCELADA' && (
                 <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
                   <p className="text-xs text-muted-foreground mb-0.5">Comentario de RRHH</p>
                   <p>{detalle.comentarioAdmin}</p>
@@ -453,8 +519,71 @@ export function MisLicencias() {
                   <Paperclip size={13} /> Ver adjunto
                 </button>
               )}
+              {puedeEmpleadoCancelar(detalle) && (
+                <div className="pt-2 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30"
+                    onClick={() => { setCancelando(detalle); setMotivoCancel('') }}
+                  >
+                    <Ban size={14} className="mr-1.5" /> Cancelar licencia
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground text-center mt-1.5">
+                    Podés cancelar hasta el día anterior al inicio.
+                  </p>
+                </div>
+              )}
+              {(detalle.estado === 'PENDIENTE' || detalle.estado === 'APROBADA') && !puedeEmpleadoCancelar(detalle) && (
+                <p className="text-[11px] text-muted-foreground pt-2 border-t border-border">
+                  La licencia ya inició. Pedile al administrador que la cancele.
+                </p>
+              )}
+            </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación cancelar */}
+      <Dialog open={cancelando !== null} onOpenChange={v => { if (!v && !cancelBusy) { setCancelando(null); setMotivoCancel('') } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Cancelar esta licencia?</DialogTitle>
+          </DialogHeader>
+          {cancelando && (
+            <div className="space-y-3 py-1">
+              <p className="text-sm">
+                <span className="font-medium">{cancelando.tipoAusencia.nombre}</span> · {fmt(cancelando.fechaInicio)} – {fmt(cancelando.fechaFin)}
+              </p>
+              {cancelando.estado === 'APROBADA' && (
+                <p className="text-xs text-muted-foreground">
+                  Esta licencia ya está aprobada. Si afecta al saldo de vacaciones, los días se devolverán automáticamente.
+                </p>
+              )}
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Motivo (opcional)</p>
+                <Input
+                  value={motivoCancel}
+                  onChange={e => setMotivoCancel(e.target.value)}
+                  placeholder="Ej: cambio de plan"
+                  disabled={cancelBusy}
+                />
+              </div>
             </div>
           )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCancelando(null); setMotivoCancel('') }} disabled={cancelBusy}>
+              Volver
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={confirmarCancelar}
+              disabled={cancelBusy}
+            >
+              {cancelBusy ? 'Cancelando…' : 'Cancelar licencia'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

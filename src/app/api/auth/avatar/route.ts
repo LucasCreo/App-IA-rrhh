@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir, readFile, unlink } from 'fs/promises'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { uploadAditusFile, deleteAditusFile, getAditusFile } from '@/lib/aditus'
+import { avatarProps } from '@/lib/aditusAvatar'
 
 const MAX_SIZE = 5 * 1024 * 1024
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -25,6 +28,21 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // Aditus: el file es un UUID que coincide con avatarAditusId de algún user.
+  if (UUID_RE.test(file)) {
+    const owner = await prisma.user.findFirst({ where: { avatarAditusId: file }, select: { id: true } })
+    if (!owner) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    try {
+      const f = await getAditusFile(file)
+      return new NextResponse(new Uint8Array(f.content), {
+        headers: { 'Content-Type': f.contentType || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' },
+      })
+    } catch {
+      return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    }
+  }
+
+  // Backward-compat: archivo local en /uploads/avatars/.
   const safeName = file.replace(/[^a-zA-Z0-9._-]/g, '')
   const filePath = join(process.cwd(), 'uploads', 'avatars', safeName)
   try {
@@ -69,22 +87,37 @@ export async function POST(req: NextRequest) {
   if (!isJpeg && !isPng && !isWebp)
     return NextResponse.json({ error: 'El archivo debe ser JPEG, PNG o WebP' }, { status: 400 })
 
-  const avatarsDir = join(process.cwd(), 'uploads', 'avatars')
-  await mkdir(avatarsDir, { recursive: true })
+  const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg'
+  const contentType = isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg'
 
-  const prev = await prisma.user.findUnique({ where: { id: targetId }, select: { avatarUrl: true } })
-  if (prev?.avatarUrl) {
-    const safe = prev.avatarUrl.replace(/[^a-zA-Z0-9._-]/g, '')
-    try { await unlink(join(avatarsDir, safe)) } catch {}
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: {
+      avatarAditusId: true,
+      employee: { select: { nombre: true, apellido: true, legajo: true, cuil: true } },
+    },
+  })
+  if (!targetUser) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+  if (!targetUser.employee) return NextResponse.json({ error: 'El usuario no tiene empleado asociado' }, { status: 400 })
+
+  const aditusId = await uploadAditusFile({
+    content: buffer,
+    fileName: `avatar-${targetId}-${Date.now()}.${ext}`,
+    contentType,
+    properties: avatarProps(targetUser.employee),
+  })
+
+  // Borrar el anterior de Aditus (best-effort)
+  if (targetUser.avatarAditusId) {
+    deleteAditusFile(targetUser.avatarAditusId).catch(e => console.error('[avatar] delete prev aditus fail:', e))
   }
 
-  const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg'
-  const fileName = `${targetId}-${Date.now()}.${ext}`
-  await writeFile(join(avatarsDir, fileName), buffer)
+  await prisma.user.update({
+    where: { id: targetId },
+    data: { avatarAditusId: aditusId, avatarUrl: aditusId },
+  })
 
-  await prisma.user.update({ where: { id: targetId }, data: { avatarUrl: fileName } })
-
-  return NextResponse.json({ avatarUrl: fileName })
+  return NextResponse.json({ avatarUrl: aditusId })
 }
 
 export async function DELETE(req: NextRequest) {
@@ -94,12 +127,11 @@ export async function DELETE(req: NextRequest) {
   const { targetId, err } = resolveTargetId(req.url, user.userId, user.role)
   if (err || !targetId) return NextResponse.json({ error: err ?? 'userId inválido' }, { status: err === 'Prohibido' ? 403 : 400 })
 
-  const prev = await prisma.user.findUnique({ where: { id: targetId }, select: { avatarUrl: true } })
-  if (prev?.avatarUrl) {
-    const safe = prev.avatarUrl.replace(/[^a-zA-Z0-9._-]/g, '')
-    try { await unlink(join(process.cwd(), 'uploads', 'avatars', safe)) } catch {}
+  const prev = await prisma.user.findUnique({ where: { id: targetId }, select: { avatarAditusId: true } })
+  if (prev?.avatarAditusId) {
+    deleteAditusFile(prev.avatarAditusId).catch(e => console.error('[avatar] delete aditus fail:', e))
   }
-  await prisma.user.update({ where: { id: targetId }, data: { avatarUrl: null } })
+  await prisma.user.update({ where: { id: targetId }, data: { avatarUrl: null, avatarAditusId: null } })
   return NextResponse.json({ ok: true })
 }
 

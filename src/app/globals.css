@@ -225,6 +225,33 @@
 .portal-content ol { list-style: decimal; padding-left: 1.25rem; }
 .portal-content p { margin: 0.25rem 0; }
 
+/* Adjuntos genéricos (chip descargable, estilo WhatsApp/Slack) */
+.portal-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--muted, #f3f4f6) 60%, transparent);
+  border: 1px solid var(--border, #e5e7eb);
+  color: inherit !important;
+  text-decoration: none !important;
+  font-size: 0.85rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-attachment::before {
+  content: "📎";
+  display: inline-block;
+  margin-right: 4px;
+}
+.portal-attachment:hover {
+  background-color: color-mix(in srgb, var(--muted, #f3f4f6) 90%, transparent);
+}
+
 /* Menciones (@usuario) */
 .mention, .portal-content span[data-mention] {
   background-color: color-mix(in srgb, var(--color-green-700, #166534) 12%, transparent);

@@ -8,11 +8,11 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
 import { mentionSuggestion } from './MentionSuggestion'
 import { Node, mergeAttributes } from '@tiptap/core'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Bold as BoldIcon, Italic as ItalicIcon, List, ListOrdered, Link as LinkIcon,
-  Image as ImageIcon, Mic, Video as VideoIcon, Undo2, Redo2,
+  Image as ImageIcon, Mic, Video as VideoIcon, Undo2, Redo2, Square, Paperclip,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -46,6 +46,45 @@ const Video = Node.create({
   },
 })
 
+const Attachment = Node.create({
+  name: 'attachment',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      href: { default: null },
+      fileName: { default: 'archivo' },
+      size: { default: null },
+    }
+  },
+  parseHTML() { return [{ tag: 'a[data-attachment]' }] },
+  renderHTML({ HTMLAttributes }) {
+    const { href, fileName, size } = HTMLAttributes as { href: string; fileName: string; size: string | null }
+    const label = size ? `${fileName} · ${size}` : fileName
+    return [
+      'a',
+      {
+        href,
+        'data-attachment': 'true',
+        'data-file-name': fileName,
+        'data-size': size ?? '',
+        download: fileName,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        class: 'portal-attachment',
+      },
+      label,
+    ]
+  },
+})
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 /* ---------- Toolbar ---------- */
 
 function ToolbarBtn({ onClick, active, disabled, title, children }: {
@@ -74,6 +113,7 @@ function ToolbarBtn({ onClick, active, disabled, title, children }: {
 async function subirArchivo(file: File, accept: 'image' | 'audio' | 'video'): Promise<string | null> {
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('kind', accept)
   const res = await fetch('/api/portal/media', { method: 'POST', body: fd })
   if (!res.ok) {
     const text = await res.text()
@@ -90,12 +130,114 @@ async function subirArchivo(file: File, accept: 'image' | 'audio' | 'video'): Pr
   return url
 }
 
-function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full' | 'mini' }) {
+async function subirArchivoGenerico(file: File): Promise<{ url: string; fileName: string } | null> {
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('kind', 'file')
+  const res = await fetch('/api/portal/media', { method: 'POST', body: fd })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg = 'Error al subir'
+    try { msg = JSON.parse(text).error ?? msg } catch { msg = text || msg }
+    toast.error(msg)
+    return null
+  }
+  const { url, fileName } = await res.json()
+  return { url, fileName: fileName ?? file.name }
+}
+
+function Toolbar({ editor, variant = 'full', rightSlot }: { editor: Editor; variant?: 'full' | 'mini'; rightSlot?: React.ReactNode }) {
   const imgRef = useRef<HTMLInputElement>(null)
-  const audioRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLInputElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
+  const [subiendoFile, setSubiendoFile] = useState(false)
+  const [recOpen, setRecOpen] = useState(false)
+  const [recEstado, setRecEstado] = useState<'idle' | 'grabando' | 'grabado' | 'subiendo'>('idle')
+  const [recSegundos, setRecSegundos] = useState(0)
+  const [recBlob, setRecBlob] = useState<Blob | null>(null)
+  const [recBlobUrl, setRecBlobUrl] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const chunksRef = useRef<BlobPart[]>([])
+  const tickRef = useRef<number | null>(null)
+
+  function limpiarGrabacion() {
+    if (tickRef.current) { window.clearInterval(tickRef.current); tickRef.current = null }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try { mediaRecorderRef.current.stop() } catch {}
+    }
+    mediaRecorderRef.current = null
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    if (recBlobUrl) URL.revokeObjectURL(recBlobUrl)
+    setRecBlobUrl(null)
+    setRecBlob(null)
+    setRecEstado('idle')
+    setRecSegundos(0)
+    chunksRef.current = []
+  }
+
+  useEffect(() => {
+    if (!recOpen) limpiarGrabacion()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recOpen])
+
+  async function iniciarGrabacion() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      mediaRecorderRef.current = mr
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
+        setRecBlob(blob)
+        setRecBlobUrl(URL.createObjectURL(blob))
+        setRecEstado('grabado')
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(t => t.stop())
+          streamRef.current = null
+        }
+      }
+      mr.start()
+      setRecEstado('grabando')
+      setRecSegundos(0)
+      tickRef.current = window.setInterval(() => setRecSegundos(s => s + 1), 1000)
+    } catch (e: any) {
+      toast.error(e?.name === 'NotAllowedError' ? 'Permiso de micrófono denegado' : 'No se pudo acceder al micrófono')
+    }
+  }
+
+  function detenerGrabacion() {
+    if (tickRef.current) { window.clearInterval(tickRef.current); tickRef.current = null }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }
+
+  async function subirGrabacion() {
+    if (!recBlob) return
+    setRecEstado('subiendo')
+    const file = new File([recBlob], `grabacion-${Date.now()}.webm`, { type: recBlob.type || 'audio/webm' })
+    const url = await subirArchivo(file, 'audio')
+    if (!url) { setRecEstado('grabado'); return }
+    editor.chain().focus().insertContent({ type: 'audio', attrs: { src: url } }).run()
+    setRecOpen(false)
+  }
+
+  function formatoDuracion(s: number): string {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+  }
 
   async function agregarMedia(kind: 'image' | 'audio' | 'video', file?: File) {
     if (!file) return
@@ -104,6 +246,18 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
     if (kind === 'image') editor.chain().focus().setImage({ src: url }).run()
     else if (kind === 'audio') editor.chain().focus().insertContent({ type: 'audio', attrs: { src: url } }).run()
     else editor.chain().focus().insertContent({ type: 'video', attrs: { src: url } }).run()
+  }
+
+  async function agregarArchivo(file?: File) {
+    if (!file) return
+    setSubiendoFile(true)
+    const res = await subirArchivoGenerico(file)
+    setSubiendoFile(false)
+    if (!res) return
+    editor.chain().focus().insertContent({
+      type: 'attachment',
+      attrs: { href: res.url, fileName: res.fileName, size: humanSize(file.size) },
+    }).run()
   }
 
   function abrirDialogoLink() {
@@ -152,18 +306,24 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
           <ToolbarBtn onClick={() => imgRef.current?.click()} title="Imagen">
             <ImageIcon size={14} />
           </ToolbarBtn>
-          <ToolbarBtn onClick={() => audioRef.current?.click()} title="Audio">
-            <Mic size={14} />
+          <ToolbarBtn onClick={() => setRecOpen(true)} title="Grabar audio">
+            <span className="relative inline-flex">
+              <Mic size={14} />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-red-500 ring-1 ring-background" />
+            </span>
           </ToolbarBtn>
           <ToolbarBtn onClick={() => videoRef.current?.click()} title="Video">
             <VideoIcon size={14} />
           </ToolbarBtn>
+          <ToolbarBtn onClick={() => fileRef.current?.click()} title="Adjuntar archivo" disabled={subiendoFile}>
+            <Paperclip size={14} />
+          </ToolbarBtn>
           <input ref={imgRef} type="file" accept="image/*" className="hidden"
             onChange={e => { agregarMedia('image', e.target.files?.[0]); e.target.value = '' }} />
-          <input ref={audioRef} type="file" accept="audio/*" className="hidden"
-            onChange={e => { agregarMedia('audio', e.target.files?.[0]); e.target.value = '' }} />
           <input ref={videoRef} type="file" accept="video/*" className="hidden"
             onChange={e => { agregarMedia('video', e.target.files?.[0]); e.target.value = '' }} />
+          <input ref={fileRef} type="file" className="hidden"
+            onChange={e => { agregarArchivo(e.target.files?.[0]); e.target.value = '' }} />
         </>
       )}
       <span className="flex-1" />
@@ -173,6 +333,8 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
       <ToolbarBtn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Rehacer (Ctrl+Y)">
         <Redo2 size={14} />
       </ToolbarBtn>
+      {rightSlot && <span className="w-px h-4 bg-border mx-1" />}
+      {rightSlot}
 
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
         <DialogContent className="sm:max-w-sm">
@@ -201,6 +363,63 @@ function Toolbar({ editor, variant = 'full' }: { editor: Editor; variant?: 'full
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={recOpen} onOpenChange={setRecOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Grabar audio</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            {recEstado === 'idle' && (
+              <>
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                  <Mic size={28} className="text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">Tocá el botón para empezar a grabar</p>
+                <Button className="bg-red-600 hover:bg-red-700" onClick={iniciarGrabacion}>
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-white mr-2" />
+                  Grabar
+                </Button>
+              </>
+            )}
+            {recEstado === 'grabando' && (
+              <>
+                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center animate-pulse">
+                  <Mic size={28} className="text-red-600" />
+                </div>
+                <p className="text-2xl font-mono">{formatoDuracion(recSegundos)}</p>
+                <Button variant="outline" onClick={detenerGrabacion}>
+                  <Square size={14} className="mr-2 fill-current" />
+                  Detener
+                </Button>
+              </>
+            )}
+            {recEstado === 'grabado' && recBlobUrl && (
+              <>
+                <audio src={recBlobUrl} controls className="w-full" />
+                <p className="text-xs text-muted-foreground">Duración: {formatoDuracion(recSegundos)}</p>
+              </>
+            )}
+            {recEstado === 'subiendo' && (
+              <p className="text-sm text-muted-foreground py-4">Subiendo…</p>
+            )}
+          </div>
+          <DialogFooter>
+            {recEstado === 'grabado' && (
+              <>
+                <Button variant="outline" onClick={limpiarGrabacion} className="mr-auto">
+                  Regrabar
+                </Button>
+                <Button variant="outline" onClick={() => setRecOpen(false)}>Cancelar</Button>
+                <Button className="bg-green-700 hover:bg-green-800" onClick={subirGrabacion}>Insertar</Button>
+              </>
+            )}
+            {recEstado !== 'grabado' && recEstado !== 'subiendo' && (
+              <Button variant="outline" onClick={() => setRecOpen(false)}>Cancelar</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -215,11 +434,13 @@ interface Props {
   minHeight?: number
   autoFocus?: boolean
   onSubmit?: () => void
+  /** Contenido opcional al extremo derecho de la toolbar (ej: botón cerrar). */
+  toolbarRight?: React.ReactNode
 }
 
 export function RichEditor({
   value, onChange, placeholder = 'Escribí algo...', variant = 'full',
-  minHeight = 100, autoFocus = false, onSubmit,
+  minHeight = 100, autoFocus = false, onSubmit, toolbarRight,
 }: Props) {
   const [focus, setFocus] = useState(false)
 
@@ -232,6 +453,7 @@ export function RichEditor({
       Image.configure({ inline: false, HTMLAttributes: { class: 'rounded-md max-w-full' } }),
       Audio,
       Video,
+      Attachment,
       Placeholder.configure({ placeholder }),
       Mention.configure({
         HTMLAttributes: { class: 'mention' },
@@ -273,7 +495,7 @@ export function RichEditor({
 
   return (
     <div className={cn('rounded-md border border-input bg-background transition-colors', focus && 'ring-2 ring-ring/40')}>
-      <Toolbar editor={editor} variant={variant} />
+      <Toolbar editor={editor} variant={variant} rightSlot={toolbarRight} />
       <EditorContent editor={editor} />
     </div>
   )

@@ -8,6 +8,8 @@ import { logAction } from '@/lib/audit'
 import { sanitizePostHtml } from '@/lib/richContent'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { validateFile, extForKind } from '@/lib/fileValidation'
+import { uploadAditusFile } from '@/lib/aditus'
+import { avisoAdjuntoProps } from '@/lib/aditusPost'
 
 const MAX_IMG = 5 * 1024 * 1024
 
@@ -159,9 +161,33 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await imagen.arrayBuffer())
     const check = validateFile(buffer, 'image')
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
+
+    // Espejo en Aditus para poder eliminarla/actualizarla luego (best-effort).
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { email: true, employee: { select: { nombre: true, apellido: true, legajo: true, cuil: true } } },
+    }).catch(() => null)
+    const originalName = imagen.name || `portada.${extForKind(check.kind)}`
+    let aditusId: string | null = null
+    try {
+      aditusId = await uploadAditusFile({
+        content: buffer,
+        fileName: originalName,
+        contentType: imagen.type || `image/${extForKind(check.kind)}`,
+        properties: avisoAdjuntoProps({
+          fileName: originalName,
+          autorEmail: dbUser?.email ?? user.userId.toString(),
+          autor: dbUser?.employee ?? null,
+        }),
+      })
+    } catch (e) {
+      console.error('[portal/posts] aditus upload portada fail:', e)
+    }
+
     const dir = join(process.cwd(), 'public', 'uploads', 'posts')
     await mkdir(dir, { recursive: true })
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extForKind(check.kind)}`
+    const baseName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extForKind(check.kind)}`
+    const fileName = aditusId ? `ADITUS_${aditusId}_${baseName}` : baseName
     await writeFile(join(dir, fileName), buffer)
     imagenUrl = `/uploads/posts/${fileName}`
   }

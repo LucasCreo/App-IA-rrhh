@@ -14,23 +14,31 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { TabSaldos } from '@/components/ausencias/AusenciasAdmin'
 import Link from 'next/link'
-import { Calendar, CalendarOff, Check, CheckCircle2, Clock, Paperclip, Search, SlidersHorizontal, X, XCircle } from 'lucide-react'
+import { Ban, Calendar, CalendarOff, Check, CheckCircle2, Clock, Paperclip, Search, SlidersHorizontal, X, XCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination, paginate } from '@/components/ui/pagination'
 import { displayNameFromArchivoUrl } from '@/lib/aditusSolicitudes'
 
 interface SolicitudAus {
   id: number; estado: string; dias: number; motivo?: string; comentarioAdmin?: string; archivoUrl?: string
-  fechaInicio: string; fechaFin: string; createdAt: string
+  fechaInicio: string; fechaFin: string; createdAt: string; updatedAt?: string
   canApprove: boolean
   employee: { id: number; nombre: string; apellido: string; legajo: string }
   tipoAusencia: { id: number; nombre: string; color: string; afectaSaldo: boolean }
+}
+
+function parseCancelacion(comentario?: string): { quien: string; motivo?: string } | null {
+  if (!comentario) return null
+  const m = /^Cancelada por (el empleado|el administrador)(?:: (.+))?$/i.exec(comentario.trim())
+  if (!m) return null
+  return { quien: m[1], motivo: m[2]?.trim() }
 }
 
 const ESTADO_META: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
   PENDIENTE: { icon: <Clock size={11} />, className: 'text-yellow-600 border-yellow-400', label: 'Pendiente' },
   APROBADA: { icon: <CheckCircle2 size={11} />, className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', label: 'Aprobada' },
   RECHAZADA: { icon: <XCircle size={11} />, className: 'text-red-500 border-red-400', label: 'Rechazada' },
+  CANCELADA: { icon: <Ban size={11} />, className: 'text-gray-500 border-gray-300', label: 'Cancelada' },
 }
 
 function fmt(iso: string) {
@@ -93,6 +101,9 @@ function SolicitudesAusencia() {
   const [bulkReview, setBulkReview] = useState<'APROBADA' | 'RECHAZADA' | null>(null)
   const [bulkComentario, setBulkComentario] = useState('')
   const [bulkProcessing, setBulkProcessing] = useState(false)
+  const [confirmCancelar, setConfirmCancelar] = useState(false)
+  const [motivoCancel, setMotivoCancel] = useState('')
+  const [cancelBusy, setCancelBusy] = useState(false)
 
   useEffect(() => { setPage(1) }, [estadoFiltro, tipoFiltro, anio, desde, hasta, vigenteEl, qDebounced])
 
@@ -172,6 +183,23 @@ function SolicitudesAusencia() {
   function toggleAll() {
     if (allResolvablesSelected) setSelected(new Set())
     else setSelected(new Set(resolvables.map(s => s.id)))
+  }
+
+  async function ejecutarCancelacion() {
+    if (!review) return
+    setCancelBusy(true)
+    const res = await fetch(`/api/ausencias/solicitudes/${review.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado: 'CANCELADA', comentarioAdmin: motivoCancel.trim() || null }),
+    })
+    setCancelBusy(false)
+    if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
+    const data = await res.json().catch(() => ({}))
+    toast.success(data.diasDevueltos > 0 ? `Licencia cancelada · ${data.diasDevueltos} días devueltos al saldo` : 'Licencia cancelada')
+    setConfirmCancelar(false); setMotivoCancel(''); setReview(null)
+    load()
+    router.refresh()
   }
 
   async function resolver(estado: 'APROBADA' | 'RECHAZADA') {
@@ -255,6 +283,7 @@ function SolicitudesAusencia() {
                 <SelectItem value="PENDIENTE">Pendientes</SelectItem>
                 <SelectItem value="APROBADA">Aprobadas</SelectItem>
                 <SelectItem value="RECHAZADA">Rechazadas</SelectItem>
+                <SelectItem value="CANCELADA">Canceladas</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -473,6 +502,25 @@ function SolicitudesAusencia() {
                   </div>
                 )
               })()}
+              {review.estado === 'CANCELADA' && (() => {
+                const cancel = parseCancelacion(review.comentarioAdmin)
+                return (
+                  <div className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-2 flex items-start gap-2">
+                    <Ban size={14} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-red-700 dark:text-red-300 font-medium text-sm">
+                        Licencia cancelada{cancel?.quien ? ` por ${cancel.quien}` : ''}
+                        {review.updatedAt ? ` el ${fmt(review.updatedAt)}` : ''}
+                      </p>
+                      {cancel?.motivo && (
+                        <p className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">
+                          <span className="text-muted-foreground">Motivo:</span> {cancel.motivo}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
               {review.motivo && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-muted-foreground text-xs mb-0.5">Motivo</p>
@@ -493,7 +541,7 @@ function SolicitudesAusencia() {
                   <Input className="mt-1" value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Ej: aprobado para la semana del 14/7" />
                 </div>
               )}
-              {review.estado !== 'PENDIENTE' && review.comentarioAdmin && (
+              {review.estado !== 'PENDIENTE' && review.estado !== 'CANCELADA' && review.comentarioAdmin && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">
                   <p className="text-muted-foreground text-xs mb-0.5">Comentario admin</p>
                   <p>{review.comentarioAdmin}</p>
@@ -503,7 +551,15 @@ function SolicitudesAusencia() {
           )}
           {review?.estado === 'PENDIENTE' && (
             review.canApprove ? (
-              <DialogFooter className="gap-2">
+              <DialogFooter className="gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mr-auto text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30"
+                  onClick={() => { setConfirmCancelar(true); setMotivoCancel('') }}
+                >
+                  <Ban size={14} className="mr-1" /> Cancelar
+                </Button>
                 <Button variant="destructive" size="sm" onClick={() => resolver('RECHAZADA')}>
                   <XCircle size={14} className="mr-1" /> Rechazar
                 </Button>
@@ -517,6 +573,57 @@ function SolicitudesAusencia() {
               </p>
             )
           )}
+          {review?.estado === 'APROBADA' && review.canApprove && (
+            <DialogFooter>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30"
+                onClick={() => { setConfirmCancelar(true); setMotivoCancel('') }}
+              >
+                <Ban size={14} className="mr-1" /> Cancelar licencia
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmar cancelación */}
+      <Dialog open={confirmCancelar} onOpenChange={v => { if (!v && !cancelBusy) setConfirmCancelar(false) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Cancelar esta licencia?</DialogTitle>
+          </DialogHeader>
+          {review && (
+            <div className="space-y-3 py-1 text-sm">
+              <p>
+                <span className="font-medium">{review.employee.apellido}, {review.employee.nombre}</span> · {review.tipoAusencia.nombre}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {fmt(review.fechaInicio)} – {fmt(review.fechaFin)}
+              </p>
+              {review.estado === 'APROBADA' && review.tipoAusencia.afectaSaldo && (
+                <p className="text-xs text-muted-foreground">
+                  Los {review.dias} día{review.dias !== 1 ? 's' : ''} se devolverán al saldo del empleado.
+                </p>
+              )}
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Motivo (opcional)</p>
+                <Input
+                  value={motivoCancel}
+                  onChange={e => setMotivoCancel(e.target.value)}
+                  placeholder="Ej: cambio de plan del empleado"
+                  disabled={cancelBusy}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmCancelar(false)} disabled={cancelBusy}>Volver</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={ejecutarCancelacion} disabled={cancelBusy}>
+              {cancelBusy ? 'Cancelando…' : 'Cancelar licencia'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

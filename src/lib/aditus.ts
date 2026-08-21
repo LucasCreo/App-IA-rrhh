@@ -284,6 +284,22 @@ export async function getAditusFile(id: string, opts?: { download?: boolean }): 
   return { content: buf, contentType, fileName }
 }
 
+/**
+ * Actualiza solo las propiedades (metadata) de un archivo de Aditus preservando
+ * su contenido. Como el API de Aditus no expone un endpoint específico para
+ * patch de propiedades, hacemos download + re-upload con el mismo id.
+ */
+export async function updateAditusFileMetadata(id: string, properties: AditusUploadProperties): Promise<void> {
+  if (!id) throw new Error('id requerido para actualizar metadata en Aditus')
+  const current = await getAditusFile(id)
+  await updateAditusFile(id, {
+    content: current.content,
+    fileName: current.fileName ?? properties.objectTitle,
+    contentType: current.contentType || 'application/octet-stream',
+    properties,
+  })
+}
+
 async function doDelete(id: string, token: string): Promise<Response> {
   const url = `${baseUrl()}/documents/${encodeURIComponent(id)}`
   return fetch(url, {

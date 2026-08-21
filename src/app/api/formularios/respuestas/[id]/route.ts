@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
+import { updateAditusFileMetadata } from '@/lib/aditus'
+import { formularioProps, parseArchivoRef } from '@/lib/aditusSolicitudes'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const cookieStore = await cookies()
@@ -56,6 +58,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ctaUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/solicitudes?tab=formularios`,
       })))
     } catch (e) { console.error('[email/formulario-completado] fallo:', e) }
+  })()
+
+  // Actualizar detalles en Aditus de cada archivo adjunto en la respuesta (best-effort)
+  ;(async () => {
+    try {
+      const full = await prisma.respuestaFormulario.findUnique({
+        where: { id: Number(id) },
+        include: {
+          employee: { select: { legajo: true, cuil: true } },
+          asignacion: {
+            select: {
+              nombre: true,
+              plantilla: { select: { campos: { where: { tipo: 'archivo' }, select: { nombre: true } } } },
+            },
+          },
+        },
+      })
+      if (!full?.employee) return
+      const camposArchivo = new Set(full.asignacion.plantilla.campos.map(c => c.nombre))
+      if (camposArchivo.size === 0) return
+      const datosObj = JSON.parse(full.datos) as Record<string, unknown>
+      const fecha = new Date().toLocaleDateString('es-AR')
+      const detalles = `Respuesta ENVIADA el ${fecha} — Formulario: ${full.asignacion.nombre}`
+      for (const [k, v] of Object.entries(datosObj)) {
+        if (!camposArchivo.has(k) || typeof v !== 'string' || !v) continue
+        const { aditusId, nombre } = parseArchivoRef(v)
+        if (!aditusId) continue
+        updateAditusFileMetadata(aditusId, formularioProps({
+          empleado: { legajo: full.employee.legajo, cuil: full.employee.cuil },
+          plantillaNombre: full.asignacion.nombre,
+          fileName: nombre,
+          detalles,
+        })).catch(e => console.error('[aditus/formulario-enviado] update metadata fail:', e))
+      }
+    } catch (e) { console.error('[aditus/formulario-enviado] fallo:', e) }
   })()
 
   return NextResponse.json(updated)

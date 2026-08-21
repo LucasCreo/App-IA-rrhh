@@ -4,9 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
 import { getScopedEmployeeIds, isAncestorOfUser } from '@/lib/scope'
+import { cancelarSolicitudAusencia } from '@/lib/licenciasCancelacion'
+import { updateAditusFileMetadata } from '@/lib/aditus'
+import { ausenciaProps, refFromArchivoUrl, parseArchivoRef } from '@/lib/aditusSolicitudes'
 
 const patchSchema = z.object({
-  estado: z.enum(['APROBADA', 'RECHAZADA']),
+  estado: z.enum(['APROBADA', 'RECHAZADA', 'CANCELADA']),
   comentarioAdmin: z.string().max(2000).optional().nullable(),
 })
 
@@ -29,6 +32,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (scope && !scope.has(solicitud.employeeId)) {
     return NextResponse.json({ error: 'No autorizado sobre esta solicitud' }, { status: 403 })
   }
+
+  // Cancelación: se puede desde PENDIENTE o APROBADA (revierte saldo). Delegamos al helper.
+  if (estado === 'CANCELADA') {
+    const res = await cancelarSolicitudAusencia({
+      solicitudId: Number(id),
+      actor: 'ADMIN',
+      motivo: comentarioAdmin ?? null,
+    })
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status })
+    return NextResponse.json({ ok: true, diasDevueltos: res.diasDevueltos })
+  }
+
   if (solicitud.estado !== 'PENDIENTE')
     return NextResponse.json({ error: 'La solicitud ya fue procesada' }, { status: 400 })
 
@@ -60,6 +75,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         update: { diasUsados: { increment: solicitud.dias } },
         create: { employeeId: solicitud.employeeId, anio, diasTotales: 14, diasUsados: solicitud.dias },
       })
+    }
+  }
+
+  // Actualizar detalles del adjunto en Aditus (best-effort)
+  if (solicitud.archivoUrl) {
+    const ref = refFromArchivoUrl(solicitud.archivoUrl)
+    if (ref) {
+      const { aditusId, nombre } = parseArchivoRef(ref)
+      if (aditusId) {
+        const empFull = await prisma.employee.findUnique({
+          where: { id: solicitud.employeeId },
+          select: { legajo: true, cuil: true },
+        })
+        if (empFull) {
+          const fecha = new Date().toLocaleDateString('es-AR')
+          const detalles = `Solicitud ${estado} el ${fecha}${comentarioAdmin?.trim() ? ` — Comentario: ${comentarioAdmin.trim()}` : ''}`
+          updateAditusFileMetadata(aditusId, ausenciaProps({
+            empleado: empFull,
+            tipoAusenciaNombre: solicitud.tipoAusencia.nombre,
+            fileName: nombre,
+            detalles,
+          })).catch(e => console.error('[aditus/ausencia-resuelta] update metadata fail:', e))
+        }
+      }
     }
   }
 

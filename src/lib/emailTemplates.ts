@@ -22,6 +22,7 @@ export type EmailTemplateKey =
   | 'COMENTARIO_NUEVO_EN_POST'
   | 'INVITACION_USUARIO'
   | 'PASSWORD_CAMBIADA'
+  | 'AUSENCIA_CANCELADA'
 
 interface TemplateDef {
   label: string
@@ -243,6 +244,25 @@ export const DEFAULT_TEMPLATES: Record<EmailTemplateKey, TemplateDef> = {
     variables: [
       { name: 'nombre', description: 'Nombre del empleado' },
       { name: 'expira', description: 'Fecha de vencimiento del link' },
+    ],
+  },
+  AUSENCIA_CANCELADA: {
+    label: 'Ausencia cancelada',
+    description: 'Se envía cuando una solicitud de ausencia es cancelada (al empleado si canceló el admin, o a los administradores si canceló el empleado).',
+    subject: 'Solicitud de ausencia cancelada — {{apellido}}, {{nombre}}',
+    title: 'Solicitud de ausencia cancelada',
+    bodyHtml: `<p>La solicitud de <strong>{{tipoAusencia}}</strong> de <strong>{{apellido}}, {{nombre}}</strong> para el período <strong>{{rango}}</strong> fue <strong>cancelada por {{quien}}</strong>.</p>
+{{bloqueMotivo}}
+{{bloqueSaldo}}`,
+    ctaLabel: 'Ver en el portal',
+    variables: [
+      { name: 'nombre', description: 'Nombre del empleado de la solicitud' },
+      { name: 'apellido', description: 'Apellido del empleado de la solicitud' },
+      { name: 'tipoAusencia', description: 'Tipo de ausencia' },
+      { name: 'rango', description: 'Fechas del período (DD/MM/YYYY — DD/MM/YYYY)' },
+      { name: 'quien', description: '"el empleado" o "el administrador"' },
+      { name: 'bloqueMotivo', description: 'Bloque HTML con motivo (vacío si no hay)' },
+      { name: 'bloqueSaldo', description: 'Bloque HTML mencionando la devolución de días (vacío si no aplica)' },
     ],
   },
   EMPLEADO_BIENVENIDA: {

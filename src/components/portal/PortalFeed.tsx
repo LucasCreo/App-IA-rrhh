@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, Check, Pin, PinOff, Search } from 'lucide-react'
+import { X, ThumbsUp, MessageCircle, Trash2, Globe, Users, Send, Plus, Pencil, Check, Pin, PinOff, Search, SlidersHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RichEditor } from './RichEditor'
@@ -169,14 +169,7 @@ function NuevoPost({ onCreated, categorias, areas, isAdmin, miCategoriaNombre }:
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-sm relative">
-      <button
-        onClick={cerrar}
-        className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded transition-colors z-10"
-        title="Cerrar"
-      >
-        <X size={16} />
-      </button>
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-sm">
       <RichEditor
         value={contenido}
         onChange={setContenido}
@@ -184,6 +177,16 @@ function NuevoPost({ onCreated, categorias, areas, isAdmin, miCategoriaNombre }:
         variant="full"
         minHeight={120}
         autoFocus
+        toolbarRight={
+          <button
+            onClick={cerrar}
+            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+            title="Cerrar"
+            type="button"
+          >
+            <X size={14} />
+          </button>
+        }
       />
       {!isAdmin && miCategoriaNombre && (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -787,6 +790,9 @@ export function PortalFeed() {
   const [editWindowMin, setEditWindowMin] = useState<number>(EDIT_WINDOW_MIN_DEFAULT)
   const [search, setSearch] = useState('')
   const [orden, setOrden] = useState<'recientes' | 'destacados' | 'menciones'>('recientes')
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false)
+  const [filtroAreaId, setFiltroAreaId] = useState<string>('')
+  const [filtroCategoriaId, setFiltroCategoriaId] = useState<string>('')
 
   async function load() {
     setLoading(true)
@@ -820,10 +826,15 @@ export function PortalFeed() {
   const q = search.trim().toLowerCase()
   const mencionRegex = userId > 0 ? new RegExp(`data-id=["']${userId}["']`) : null
   const engagement = (p: Post) => p.totalReacciones + p.totalComentarios
+  const areaIdNum = filtroAreaId ? Number(filtroAreaId) : null
+  const categoriaIdNum = filtroCategoriaId ? Number(filtroCategoriaId) : null
+  const filtrosCount = (areaIdNum ? 1 : 0) + (categoriaIdNum ? 1 : 0)
   const postsFiltrados = posts
     .filter(p => {
       if (orden === 'destacados' && engagement(p) === 0) return false
       if (orden === 'menciones' && (!mencionRegex || !mencionRegex.test(p.contenido || ''))) return false
+      if (areaIdNum && p.area?.id !== areaIdNum) return false
+      if (categoriaIdNum && p.categoria?.id !== categoriaIdNum) return false
       if (q) {
         const texto = (p.contenido || '').replace(/<[^>]+>/g, ' ').toLowerCase()
         const autor = p.autor.nombreCompleto.toLowerCase()
@@ -845,24 +856,74 @@ export function PortalFeed() {
     <div className="max-w-2xl mx-auto space-y-4">
       {puedePublicar && <NuevoPost onCreated={load} categorias={categorias} areas={areas} isAdmin={isAdmin} miCategoriaNombre={miCategoriaNombre} />}
       {posts.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar en el feed…"
-              className="pl-9 h-9 text-sm"
-            />
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar en el feed…"
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <Select value={orden} onValueChange={v => setOrden((v ?? 'recientes') as any)}>
+              <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recientes">Recientes</SelectItem>
+                <SelectItem value="destacados">Destacados</SelectItem>
+                <SelectItem value="menciones">Menciones</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm"
+              onClick={() => setFiltrosAbiertos(v => !v)}
+            >
+              <SlidersHorizontal size={14} className="mr-1.5" />
+              Filtros
+              {filtrosCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-semibold rounded-full bg-green-700 text-white px-1">
+                  {filtrosCount}
+                </span>
+              )}
+            </Button>
           </div>
-          <Select value={orden} onValueChange={v => setOrden((v ?? 'recientes') as any)}>
-            <SelectTrigger className="w-full sm:w-40 h-9 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recientes">Recientes</SelectItem>
-              <SelectItem value="destacados">Destacados</SelectItem>
-              <SelectItem value="menciones">Menciones</SelectItem>
-            </SelectContent>
-          </Select>
+          {filtrosAbiertos && (
+            <div className="bg-muted/30 border border-border rounded-lg p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+              <div className="flex-1 min-w-0">
+                <label className="text-[11px] text-muted-foreground mb-1 block">Área</label>
+                <Select value={filtroAreaId || 'todas'} onValueChange={v => setFiltroAreaId(!v || v === 'todas' ? '' : v)}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="text-[11px] text-muted-foreground mb-1 block">Categoría</label>
+                <Select value={filtroCategoriaId || 'todas'} onValueChange={v => setFiltroCategoriaId(!v || v === 'todas' ? '' : v)}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {filtrosCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 text-xs text-muted-foreground"
+                  onClick={() => { setFiltroAreaId(''); setFiltroCategoriaId('') }}
+                >
+                  Limpiar
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
       {loading ? (

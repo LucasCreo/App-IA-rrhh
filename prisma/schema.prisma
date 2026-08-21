@@ -17,6 +17,7 @@ model User {
   employeeId            Int?      @unique
   managerUserId         Int?
   avatarUrl             String?
+  avatarAditusId        String?
   avatarBgColor         String?
   avatarTextColor       String?
   googleRefreshToken    String?

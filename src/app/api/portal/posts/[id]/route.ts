@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
-import { extraerRutasMedia, borrarMedia, sanitizePostHtml } from '@/lib/richContent'
+import { extraerRutasMedia, borrarMedia, sanitizePostHtml, aditusIdFromRuta } from '@/lib/richContent'
+import { deleteAditusFile } from '@/lib/aditus'
 import { getConfig } from '@/lib/config'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -86,6 +87,8 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
 
   if (post.imagenUrl?.startsWith('/uploads/posts/')) {
     try { await unlink(join(process.cwd(), 'public', post.imagenUrl)) } catch {}
+    const idPortada = aditusIdFromRuta(post.imagenUrl)
+    if (idPortada) deleteAditusFile(idPortada).catch(e => console.error('[portal/posts] aditus delete portada fail:', e))
   }
   return NextResponse.json({ ok: true })
 }

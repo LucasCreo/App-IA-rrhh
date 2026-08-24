@@ -71,20 +71,6 @@ export function TabEmpleados() {
     toast.success('Configuración guardada')
   }
 
-  async function handleEliminarDefault(campo: string) {
-    const updated = fields.map(f => f.campo === campo ? { ...f, eliminado: true, visible: false, requerido: false } : f)
-    setFields(updated)
-    await save(updated)
-    toast.success('Campo eliminado')
-  }
-
-  async function handleRestaurarDefault(campo: string) {
-    const updated = fields.map(f => f.campo === campo ? { ...f, eliminado: false, visible: true } : f)
-    setFields(updated)
-    await save(updated)
-    toast.success('Campo restaurado')
-  }
-
   async function toggleCustom(id: number, key: 'visible' | 'requerido' | 'visibleEnAlta', value: boolean) {
     const campo = camposCustom.find(c => c.id === id)!
     const updated = { ...campo, [key]: value }
@@ -143,7 +129,6 @@ export function TabEmpleados() {
                   <th className="text-center px-4 py-2 font-medium">Visible</th>
                   <th className="text-center px-4 py-2 font-medium" title="Aparece en el formulario al crear un nuevo legajo. Si está apagado, el campo solo se muestra al editar el empleado.">En alta</th>
                   <th className="text-center px-4 py-2 font-medium">Requerido</th>
-                  <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -153,10 +138,9 @@ export function TabEmpleados() {
                     <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
                     <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
                     <td className="text-center px-4 py-2"><input type="checkbox" checked readOnly className="w-4 h-4 opacity-50" /></td>
-                    <td />
                   </tr>
                 ))}
-                {fields.filter(f => !f.eliminado).map(f => (
+                {fields.map(f => (
                   <tr key={f.campo} className="border-t">
                     <td className="px-4 py-2 font-medium">{LABELS[f.campo] ?? f.campo}</td>
                     <td className="text-center px-4 py-2">
@@ -168,27 +152,11 @@ export function TabEmpleados() {
                     <td className="text-center px-4 py-2">
                       <input type="checkbox" checked={f.requerido} onChange={() => toggle(f.campo, 'requerido')} disabled={!f.visible || !f.visibleEnAlta} className="w-4 h-4 accent-green-700 disabled:opacity-30" />
                     </td>
-                    <td className="px-4 py-2 text-right">
-                      <button onClick={() => handleEliminarDefault(f.campo)} className="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {fields.some(f => f.eliminado) && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Campos eliminados</p>
-              <div className="flex flex-wrap gap-2">
-                {fields.filter(f => f.eliminado).map(f => (
-                  <div key={f.campo} className="flex items-center gap-1.5 bg-muted rounded px-2 py-1 text-xs">
-                    <span>{LABELS[f.campo] ?? f.campo}</span>
-                    <button onClick={() => handleRestaurarDefault(f.campo)} className="text-green-700 hover:text-green-900 font-medium">Restaurar</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           <p className="text-xs text-muted-foreground mb-3">Nombre y Apellido siempre son visibles y requeridos.</p>
           <Button className="bg-green-700 hover:bg-green-800" onClick={handleSave}>Guardar</Button>
         </CardContent>

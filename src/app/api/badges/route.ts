@@ -44,7 +44,7 @@ export async function GET() {
   })
   const since = dbUser?.solicitudesLastSeenAt ?? new Date(0)
 
-  const [recibosPendientes, docsPendientes, solicitudesResueltas, ausenciasResueltas] = await Promise.all([
+  const [recibosPendientes, docsPendientes, solicitudesResueltas, ausenciasResueltas, formulariosPendientes] = await Promise.all([
     // Recibos pendientes de firma/lectura
     prisma.document.count({
       where: {
@@ -76,12 +76,19 @@ export async function GET() {
         updatedAt: { gt: since },
       },
     }),
+    // Formularios asignados pendientes de completar (mismo criterio que muestra el Dashboard)
+    prisma.respuestaFormulario.count({
+      where: {
+        employeeId: user.employeeId,
+        estado: 'PENDIENTE',
+      },
+    }),
   ])
 
   return NextResponse.json({
     recibos: recibosPendientes,
     documentos: docsPendientes,
-    solicitudes: solicitudesResueltas,
+    solicitudes: solicitudesResueltas + formulariosPendientes,
     licencias: ausenciasResueltas,
   })
 }

@@ -118,7 +118,6 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null
     setFile(f)
-    if (f) setNombre(f.name)
   }
 
   return (
@@ -129,7 +128,7 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
         </DialogHeader>
         <div className="space-y-3 py-1">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Nombre del archivo</p>
+            <p className="text-xs text-muted-foreground mb-1">Nombre del documento</p>
             <Input value={nombre} onChange={e => setNombre(e.target.value)} className="h-9 text-sm" />
           </div>
           <div>
@@ -186,7 +185,7 @@ export function DocumentoGrupoEditarDialog({ open, grupo, onClose, onSaved }: Pr
                 <span className="truncate flex-1 min-w-0 text-green-800 dark:text-green-300" title={file.name}>{file.name}</span>
                 <button
                   type="button"
-                  onClick={() => { setFile(null); setNombre(grupo.nombreArchivo); if (fileRef.current) fileRef.current.value = '' }}
+                  onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}
                   className="text-muted-foreground hover:text-foreground p-1 rounded"
                   title="Descartar"
                 >

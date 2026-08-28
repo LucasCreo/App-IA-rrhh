@@ -22,10 +22,16 @@ function getExt(name?: string | null): string {
 }
 
 export function ArchivoPreviewDialog({ open, onClose, url, filename, title }: Props) {
-  const displayName = filename ? displayNameFromRef(filename) : 'Archivo'
-  const ext = getExt(filename)
-  const isPdf = ext === 'pdf' || (url?.toLowerCase().includes('.pdf'))
-  const isImg = IMG_EXT.includes(ext)
+  const rawName = filename ? displayNameFromRef(filename) : 'Archivo'
+  const rawExt = getExt(rawName)
+  const isImg = IMG_EXT.includes(rawExt)
+  // Si no hay extensión reconocible, asumimos PDF: los endpoints internos
+  // (documentos, recibos, docs-grupos) siempre devuelven PDF.
+  const isPdf = rawExt === 'pdf'
+    || (url?.toLowerCase().includes('.pdf'))
+    || (!isImg && rawExt === '')
+  // Nombre para descarga: si asumimos PDF pero el nombre no tiene ext, agregamos .pdf
+  const displayName = isPdf && !rawExt ? `${rawName}.pdf` : rawName
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>

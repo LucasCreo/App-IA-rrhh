@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, FileText, Search, Send, Trash2, Eye, X, Users, CheckCircle2, Clock, FileX, AlertCircle, Pencil } from 'lucide-react'
+import { ArrowLeft, FileText, Search, Send, Trash2, Eye, X, Users, CheckCircle2, Clock, FileX, AlertCircle, Pencil, UserPlus } from 'lucide-react'
 import { DocumentoGrupoEditarDialog } from './DocumentoGrupoEditarDialog'
+import { AgregarEmpleadosDialog } from './AgregarEmpleadosDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -50,16 +50,51 @@ const ESTADO_CONFIG: Record<EstadoKey, { label: string; classes: string; Icon: R
 type Filtro = 'todos' | 'firmados' | 'enFirma' | 'borradores' | 'rechazados'
 
 export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
-  const router = useRouter()
   const [grupo, setGrupo] = useState<Grupo | null>(null)
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [sending, setSending] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [preview, setPreview] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [removeAsign, setRemoveAsign] = useState<Asignacion | null>(null)
+  const [removing, setRemoving] = useState(false)
+  const [confirmBulkRemove, setConfirmBulkRemove] = useState(false)
+
+  async function quitarAsignacion() {
+    if (!removeAsign) return
+    setRemoving(true)
+    try {
+      const r = await fetch(`/api/documentos-grupos/${grupoId}/asignaciones/${removeAsign.id}`, { method: 'DELETE' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(d.error ?? 'No se pudo quitar'); return }
+      toast.success('Empleado quitado del documento')
+      setRemoveAsign(null)
+      load()
+    } finally { setRemoving(false) }
+  }
+
+  async function quitarSeleccionados() {
+    if (selectedIds.size === 0) return
+    setRemoving(true)
+    try {
+      const ids = [...selectedIds]
+      const results = await Promise.all(ids.map(id =>
+        fetch(`/api/documentos-grupos/${grupoId}/asignaciones/${id}`, { method: 'DELETE' })
+          .then(r => r.ok)
+          .catch(() => false),
+      ))
+      const ok = results.filter(Boolean).length
+      const fail = results.length - ok
+      if (ok > 0) toast.success(`${ok} empleado${ok !== 1 ? 's' : ''} quitado${ok !== 1 ? 's' : ''}`)
+      if (fail > 0) toast.error(`${fail} no se pudieron quitar`)
+      setSelectedIds(new Set())
+      setConfirmBulkRemove(false)
+      load()
+    } finally { setRemoving(false) }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -69,13 +104,6 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
   }, [grupoId])
 
   useEffect(() => { load() }, [load])
-
-  async function eliminarGrupo() {
-    const r = await fetch(`/api/documentos-grupos/${grupoId}`, { method: 'DELETE' })
-    if (r.ok) { toast.success('Documento eliminado'); router.push('/admin/documentos') }
-    else toast.error('No se pudo eliminar')
-    setConfirmDelete(false)
-  }
 
   async function enviarFirma(asignacionIds?: number[]) {
     setSending(true)
@@ -178,6 +206,25 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
                   variant="outline"
                   size="sm"
                   className="h-8"
+                  onClick={() => setAddOpen(true)}
+                  title="Agregar empleados a este documento"
+                >
+                  <UserPlus size={13} className="mr-1.5" /> Agregar
+                </Button>
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="outline" size="sm"
+                    className="h-8 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                    onClick={() => setConfirmBulkRemove(true)}
+                    title="Quitar empleados seleccionados de este documento"
+                  >
+                    <Trash2 size={13} className="mr-1.5" /> Quitar ({selectedIds.size})
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
                   onClick={() => setEditOpen(true)}
                 >
                   <Pencil size={13} className="mr-1.5" /> Editar
@@ -189,13 +236,6 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
                   onClick={() => setPreview(v => !v)}
                 >
                   <Eye size={13} className="mr-1.5" /> {preview ? 'Cerrar' : 'Ver archivo'}
-                </Button>
-                <Button
-                  variant="outline" size="sm"
-                  className="h-8 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 size={13} className="mr-1.5" /> Eliminar
                 </Button>
               </div>
             </div>
@@ -282,12 +322,13 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
                   <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden md:table-cell">Fecha firma</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Conformidad</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Comentario</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-muted-foreground w-14"></th>
                 </tr>
               </thead>
               <tbody>
                 {filtradas.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
                       <Users size={24} className="mx-auto mb-2 opacity-30" />
                       Sin empleados en este filtro
                     </td>
@@ -354,6 +395,19 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-right w-14">
+                        {a.estado !== 'FIRMADO' ? (
+                          <button
+                            onClick={() => setRemoveAsign(a)}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                            title="Quitar empleado de este documento"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : (
+                          <span title="No se puede quitar una asignación firmada" className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -396,13 +450,33 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
         />
       )}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title={`¿Eliminar el documento "${grupo.nombreArchivo}"?`}
-        description={`Se elimina el archivo y las ${stats.total} asignación${stats.total !== 1 ? 'es' : ''}. Esta acción no se puede deshacer.`}
-        onConfirm={eliminarGrupo}
-        onCancel={() => setConfirmDelete(false)}
+      <AgregarEmpleadosDialog
+        open={addOpen}
+        grupoId={grupoId}
+        yaAsignados={new Set(grupo.asignaciones.map(a => a.employee.id))}
+        onClose={() => setAddOpen(false)}
+        onSaved={load}
       />
+
+      <ConfirmDialog
+        open={removeAsign !== null}
+        title={removeAsign ? `¿Quitar a ${removeAsign.employee.apellido}, ${removeAsign.employee.nombre}?` : ''}
+        description="Se remueve la asignación de este empleado en este documento. El documento y el resto de las asignaciones no se ven afectados."
+        confirmLabel={removing ? 'Quitando…' : 'Quitar'}
+        onConfirm={quitarAsignacion}
+        onCancel={() => !removing && setRemoveAsign(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmBulkRemove}
+        title={`¿Quitar ${selectedIds.size} empleado${selectedIds.size !== 1 ? 's' : ''} de este documento?`}
+        description="Se remueven las asignaciones seleccionadas. El documento y las asignaciones firmadas no se ven afectados."
+        confirmLabel={removing ? 'Quitando…' : `Quitar ${selectedIds.size}`}
+        onConfirm={quitarSeleccionados}
+        onCancel={() => !removing && setConfirmBulkRemove(false)}
+      />
+
+
     </div>
   )
 }

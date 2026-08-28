@@ -42,8 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `${file.name}: no es un PDF válido` }, { status: 400 })
   }
 
+  // Conservamos el nombre visible del documento; solo se reemplaza el contenido.
   const props = documentoGrupoProps({
-    nombreArchivo: file.name,
+    nombreArchivo: grupo.nombreArchivo,
     tipoDocumentoNombre: grupo.tipoDocumento?.nombre ?? null,
     empleados: grupo.asignaciones.map(a => ({ legajo: a.employee.legajo })),
   })
@@ -53,14 +54,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (aditusId) {
       await updateAditusFile(aditusId, {
         content: buffer,
-        fileName: file.name,
+        fileName: grupo.nombreArchivo,
         contentType: 'application/pdf',
         properties: props,
       })
     } else {
       aditusId = await uploadAditusFile({
         content: buffer,
-        fileName: file.name,
+        fileName: grupo.nombreArchivo,
         contentType: 'application/pdf',
         properties: props,
       })
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await prisma.$transaction([
     prisma.documentoGrupo.update({
       where: { id: grupoId },
-      data: { nombreArchivo: file.name, aditusId },
+      data: { aditusId },
     }),
     // Resetear asignaciones enviadas de vuelta a borrador (excepto rechazadas que quedan como están)
     prisma.documentoAsignacion.updateMany({

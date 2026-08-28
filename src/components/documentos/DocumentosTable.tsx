@@ -26,6 +26,7 @@ interface Doc {
   id: number; nombreArchivo: string; periodo: string | null; estado: string
   fechaCarga: string; fechaFirma?: string
   firmaConforme?: boolean | null
+  firmaComentario?: string | null
   employee: { nombre: string; apellido: string; legajo: string; puesto?: string | null; area?: { nombre: string } | null }
   cargadoPor: { email: string }
   tipoDocumento?: { id: number; nombre: string; accion: string } | null
@@ -595,6 +596,11 @@ function exportCSV() {
                     )}
                   </div>
                 </div>
+                {doc.estado === 'FIRMADO' && doc.firmaComentario && (
+                  <p className="text-xs text-muted-foreground italic line-clamp-2 break-words" title={doc.firmaComentario}>
+                    “{doc.firmaComentario}”
+                  </p>
+                )}
                 <a href={`/api/documentos/${doc.id}/archivo`} target="_blank" className="flex items-center gap-1 text-green-700 dark:text-green-400 hover:underline text-sm">
                   <FileText size={14} /> <span className="truncate">{doc.nombreArchivo}</span>
                 </a>
@@ -643,12 +649,13 @@ function exportCSV() {
                       />
                     )}
                   </TableHead>
-                  {!employeeId && <TableHead>Empleado</TableHead>}
+                  {!employeeId && <TableHead className="max-w-[180px]">Empleado</TableHead>}
                   {esRecibo !== false && <TableHead>Período</TableHead>}
                   {esRecibo !== true && <TableHead>Tipo</TableHead>}
-                  <TableHead className="max-w-[280px]">Archivo</TableHead>
+                  <TableHead className="max-w-[200px]">Archivo</TableHead>
                   {esRecibo === true && <TableHead>Lote</TableHead>}
                   <TableHead>Estado</TableHead>
+                  <TableHead className="max-w-[240px]">Comentario</TableHead>
                   <TableHead>Cargado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -665,9 +672,17 @@ function exportCSV() {
                       />
                     </TableCell>
                     {!employeeId && (
-                      <TableCell>
-                        <div className="font-medium">{doc.employee.apellido}, {doc.employee.nombre}</div>
-                        <div className="text-xs text-muted-foreground">
+                      <TableCell className="max-w-[180px]">
+                        <div
+                          className="font-medium truncate"
+                          title={`${doc.employee.apellido}, ${doc.employee.nombre}`}
+                        >
+                          {doc.employee.apellido}, {doc.employee.nombre}
+                        </div>
+                        <div
+                          className="text-xs text-muted-foreground truncate"
+                          title={[doc.employee.legajo, doc.employee.area?.nombre, doc.employee.puesto].filter(Boolean).join(' · ')}
+                        >
                           {doc.employee.legajo}
                           {doc.employee.area?.nombre && <> · {doc.employee.area.nombre}</>}
                           {doc.employee.puesto && <> · {doc.employee.puesto}</>}
@@ -684,7 +699,7 @@ function exportCSV() {
                           : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                     )}
-                    <TableCell className="max-w-[280px]">
+                    <TableCell className="max-w-[200px]">
                       <a
                         href={`/api/documentos/${doc.id}/archivo`}
                         target="_blank"
@@ -720,6 +735,18 @@ function exportCSV() {
                           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" title="Firmado no conforme">No conforme</span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="max-w-[240px]">
+                      {doc.estado === 'FIRMADO' && doc.firmaComentario ? (
+                        <p
+                          className="text-xs text-muted-foreground italic line-clamp-2 break-words"
+                          title={doc.firmaComentario}
+                        >
+                          “{doc.firmaComentario}”
+                        </p>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(doc.fechaCarga).toLocaleDateString('es-AR')}
@@ -841,8 +868,10 @@ function DocActions({ doc, sending, onSend, onDelete, fill }: {
           className={cn('text-blue-600', fill && 'flex-1')}
           onClick={() => onSend(doc.id)}
           disabled={sending === doc.id}
+          title="Enviar a firma"
         >
-          <Send size={14} className="mr-1" />{sending === doc.id ? '...' : 'Enviar'}
+          {sending === doc.id ? <span className="text-xs">...</span> : <Send size={14} />}
+          {fill && <span className="ml-1">{sending === doc.id ? '...' : 'Enviar'}</span>}
         </Button>
       )}
       <Button size="sm" variant="destructive" onClick={() => onDelete(doc.id)}>

@@ -478,14 +478,13 @@ export function SolicitudesUnificadas() {
                         <div key={k} className="flex justify-between gap-4 text-xs min-w-0">
                           <span className="text-muted-foreground shrink-0">{campo?.label ?? k}</span>
                           {campo?.tipo === 'archivo' ? (
-                            <a
-                              href={`/api/solicitudes/archivo?file=${v}`}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => setPreview({ url: `/api/solicitudes/archivo?file=${v}`, filename: v })}
                               className="text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 min-w-0 truncate"
                             >
                               {v.replace(/^[^|]*\|\|/, '').replace(/^\d+-/, '')}
-                            </a>
+                            </button>
                           ) : campo?.tipo === 'booleano' ? (
                             <span className="text-foreground text-right">{v === 'true' ? 'Sí' : 'No'}</span>
                           ) : (

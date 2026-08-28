@@ -56,14 +56,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (aditusId) {
       await updateAditusFile(aditusId, {
         content: buffer,
-        fileName: file.name,
+        fileName: existing.nombreArchivo,
         contentType: 'application/pdf',
         properties: props,
       })
     } else {
       aditusId = await uploadAditusFile({
         content: buffer,
-        fileName: file.name,
+        fileName: existing.nombreArchivo,
         contentType: 'application/pdf',
         properties: props,
       })
@@ -72,10 +72,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error subiendo a Aditus' }, { status: 500 })
   }
 
+  // Reemplazamos el contenido del archivo en Aditus pero conservamos el
+  // nombre visible del documento (el usuario ya lo puso al crear el doc).
   await prisma.document.update({
     where: { id: docId },
     data: {
-      nombreArchivo: file.name,
       aditusId,
       estado: 'BORRADOR',
       fechaFirma: null,

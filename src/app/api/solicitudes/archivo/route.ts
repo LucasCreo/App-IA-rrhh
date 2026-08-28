@@ -56,11 +56,28 @@ export async function GET(req: NextRequest) {
   const { aditusId, nombre } = parseArchivoRef(ref)
   if (!aditusId) return NextResponse.json({ error: 'Ref inválida' }, { status: 400 })
 
-  // Autorización: dueño de la solicitud, admin con scope, o quien acaba de subirlo
-  const owner = await prisma.solicitudDocumento.findFirst({
-    where: { nombreArchivo: { contains: aditusId } },
-    select: { employeeId: true },
-  })
+  // Autorización: dueño de la solicitud/ausencia/formulario, admin con scope,
+  // o quien acaba de subirlo. Buscamos por aditusId en todas las tablas que
+  // guardan refs (incluyendo campos JSON de custom-form como metadata / datos).
+  const [ownerDoc, ownerDocMeta, ownerAus, ownerForm] = await Promise.all([
+    prisma.solicitudDocumento.findFirst({
+      where: { nombreArchivo: { contains: aditusId } },
+      select: { employeeId: true },
+    }),
+    prisma.solicitudDocumento.findFirst({
+      where: { metadata: { contains: aditusId } },
+      select: { employeeId: true },
+    }),
+    prisma.solicitudAusencia.findFirst({
+      where: { archivoUrl: { contains: aditusId } },
+      select: { employeeId: true },
+    }),
+    prisma.respuestaFormulario.findFirst({
+      where: { datos: { contains: aditusId } },
+      select: { employeeId: true },
+    }),
+  ])
+  const owner = ownerDoc ?? ownerDocMeta ?? ownerAus ?? ownerForm
   if (owner) {
     if (user.role === 'ADMIN') {
       const scope = await getScopedEmployeeIds(user.userId)

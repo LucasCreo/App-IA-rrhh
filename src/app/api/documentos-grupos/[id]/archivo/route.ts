@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getAditusFile } from '@/lib/aditus'
+import { isPdfBuffer } from '@/lib/pdf'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -35,10 +36,17 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 
   try {
     const file = await getAditusFile(grupo.aditusId, { download: true })
+    // Aditus a veces devuelve octet-stream para PDFs. Sniffeamos magic bytes
+    // y forzamos application/pdf para que el navegador previsualice.
+    const isPdf = isPdfBuffer(file.content)
+    const contentType = isPdf ? 'application/pdf' : (file.contentType || 'application/octet-stream')
+    const filename = isPdf && !/\.pdf$/i.test(grupo.nombreArchivo)
+      ? `${grupo.nombreArchivo}.pdf`
+      : grupo.nombreArchivo
     return new NextResponse(new Uint8Array(file.content), {
       headers: {
-        'Content-Type': file.contentType || 'application/pdf',
-        'Content-Disposition': `inline; filename="${grupo.nombreArchivo}"`,
+        'Content-Type': contentType,
+        'Content-Disposition': `inline; filename="${filename}"`,
       },
     })
   } catch {

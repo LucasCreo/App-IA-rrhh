@@ -246,12 +246,23 @@ model Lote {
   tipoDocumentoId Int?
   creadoPorId     Int
   createdAt       DateTime @default(now())
+  // Estado del lote: ABIERTO | PROCESANDO | LISTO | CON_ERRORES | CERRADO
+  estado          String   @default("CERRADO")
+  // 0-100. Solo tiene sentido cuando estado = PROCESANDO
+  progreso        Int      @default(100)
+  // MANUAL | SFTP — cómo se creó el lote
+  origen          String   @default("MANUAL")
+  // Mes/año extraídos del nomenclador (solo se completan para origen=SFTP)
+  mes             Int?
+  anio            Int?
 
   tipoDocumento TipoDocumento?         @relation(fields: [tipoDocumentoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cargadoPor    User                   @relation("LotesCargados", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documentos    Document[]
   empleados     LoteEmpleado[]
   pendientes    LoteArchivoPendiente[]
+
+  @@index([origen, anio, mes, estado])
 }
 
 model LoteEmpleado {
@@ -272,6 +283,9 @@ model LoteArchivoPendiente {
   legajoDetectado  String?
   detectando       Boolean  @default(false)
   uploadedAt       DateTime @default(now())
+  // JSON array [{ code, message, validator }] con motivos por los que
+  // el archivo no pudo asignarse. Null para pendientes legacy.
+  motivos          String?  @db.NVarChar(Max)
 
   lote Lote @relation(fields: [loteId], references: [id], onDelete: Cascade)
 }
@@ -286,7 +300,53 @@ model GeneralConfig {
   soporteTel                 String?
   avisosEmpleadosHabilitados Boolean  @default(true)
   reciboFilenamePatterns     String?  @db.NVarChar(Max)
+  // Ingesta SFTP de recibos
+  sftpEnabled                Boolean  @default(false)
+  sftpHost                   String?
+  sftpPort                   Int?     @default(22)
+  sftpUser                   String?
+  sftpPassword               String?
+  sftpIncomingPath           String?
+  sftpProcessedPath          String?
+  sftpErrorsPath             String?
+  sftpPollIntervalMinutes    Int      @default(15)
+  sftpStableSeconds          Int      @default(30)
   updatedAt                  DateTime @updatedAt
+}
+
+/// Cola de trabajos genérica procesada por el worker.
+/// Claim atómico via UPDATE TOP(1) con OUTPUT (ver src/lib/jobQueue.ts).
+model JobQueue {
+  id          Int       @id @default(autoincrement())
+  tipo        String
+  payload     String?   @db.NVarChar(Max)
+  // PENDING | CLAIMED | DONE | FAILED
+  estado      String    @default("PENDING")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  nextRunAt   DateTime  @default(now())
+  claimedBy   String?
+  claimedAt   DateTime?
+  finishedAt  DateTime?
+  error       String?   @db.NVarChar(Max)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([estado, nextRunAt])
+}
+
+/// Idempotencia de ingesta SFTP: cada archivo procesado se registra por
+/// path y hash SHA-256 para evitar reprocesarlo si aparece de nuevo.
+model SftpArchivoProcesado {
+  id          Int      @id @default(autoincrement())
+  path        String   @unique
+  hash        String
+  procesadoAt DateTime @default(now())
+  loteId      Int?
+  documentId  Int?
+  pendienteId Int?
+
+  @@index([hash])
 }
 
 model EmployeeFieldConfig {

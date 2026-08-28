@@ -25,6 +25,21 @@ interface Pendiente {
   legajoDetectado: string | null
   detectando: boolean
   uploadedAt: string
+  /** JSON serializado: [{ code, message, validator }] o null. */
+  motivos: string | null
+}
+
+interface MotivoParseado { code: string; message: string; validator?: string }
+
+function parseMotivos(raw: string | null): MotivoParseado[] {
+  if (!raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr.filter((m: unknown): m is MotivoParseado =>
+      !!m && typeof (m as MotivoParseado).code === 'string' && typeof (m as MotivoParseado).message === 'string'
+    )
+  } catch { return [] }
 }
 
 const DETECT_CONCURRENCY = 6
@@ -734,15 +749,34 @@ if (loading) {
                           <AlertCircle size={14} className="text-yellow-500" />
                         </span>
                       )}
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <FileText size={12} className="text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium truncate" title={p.nombreArchivo}>{p.nombreArchivo}</span>
-                        <span
-                          className={cn('shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded', chipClass)}
-                          title={tooltipText}
-                        >
-                          {chipLabel}
-                        </span>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText size={12} className="text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate" title={p.nombreArchivo}>{p.nombreArchivo}</span>
+                          <span
+                            className={cn('shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded', chipClass)}
+                            title={tooltipText}
+                          >
+                            {chipLabel}
+                          </span>
+                        </div>
+                        {(() => {
+                          const motivos = parseMotivos(p.motivos)
+                          if (motivos.length === 0) return null
+                          return (
+                            <div className="flex flex-wrap gap-1 pl-4">
+                              {motivos.map((m, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900"
+                                  title={m.message}
+                                >
+                                  {m.code}
+                                </span>
+                              ))}
+                            </div>
+                          )
+                        })()}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button

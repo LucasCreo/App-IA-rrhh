@@ -23,6 +23,7 @@ export type EmailTemplateKey =
   | 'INVITACION_USUARIO'
   | 'PASSWORD_CAMBIADA'
   | 'AUSENCIA_CANCELADA'
+  | 'LOTE_PROCESADO'
 
 interface TemplateDef {
   label: string
@@ -244,6 +245,25 @@ export const DEFAULT_TEMPLATES: Record<EmailTemplateKey, TemplateDef> = {
     variables: [
       { name: 'nombre', description: 'Nombre del empleado' },
       { name: 'expira', description: 'Fecha de vencimiento del link' },
+    ],
+  },
+  LOTE_PROCESADO: {
+    label: 'Lote de recibos procesado',
+    description: 'Se envía a los administradores cuando la ingesta automática de un lote SFTP termina de procesarse.',
+    subject: 'Lote de recibos procesado — {{nombreLote}}',
+    title: 'Ingesta de recibos finalizada',
+    bodyHtml: `<p>El lote <strong>{{nombreLote}}</strong> terminó de procesarse.</p>
+<ul>
+  <li><strong>Asignados a empleado:</strong> {{asignados}}</li>
+  <li><strong>Pendientes (revisar):</strong> {{pendientes}}</li>
+</ul>
+{{bloqueErrores}}`,
+    ctaLabel: 'Ver el lote',
+    variables: [
+      { name: 'nombreLote', description: 'Nombre del lote (ej: "Sueldos Agosto 2026")' },
+      { name: 'asignados', description: 'Cantidad de recibos que se asociaron a un empleado' },
+      { name: 'pendientes', description: 'Cantidad de recibos que quedaron sin asignar' },
+      { name: 'bloqueErrores', description: 'Bloque HTML con nota si hubo pendientes/errores (vacío si no hay)' },
     ],
   },
   AUSENCIA_CANCELADA: {

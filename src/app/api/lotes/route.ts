@@ -5,10 +5,15 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getReciboTipoId } from '@/lib/tiposDocumento'
-import { isPdfBuffer, MAX_PDF_SIZE } from '@/lib/pdf'
-import { detectarLegajoDesdeFilename } from '@/lib/recibosDetect'
 import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
 import { reciboProps, reciboPendienteProps } from '@/lib/aditusRecibos'
+import {
+  runValidators,
+  pdfIntegridadValidator,
+  nomencladorValidator,
+  legajoExistenteValidator,
+  type EmpleadoMin,
+} from '@/lib/validators'
 
 export async function GET(req: NextRequest) {
   try {
@@ -69,6 +74,11 @@ export async function GET(req: NextRequest) {
       periodo: l.periodo,
       createdAt: l.createdAt,
       tipoDocumento: l.tipoDocumento,
+      estado: l.estado,
+      progreso: l.progreso,
+      origen: l.origen,
+      mes: l.mes,
+      anio: l.anio,
       stats: {
         total: empleadosIds.length,
         firmados: docs.filter(d => d.estado === 'FIRMADO').length,
@@ -117,6 +127,9 @@ export async function POST(req: NextRequest) {
       descripcion,
       periodo,
       creadoPorId: user.userId,
+      origen: 'MANUAL',
+      estado: 'CERRADO',
+      progreso: 100,
       ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
     },
   })
@@ -140,6 +153,8 @@ export async function POST(req: NextRequest) {
   const empByLegajo = new Map(empleadosActivos.map(e => [e.legajo, e]))
   const empleadosConDoc = new Set<number>()
 
+  const VALIDATORS = [pdfIntegridadValidator, nomencladorValidator, legajoExistenteValidator]
+
   let uploaded = 0
   let asignados = 0
   const errors: string[] = []
@@ -151,25 +166,31 @@ export async function POST(req: NextRequest) {
     if (!file) continue
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    if (buffer.length > MAX_PDF_SIZE) {
-      errors.push(`${file.name}: supera el límite de 10 MB`)
-      continue
-    }
-    if (!isPdfBuffer(buffer)) {
-      errors.push(`${file.name}: no es un PDF válido`)
-      continue
-    }
-
     // Strip cualquier prefijo de carpeta que el navegador haya adjuntado
     const nombreArchivoLimpio = file.name.replace(/^.*[\\/]/, '')
 
-    // Intentar detectar legajo por filename (patrones + fallback genérico)
-    const legajoDetectado = detectarLegajoDesdeFilename(nombreArchivoLimpio, legajoSet, patterns)
-    const emp = legajoDetectado ? empByLegajo.get(legajoDetectado) : undefined
+    const validacion = await runValidators(VALIDATORS, {
+      buffer,
+      fileName: nombreArchivoLimpio,
+      patterns,
+      legajosValidos: legajoSet,
+      empByLegajo,
+    })
+
+    // Errores fatales (PDF inválido / tamaño): no subimos a Aditus, se descarta.
+    const fatal = validacion.errors.find(e => e.code === 'PDF_INVALIDO' || e.code === 'PDF_TAMANIO_EXCEDIDO')
+    if (fatal) {
+      errors.push(fatal.message)
+      continue
+    }
+
+    const emp = validacion.metadata.empleado as EmpleadoMin | undefined
+    const legajoFinal = typeof validacion.metadata.legajo === 'string' ? validacion.metadata.legajo : null
+    const puedeAsignar = validacion.pass && emp && !empleadosConDoc.has(emp.id)
 
     let aditusId: string
     try {
-      if (emp && !empleadosConDoc.has(emp.id)) {
+      if (puedeAsignar && emp) {
         aditusId = await uploadAditusFile({
           content: buffer,
           fileName: nombreArchivoLimpio,
@@ -189,7 +210,7 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    if (emp && !empleadosConDoc.has(emp.id)) {
+    if (puedeAsignar && emp) {
       try {
         await prisma.$transaction(async tx => {
           await tx.document.create({
@@ -219,12 +240,24 @@ export async function POST(req: NextRequest) {
       }
     } else {
       try {
+        // Serializamos los motivos (errores + warnings) para que el admin
+        // vea por qué el archivo quedó pendiente.
+        const motivosArr = [...validacion.errors, ...validacion.warnings]
+        // Duplicado también es "motivo" — si emp existe pero ya tenía doc en este lote.
+        if (validacion.pass && emp && empleadosConDoc.has(emp.id)) {
+          motivosArr.push({
+            code: 'DUPLICADO_EN_LOTE',
+            message: `El legajo ${emp.legajo} ya tiene un archivo asignado en este lote`,
+            validator: 'lote',
+          })
+        }
         await prisma.loteArchivoPendiente.create({
           data: {
             loteId: lote.id,
             aditusId,
             nombreArchivo: nombreArchivoLimpio,
-            legajoDetectado: legajoDetectado ?? null,
+            legajoDetectado: legajoFinal ?? null,
+            motivos: motivosArr.length > 0 ? JSON.stringify(motivosArr) : null,
           },
         })
         uploaded++

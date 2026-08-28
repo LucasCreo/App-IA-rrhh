@@ -13,14 +13,19 @@ export async function GET() {
     const scope = await getScopedEmployeeIds(user.userId)
     const employeeFilter = scope ? { employeeId: { in: [...scope] } } : {}
 
-    // Documentos con errores/rechazos que requieren atención del admin
+    // Documentos con errores/rechazos que requieren atención del admin +
+    // lotes con estado CON_ERRORES (ingesta SFTP con pendientes) o con
+    // documentos en ERROR.
     const [docsErrores, lotesConError] = await Promise.all([
       prisma.document.count({
         where: { ...employeeFilter, estado: { in: ['ERROR', 'RECHAZADO'] } },
       }),
       prisma.lote.count({
         where: {
-          documentos: { some: { estado: 'ERROR', ...employeeFilter } },
+          OR: [
+            { estado: 'CON_ERRORES' },
+            { documentos: { some: { estado: 'ERROR', ...employeeFilter } } },
+          ],
         },
       }),
     ])

@@ -20,12 +20,15 @@ export interface RecibosEntry {
 
 /**
  * Convierte una plantilla con placeholders ({legajo}, {cuil}, {año}, {mes},
- * {apellido}, {nombre}, {*}) en un RegExp con grupo capturado del legajo.
- * Escapa caracteres literales. Devuelve null si la plantilla es inválida.
+ * {apellido}, {nombre}, {*}) en un RegExp. `{legajo}` queda como grupo
+ * capturado (posicional m[1]); `{año}`/`{ano}` y `{mes}` como grupos nombrados
+ * `anio` y `mes` (accesibles vía m.groups?.anio / m.groups?.mes) además de
+ * ocupar posiciones para el orden en el que aparecen. El resto es no-capturante.
+ * Devuelve null si la plantilla es inválida.
  *
  * Ejemplos:
- *   "{legajo}_{apellido}.pdf"        → /^(\d+)_[^/]+\.pdf$/i
- *   "RS-{año}{mes}-{legajo}.pdf"    → /^RS-\d{4}\d{1,2}-(\d+)\.pdf$/i
+ *   "{legajo}_{apellido}.pdf"        → /^(\d+)_(?:[^/]+)\.pdf$/i
+ *   "RS-{año}{mes}-{legajo}.pdf"    → /^RS-(?<anio>\d{4})(?<mes>\d{1,2})-(\d+)\.pdf$/i
  */
 export function plantillaARegex(template: string): RegExp | null {
   // Normaliza: quita espacios alrededor de {placeholder} por si vienen sucios
@@ -42,6 +45,8 @@ export function plantillaARegex(template: string): RegExp | null {
     '*': '.+?',
   }
   let hasLegajo = false
+  let hasAnio = false
+  let hasMes = false
   const parts: string[] = []
   let i = 0
   while (i < template.length) {
@@ -55,8 +60,16 @@ export function plantillaARegex(template: string): RegExp | null {
         if (hasLegajo) return null
         parts.push(`(${pattern})`)
         hasLegajo = true
+      } else if (key === 'año' || key === 'ano') {
+        if (hasAnio) return null
+        parts.push(`(?<anio>${pattern})`)
+        hasAnio = true
+      } else if (key === 'mes') {
+        if (hasMes) return null
+        parts.push(`(?<mes>${pattern})`)
+        hasMes = true
       } else {
-        parts.push(pattern)
+        parts.push(`(?:${pattern})`)
       }
       i = end + 1
     } else {
@@ -66,6 +79,39 @@ export function plantillaARegex(template: string): RegExp | null {
   }
   if (!hasLegajo) return null
   try { return new RegExp('^' + parts.join('') + '$', 'i') } catch { return null }
+}
+
+export interface FilenameMetadata {
+  legajo?: string
+  mes?: number
+  anio?: number
+}
+
+/**
+ * Extrae metadata (legajo + mes + año) del nombre de archivo usando los
+ * patrones del nomenclador. Devuelve el primer patrón que matchee, o null
+ * si ninguno coincide. Los legajos NO se normalizan acá (eso lo hace
+ * `matchLegajo` cuando se compara contra el maestro).
+ */
+export function extraerMetadataDesdeFilename(
+  fileName: string,
+  patterns: string[],
+): FilenameMetadata | null {
+  const basename = fileName.replace(/^.*[\\/]/, '')
+  for (const tpl of patterns) {
+    const re = plantillaARegex(tpl)
+    if (!re) continue
+    const m = basename.match(re)
+    if (!m) continue
+    const meta: FilenameMetadata = {}
+    if (m[1]) meta.legajo = m[1]
+    const anio = m.groups?.anio
+    const mes = m.groups?.mes
+    if (anio) meta.anio = Number(anio)
+    if (mes) meta.mes = Number(mes)
+    return meta
+  }
+  return null
 }
 
 /**

@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+# gestion-rrhh WORKER — proceso Node aparte que consume la tabla JobQueue.
+# Corre el ciclo del watcher SFTP + procesa lotes en background.
+# Reutiliza el mismo esquema base que la imagen web pero con CMD distinto.
+
+# ── deps: node_modules completos (incluye tsx para runtime) ────────────
+FROM node:22-slim AS deps
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+RUN npm ci
+
+# ── builder: solo `prisma generate`. No compilamos Next (el worker no lo usa). ─
+FROM node:22-slim AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY prisma ./prisma
+COPY tsconfig.json ./
+COPY src ./src
+COPY worker ./worker
+COPY scripts ./scripts
+# .env.production ya materializado por el CI (sed)
+COPY .env.production ./.env.production
+RUN npx prisma generate
+
+# ── runner: imagen mínima con tsx para ejecutar el worker ─────────────
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -m nextjs
+
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/.env.production ./.env.production
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+COPY --from=builder --chown=nextjs:nodejs /app/worker ./worker
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+
+USER nextjs
+CMD ["npm", "run", "worker"]

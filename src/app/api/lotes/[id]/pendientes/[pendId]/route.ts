@@ -4,6 +4,7 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { deleteAditusFile } from '@/lib/aditus'
+import { actualizarProgresoLote } from '@/lib/loteProgress'
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string; pendId: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
@@ -18,11 +19,16 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Archivo pendiente no encontrado' }, { status: 404 })
   }
 
+  // Para lotes SFTP: borramos también el registro de SftpArchivoProcesado
+  // para que actualizarProgresoLote pueda transicionar el lote a LISTO si
+  // ya no quedan pendientes.
+  await prisma.sftpArchivoProcesado.deleteMany({ where: { pendienteId } })
   await prisma.loteArchivoPendiente.delete({ where: { id: pendienteId } })
   if (pendiente.aditusId) {
     try { await deleteAditusFile(pendiente.aditusId) } catch { /* best-effort */ }
   }
   await logAction(user.userId, 'ELIMINAR_PENDIENTE', 'Lote', `Lote ${loteId}: ${pendiente.nombreArchivo}`)
+  await actualizarProgresoLote(loteId).catch(() => { /* best-effort */ })
   return NextResponse.json({ ok: true })
 }
 

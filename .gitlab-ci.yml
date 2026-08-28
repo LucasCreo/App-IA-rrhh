@@ -1,5 +1,6 @@
 stages:
   - build
+  - migrate
   - deploy
 
 variables:
@@ -46,6 +47,44 @@ docker_build:
     - docker login $DOCKER_REGISTRY -u $DEVOPS_LOGIN -p $DEVOPS_PASSWORD
     - docker build -t $IMAGE_ARG:$CI_COMMIT_REF_NAME .
     - docker push $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    # Imagen del worker (mismo repo, Dockerfile.worker, tag con sufijo -worker)
+    - docker build -f Dockerfile.worker -t $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker .
+    - docker push $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
+
+# ── migrate: corre scripts de migración contra la BD del entorno ──────
+# Usa la imagen del worker (tiene tsx + prisma + scripts/). Todos los
+# scripts son idempotentes (IF NOT EXISTS), correrlos N veces es seguro.
+.migrate_template: &migrate_template
+  stage: migrate
+  dependencies: [docker_build]
+  script:
+    - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
+    - docker run --rm -e DATABASE_URL="$DATABASE_URL"
+      $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
+      npx tsx scripts/migrate-lote-sftp-fields.ts
+    - docker run --rm -e DATABASE_URL="$DATABASE_URL"
+      $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
+      npx tsx scripts/migrate-jobqueue-sftp-processed.ts
+    - docker run --rm -e DATABASE_URL="$DATABASE_URL"
+      $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
+      npx tsx scripts/migrate-sftp-errors-path.ts
+
+migrate_master:
+  <<: *migrate_template
+  environment: production
+  only: [master]
+
+migrate_develop:
+  <<: *migrate_template
+  environment: development
+  only: [develop]
+
+migrate_demo:
+  <<: *migrate_template
+  environment: demo
+  only: [demo]
+  when: manual
+  tags: [aditus-demo]
 
 # ── master → producción on-prem vía compose ───────────────────────────
 deploy_master:

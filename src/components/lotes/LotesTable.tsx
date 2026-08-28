@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Layers, ChevronRight, Trash2, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Plus, Layers, ChevronRight, Trash2, Search, SlidersHorizontal, X, Lock, RefreshCw, AlertTriangle, CheckCircle2, Cloud } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +31,7 @@ interface LoteStats {
   errores: number
   rechazados: number
   sinRecibo: number
+  pendientes: number
 }
 
 interface Lote {
@@ -40,7 +41,20 @@ interface Lote {
   periodo: string
   createdAt: string
   tipoDocumento: { id: number; nombre: string } | null
+  estado: string
+  progreso: number
+  origen: string
+  mes: number | null
+  anio: number | null
   stats: LoteStats
+}
+
+const ESTADO_META: Record<string, { label: string; className: string; icon?: React.ComponentType<{ size?: number; className?: string }> }> = {
+  ABIERTO: { label: 'Abierto', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  PROCESANDO: { label: 'Procesando', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: RefreshCw },
+  LISTO: { label: 'Listo', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+  CON_ERRORES: { label: 'Con errores', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: AlertTriangle },
+  CERRADO: { label: 'Cerrado', className: 'bg-muted text-muted-foreground', icon: Lock },
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -96,6 +110,37 @@ export function LotesTable() {
   }, [page, pageSize, qDebounced, anio, mes])
 
   useEffect(() => { fetchLotes() }, [fetchLotes])
+
+  // Suscripción SSE: aplica cambios de estado/progreso en vivo sobre los lotes
+  // ya cargados. No agrega ni quita filas (eso lo maneja el fetch normal),
+  // solo mergea deltas para evitar re-renderizar la tabla completa.
+  useEffect(() => {
+    const es = new EventSource('/api/lotes/eventos')
+    es.addEventListener('update', ev => {
+      try {
+        const { changes } = JSON.parse((ev as MessageEvent).data) as {
+          changes: Array<{ id: number; estado: string; progreso: number }>
+        }
+        if (!changes?.length) return
+        setLotes(prev => prev.map(l => {
+          const c = changes.find(x => x.id === l.id)
+          if (!c) return l
+          if (c.estado === '__DELETED__') return l
+          return { ...l, estado: c.estado, progreso: c.progreso }
+        }))
+      } catch { /* ignore */ }
+    })
+    es.onerror = () => { /* EventSource reintenta solo */ }
+    return () => es.close()
+  }, [])
+
+  async function cerrarLote(loteId: number) {
+    const r = await fetch(`/api/lotes/${loteId}/cerrar`, { method: 'POST' })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { toast.error(d?.error ?? 'No se pudo cerrar'); return }
+    toast.success('Lote cerrado')
+    setLotes(prev => prev.map(l => l.id === loteId ? { ...l, estado: 'CERRADO' } : l))
+  }
 
   const allSelected = lotes.length > 0 && lotes.every(l => selected.has(l.id))
   const someSelected = selected.size > 0 && !allSelected
@@ -247,11 +292,20 @@ export function LotesTable() {
               </span>
             </div>
             {lotes.map(lote => {
-              const pct = lote.stats.total > 0
+              const enProceso = lote.estado === 'PROCESANDO'
+              const pctFirma = lote.stats.total > 0
                 ? Math.round(lote.stats.firmados / lote.stats.total * 100)
                 : 0
+              // Mientras se está ingesting/procesando, mostramos el progreso del
+              // ciclo (worker); una vez LISTO/CERRADO cambiamos al progreso de firmas.
+              const pct = enProceso ? lote.progreso : pctFirma
+              const pctLabel = enProceso ? `${lote.progreso}% procesado` : `${lote.stats.firmados}/${lote.stats.total} firmados`
               const errTotal = lote.stats.errores + lote.stats.rechazados
               const isSelected = selected.has(lote.id)
+              const meta = ESTADO_META[lote.estado] ?? { label: lote.estado, className: 'bg-muted text-muted-foreground' }
+              const IconEstado = meta.icon
+              const esSftp = lote.origen === 'SFTP'
+              const puedeCerrar = esSftp && (lote.estado === 'LISTO' || lote.estado === 'CON_ERRORES' || lote.estado === 'ABIERTO')
               return (
                 <div key={lote.id} className="flex items-center gap-3">
                   <Checkbox
@@ -269,26 +323,41 @@ export function LotesTable() {
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-semibold text-foreground">{lote.nombre}</p>
                         <span className="text-xs text-muted-foreground">{formatPeriodo(lote.periodo)}</span>
-                        {lote.tipoDocumento && (
-                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{lote.tipoDocumento.nombre}</span>
+                        {lote.descripcion && (
+                          <span className="text-xs text-muted-foreground truncate">· {lote.descripcion}</span>
+                        )}
+                        <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded', meta.className)}>
+                          {IconEstado && <IconEstado size={10} className={enProceso ? 'animate-spin' : ''} />}
+                          {meta.label}
+                        </span>
+                        {esSftp && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" title="Ingresado por SFTP">
+                            <Cloud size={10} /> SFTP
+                          </span>
                         )}
                       </div>
-                      {lote.descripcion && (
-                        <p className="text-xs text-muted-foreground mb-2 truncate">{lote.descripcion}</p>
-                      )}
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Creado {new Date(lote.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-xs">
                           <div
-                            className="h-full bg-green-500 rounded-full transition-all"
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              enProceso ? 'bg-amber-500' : 'bg-green-500',
+                            )}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {lote.stats.firmados}/{lote.stats.total} firmados
-                        </span>
+                        <span className="text-xs text-muted-foreground shrink-0">{pctLabel}</span>
                         {lote.stats.enFirma > 0 && (
                           <span className="text-xs text-blue-600 dark:text-blue-400 shrink-0">
                             {lote.stats.enFirma} en firma
+                          </span>
+                        )}
+                        {lote.stats.pendientes > 0 && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                            {lote.stats.pendientes} pendiente{lote.stats.pendientes !== 1 ? 's' : ''}
                           </span>
                         )}
                         {lote.stats.sinRecibo > 0 && (
@@ -303,10 +372,18 @@ export function LotesTable() {
                         )}
                       </div>
                     </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs text-muted-foreground hidden sm:block">
-                          {new Date(lote.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {puedeCerrar && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            title="Cerrar lote: el próximo archivo SFTP del mismo mes creará un lote nuevo"
+                            onClick={e => { e.stopPropagation(); cerrarLote(lote.id) }}
+                          >
+                            <Lock size={12} className="mr-1" /> Cerrar
+                          </Button>
+                        )}
                         <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
                       </div>
                     </div>

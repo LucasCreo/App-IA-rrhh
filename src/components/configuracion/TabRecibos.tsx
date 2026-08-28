@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, X, Save, GripVertical } from 'lucide-react'
+import { Plus, X, Save, GripVertical, Cloud, CheckCircle2, XCircle } from 'lucide-react'
 import { plantillaARegex } from '@/lib/recibosDetect'
 import { PatternInput } from './PatternInput'
 import { cn } from '@/lib/utils'
@@ -179,6 +179,219 @@ export function TabRecibos() {
           </div>
         </CardContent>
       </Card>
+
+      <SftpConfigCard />
     </div>
+  )
+}
+
+interface SftpConfigState {
+  sftpEnabled: boolean
+  sftpHost: string
+  sftpPort: number
+  sftpUser: string
+  sftpPassword: string          // input local, si vacío no se envía
+  sftpPasswordSet: boolean      // si el server ya tiene guardado
+  sftpIncomingPath: string
+  sftpProcessedPath: string
+  sftpErrorsPath: string
+  sftpPollIntervalMinutes: number
+  sftpStableSeconds: number
+}
+
+const EMPTY_SFTP: SftpConfigState = {
+  sftpEnabled: false, sftpHost: '', sftpPort: 22, sftpUser: '', sftpPassword: '', sftpPasswordSet: false,
+  sftpIncomingPath: '', sftpProcessedPath: '', sftpErrorsPath: '',
+  sftpPollIntervalMinutes: 15, sftpStableSeconds: 30,
+}
+
+function SftpConfigCard() {
+  const [cfg, setCfg] = useState<SftpConfigState>(EMPTY_SFTP)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/configuracion/sftp')
+      .then(r => r.json())
+      .then((c: Partial<SftpConfigState>) => setCfg(prev => ({ ...prev, ...c, sftpPassword: '' })))
+      .finally(() => setLoading(false))
+  }, [])
+
+  function update<K extends keyof SftpConfigState>(key: K, value: SftpConfigState[K]) {
+    setCfg(c => ({ ...c, [key]: value }))
+    setTestResult(null)
+  }
+
+  async function save() {
+    if (cfg.sftpEnabled) {
+      if (!cfg.sftpHost.trim() || !cfg.sftpUser.trim() || !cfg.sftpIncomingPath.trim() || !cfg.sftpProcessedPath.trim()) {
+        toast.error('Completá host, usuario y las rutas incoming/processed')
+        return
+      }
+      if (!cfg.sftpPasswordSet && !cfg.sftpPassword) {
+        toast.error('Falta el password')
+        return
+      }
+    }
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = { ...cfg }
+      if (!cfg.sftpPassword) delete body.sftpPassword
+      delete body.sftpPasswordSet
+      const r = await fetch('/api/configuracion/sftp', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d.error ?? `Error ${r.status} al guardar`)
+        return
+      }
+      toast.success('Config SFTP guardada')
+      setCfg(c => ({
+        ...c,
+        sftpPasswordSet: c.sftpPasswordSet || !!c.sftpPassword,
+        sftpPassword: '',
+      }))
+    } finally { setSaving(false) }
+  }
+
+  async function testConnection() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const r = await fetch('/api/configuracion/sftp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sftpHost: cfg.sftpHost,
+          sftpUser: cfg.sftpUser,
+          sftpPort: cfg.sftpPort,
+          sftpIncomingPath: cfg.sftpIncomingPath,
+          ...(cfg.sftpPassword ? { sftpPassword: cfg.sftpPassword } : {}),
+        }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (d.ok) {
+        setTestResult({ ok: true, msg: `Conexión OK — ${d.pdfsCount} PDF(s) en la carpeta (${d.totalItems} items totales)` })
+      } else {
+        setTestResult({ ok: false, msg: d.error ?? 'No se pudo conectar' })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: e instanceof Error ? e.message : 'Error de red' })
+    } finally { setTesting(false) }
+  }
+
+  if (loading) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cloud size={18} /> Ingesta SFTP de recibos
+        </CardTitle>
+        <CardDescription className="mt-1">
+          Configurá un servidor SFTP para que el sistema ingiera automáticamente los PDFs de recibos.
+          Cada archivo se agrupa en un lote por mes según el nomenclador.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          <span className="mt-0.5">⚠</span>
+          <span>
+            Feature en preparación. El proceso automático todavía no está desplegado en el server:
+            podés configurarlo, pero la ingesta no va a ejecutarse hasta que se levante el contenedor del worker.
+          </span>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={cfg.sftpEnabled}
+            onChange={e => update('sftpEnabled', e.target.checked)}
+            className="w-4 h-4 accent-green-700"
+          />
+          Habilitar ingesta automática
+        </label>
+
+        <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-3 transition-opacity', !cfg.sftpEnabled && 'opacity-60 pointer-events-none')}>
+          <div className="md:col-span-2">
+            <p className="text-xs text-muted-foreground mb-1">Host *</p>
+            <Input value={cfg.sftpHost} onChange={e => update('sftpHost', e.target.value)} placeholder="sftp.ejemplo.com" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Puerto</p>
+            <Input type="number" value={cfg.sftpPort} onChange={e => update('sftpPort', Number(e.target.value) || 22)} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Usuario *</p>
+            <Input value={cfg.sftpUser} onChange={e => update('sftpUser', e.target.value)} placeholder="usuario_sftp" />
+          </div>
+          <div className="md:col-span-2">
+            <p className="text-xs text-muted-foreground mb-1">
+              Password {cfg.sftpPasswordSet && <span className="text-green-700 dark:text-green-400">(configurado — dejá vacío para no cambiarlo)</span>}
+            </p>
+            <Input
+              type="password"
+              value={cfg.sftpPassword}
+              onChange={e => update('sftpPassword', e.target.value)}
+              placeholder={cfg.sftpPasswordSet ? '••••••••' : 'password'}
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Ruta de entrada *</p>
+            <Input value={cfg.sftpIncomingPath} onChange={e => update('sftpIncomingPath', e.target.value)} placeholder="/upload/recibos" className="font-mono text-sm" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Ruta processed *</p>
+            <Input value={cfg.sftpProcessedPath} onChange={e => update('sftpProcessedPath', e.target.value)} placeholder="/upload/recibos/processed" className="font-mono text-sm" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1" title="Si está vacío, los fallidos se mueven a la ruta processed">
+              Ruta errores
+            </p>
+            <Input value={cfg.sftpErrorsPath} onChange={e => update('sftpErrorsPath', e.target.value)} placeholder="/upload/recibos/errors" className="font-mono text-sm" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Intervalo de polling (min)</p>
+            <Input type="number" min={1} value={cfg.sftpPollIntervalMinutes}
+              onChange={e => update('sftpPollIntervalMinutes', Math.max(1, Number(e.target.value) || 15))} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1" title="Espera N segundos desde la última modificación para leer un archivo (evita leer en escritura)">
+              Espera de estabilidad (seg)
+            </p>
+            <Input type="number" min={0} value={cfg.sftpStableSeconds}
+              onChange={e => update('sftpStableSeconds', Math.max(0, Number(e.target.value) || 30))} />
+          </div>
+        </div>
+
+        {testResult && (
+          <div className={cn(
+            'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
+            testResult.ok
+              ? 'bg-green-50 dark:bg-green-950/20 border border-green-300 dark:border-green-900 text-green-700 dark:text-green-400'
+              : 'bg-red-50 dark:bg-red-950/20 border border-red-300 dark:border-red-900 text-red-700 dark:text-red-400',
+          )}>
+            {testResult.ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <XCircle size={14} className="mt-0.5 shrink-0" />}
+            <span>{testResult.msg}</span>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={testConnection} disabled={testing || !cfg.sftpHost}>
+            {testing ? 'Probando…' : 'Probar conexión'}
+          </Button>
+          <Button onClick={save} disabled={saving} className="bg-green-700 hover:bg-green-800">
+            <Save size={13} className="mr-1.5" />
+            {saving ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

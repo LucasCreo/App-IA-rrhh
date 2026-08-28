@@ -106,6 +106,12 @@ const SAMPLE: Record<EmailTemplateKey, Record<string, string>> = {
     nombre: 'Juan',
     fecha: '21/08/2026 15:30',
   },
+  LOTE_PROCESADO: {
+    nombreLote: 'Sueldos Agosto 2026',
+    asignados: '124',
+    pendientes: '3',
+    bloqueErrores: '<p>Revisá los 3 pendientes para asignarlos manualmente.</p>',
+  },
   AUSENCIA_CANCELADA: {
     apellido: 'García', nombre: 'Juan',
     tipoAusencia: 'Vacaciones',

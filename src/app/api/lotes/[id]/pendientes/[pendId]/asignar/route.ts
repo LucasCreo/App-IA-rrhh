@@ -6,6 +6,7 @@ import { logAction } from '@/lib/audit'
 import { getScopedEmployeeIds } from '@/lib/scope'
 import { getAditusFile, updateAditusFile } from '@/lib/aditus'
 import { reciboProps } from '@/lib/aditusRecibos'
+import { actualizarProgresoLote } from '@/lib/loteProgress'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; pendId: string }> }) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_LOTES)
@@ -78,10 +79,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       create: { loteId, employeeId },
       update: {},
     })
+    // SFTP: mover el vínculo de audit del pendiente al nuevo documento.
+    await tx.sftpArchivoProcesado.updateMany({
+      where: { pendienteId },
+      data: { pendienteId: null, documentId: created.id },
+    })
     await tx.loteArchivoPendiente.delete({ where: { id: pendienteId } })
     return created
   })
 
   await logAction(user.userId, 'ASIGNAR_PENDIENTE', 'Lote', `Lote ${loteId} → doc ${doc.id}`)
+  await actualizarProgresoLote(loteId).catch(() => { /* best-effort */ })
   return NextResponse.json({ ok: true, documentId: doc.id })
 }

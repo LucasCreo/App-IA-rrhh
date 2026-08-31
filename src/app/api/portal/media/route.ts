@@ -111,6 +111,9 @@ export async function POST(req: NextRequest) {
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, finalName), buffer)
 
-  const url = `/uploads/posts/${tipo}/${finalName}`
+  // La URL apunta al endpoint que resuelve Aditus (con fallback a disco).
+  // Sobrevive a redeploys del container (a diferencia de /uploads/... que se
+  // pierde si el volumen no está persistido).
+  const url = `/api/portal/media/serve/${tipo}/${finalName}`
   return NextResponse.json({ url, tipo, fileName: originalName }, { status: 201 })
 }

@@ -2,7 +2,10 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Download, ExternalLink, FileText } from 'lucide-react'
+import {
+  Download, ExternalLink, FileText, FileSpreadsheet, FileType,
+  Presentation, FileArchive, FileCode, FileAudio, FileVideo,
+} from 'lucide-react'
 import { displayNameFromRef } from '@/lib/aditusSolicitudes'
 
 interface Props {
@@ -19,6 +22,30 @@ function getExt(name?: string | null): string {
   if (!name) return ''
   const dot = name.lastIndexOf('.')
   return dot === -1 ? '' : name.slice(dot + 1).toLowerCase()
+}
+
+/** Metadata visual por tipo de archivo para el fallback sin preview. */
+function tipoInfo(ext: string): { Icon: React.ElementType; label: string; color: string; bg: string } {
+  switch (ext) {
+    case 'xlsx': case 'xls': case 'csv':
+      return { Icon: FileSpreadsheet, label: 'Planilla de cálculo', color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-950/40' }
+    case 'docx': case 'doc':
+      return { Icon: FileType, label: 'Documento Word', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-950/40' }
+    case 'pptx': case 'ppt':
+      return { Icon: Presentation, label: 'Presentación', color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-950/40' }
+    case 'zip': case 'rar': case '7z': case 'tar': case 'gz':
+      return { Icon: FileArchive, label: 'Archivo comprimido', color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-950/40' }
+    case 'json': case 'xml': case 'html': case 'js': case 'ts': case 'css':
+      return { Icon: FileCode, label: 'Código', color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-slate-800/60' }
+    case 'mp3': case 'wav': case 'ogg': case 'm4a':
+      return { Icon: FileAudio, label: 'Audio', color: 'text-purple-700 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-950/40' }
+    case 'mp4': case 'mov': case 'avi': case 'mkv': case 'webm':
+      return { Icon: FileVideo, label: 'Video', color: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-950/40' }
+    case 'txt': case 'md':
+      return { Icon: FileText, label: 'Texto', color: 'text-gray-700 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-gray-800/60' }
+    default:
+      return { Icon: FileText, label: ext ? ext.toUpperCase() : 'Archivo', color: 'text-muted-foreground', bg: 'bg-muted' }
+  }
 }
 
 export function ArchivoPreviewDialog({ open, onClose, url, filename, title }: Props) {
@@ -64,17 +91,31 @@ export function ArchivoPreviewDialog({ open, onClose, url, filename, title }: Pr
             <iframe src={`${url}#toolbar=1&view=FitH`} className="w-full h-full min-h-[60vh]" title={displayName} />
           ) : isImg ? (
             <img src={url} alt={displayName} className="max-w-full max-h-[70vh] object-contain" />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
-              <FileText size={40} strokeWidth={1.2} />
-              <p className="text-sm">Vista previa no disponible para este formato.</p>
-              <a href={url} download={displayName}>
-                <Button size="sm" variant="outline">
-                  <Download size={14} className="mr-1.5" /> Descargar {displayName}
-                </Button>
-              </a>
-            </div>
-          )}
+          ) : (() => {
+            const info = tipoInfo(rawExt)
+            const { Icon } = info
+            return (
+              <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
+                <div className={`h-20 w-20 rounded-2xl flex items-center justify-center ${info.bg}`}>
+                  <Icon size={40} strokeWidth={1.4} className={info.color} />
+                </div>
+                <div className="space-y-1 max-w-md">
+                  <p className={`text-xs font-medium uppercase tracking-wide ${info.color}`}>
+                    {info.label}
+                  </p>
+                  <p className="text-sm font-medium text-foreground break-all">{displayName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vista previa no disponible para este formato.
+                  </p>
+                </div>
+                <a href={url} download={displayName}>
+                  <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white">
+                    <Download size={14} className="mr-1.5" /> Descargar
+                  </Button>
+                </a>
+              </div>
+            )
+          })()}
         </div>
       </DialogContent>
     </Dialog>

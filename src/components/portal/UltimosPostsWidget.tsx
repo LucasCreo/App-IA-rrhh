@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Newspaper, ThumbsUp, MessageCircle } from 'lucide-react'
+import { Newspaper, Paperclip } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface Post {
@@ -15,24 +15,40 @@ interface Post {
   totalComentarios: number
 }
 
-function preview(html: string): string {
-  if (!html) return ''
-  const soloTexto = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-  if (soloTexto) return soloTexto
-  if (/<img/i.test(html)) return '[Imagen]'
-  if (/<video/i.test(html)) return '[Video]'
-  if (/<audio/i.test(html)) return '[Audio]'
-  return ''
+/**
+ * Extrae texto + adjuntos del HTML del post.
+ * - Quita los <a data-attachment> antes de reducir a texto plano para que sus
+ *   nombres no queden concatenados como si fueran parte del contenido.
+ * - Devuelve los adjuntos por separado para renderizarlos como chips.
+ */
+function parsePreview(html: string): { texto: string; adjuntos: string[] } {
+  if (!html) return { texto: '', adjuntos: [] }
+  const adjuntos: string[] = []
+  const attachRegex = /<a\b[^>]*data-attachment[^>]*>([\s\S]*?)<\/a>/gi
+  const sinAdjuntos = html.replace(attachRegex, (_m, contenido) => {
+    // Guardamos el nombre visible del adjunto (fileName · size)
+    const label = String(contenido).replace(/<[^>]+>/g, '').trim()
+    if (label) adjuntos.push(label)
+    return ' '
+  })
+  const soloTexto = sinAdjuntos.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  let texto = soloTexto
+  if (!texto && adjuntos.length === 0) {
+    if (/<img/i.test(html)) texto = '[Imagen]'
+    else if (/<video/i.test(html)) texto = '[Video]'
+    else if (/<audio/i.test(html)) texto = '[Audio]'
+  }
+  return { texto, adjuntos }
 }
 
 function timeAgo(iso: string) {
-  const d = new Date(iso).getTime()
-  const diff = (Date.now() - d) / 1000
+  const d = new Date(iso)
+  const diff = (Date.now() - d.getTime()) / 1000
   if (diff < 60) return 'hace instantes'
   if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`
   if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`
   if (diff < 604800) return `hace ${Math.floor(diff / 86400)} d`
-  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+  return `${d.getDate()}-${d.getMonth() + 1}`
 }
 
 export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
@@ -64,7 +80,9 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
         </p>
       ) : (
         <ul className="divide-y">
-          {posts.map(p => (
+          {posts.map(p => {
+            const { texto, adjuntos } = parsePreview(p.contenido)
+            return (
             <li key={p.id}>
               <Link href={`${baseHref}#post-${p.id}`} className="block px-5 py-3 hover:bg-muted/40 transition-colors">
                 <div className="flex items-start gap-2">
@@ -72,20 +90,25 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
                     <p className="text-xs text-muted-foreground">
                       {p.autor.nombreCompleto} · {timeAgo(p.createdAt)}
                     </p>
-                    <p className="text-sm mt-0.5 line-clamp-2">
-                      {preview(p.contenido) || (p.imagenUrl ? '[Imagen]' : '')}
-                    </p>
-                    {(p.totalReacciones > 0 || p.totalComentarios > 0) && (
-                      <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
-                        {p.totalReacciones > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <ThumbsUp size={10} />{p.totalReacciones}
+                    {texto && (
+                      <p className="text-sm mt-0.5 line-clamp-2">
+                        {texto || (p.imagenUrl ? '[Imagen]' : '')}
+                      </p>
+                    )}
+                    {adjuntos.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {adjuntos.slice(0, 3).map((a, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 max-w-[220px] text-[11px] px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground"
+                            title={a}
+                          >
+                            <Paperclip size={10} className="shrink-0" />
+                            <span className="truncate">{a}</span>
                           </span>
-                        )}
-                        {p.totalComentarios > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <MessageCircle size={10} />{p.totalComentarios}
-                          </span>
+                        ))}
+                        {adjuntos.length > 3 && (
+                          <span className="text-[11px] text-muted-foreground">+{adjuntos.length - 3}</span>
                         )}
                       </div>
                     )}
@@ -96,7 +119,8 @@ export function UltimosPostsWidget({ baseHref }: { baseHref: string }) {
                 </div>
               </Link>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </div>

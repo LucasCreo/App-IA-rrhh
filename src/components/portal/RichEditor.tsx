@@ -491,6 +491,15 @@ export function RichEditor({
     immediatelyRender: false,
   })
 
+  // Sincroniza cuando el parent resetea el valor (ej. tras enviar comentario
+  // y limpiar el textarea con setNuevoComentario('')). Sin esto, tiptap mantiene
+  // su estado interno y el DOM sigue mostrando el contenido anterior.
+  useEffect(() => {
+    if (!editor) return
+    if (editor.getHTML() === value) return
+    editor.commands.setContent(value || '', { emitUpdate: false })
+  }, [value, editor])
+
   if (!editor) return null
 
   return (

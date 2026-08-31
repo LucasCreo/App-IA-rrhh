@@ -308,6 +308,12 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
 
   function openCreate(fecha: string) {
     const tipo = defaultTipo()
+    if (!tipo) {
+      toast.error(isAdmin
+        ? 'No hay tipos de evento configurados. Creá uno en Configuración → Calendario.'
+        : 'No tenés tipos de evento habilitados para crear. Contactá al administrador.')
+      return
+    }
     setForm({
       titulo: '', descripcion: '',
       fechaInicio: fecha, horaInicio: '08:00',
@@ -589,9 +595,11 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
               )}
             </Button>
           )}
-          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openCreate(toLocalDateStr(now))}>
-            <Plus size={14} className="mr-1" /> Nuevo evento
-          </Button>
+          {tiposDisponibles.length > 0 && (
+            <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openCreate(toLocalDateStr(now))}>
+              <Plus size={14} className="mr-1" /> Nuevo evento
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1241,9 +1249,11 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
             {dialog?.mode === 'day' && (
               <>
                 <Button variant="outline" onClick={() => setDialog(null)}><X size={14} className="mr-1" /> Cerrar</Button>
-                <Button className="bg-green-700 hover:bg-green-800" onClick={() => openCreate(dialog.fecha!)}>
-                  <Plus size={14} className="mr-1" /> Nuevo evento
-                </Button>
+                {tiposDisponibles.length > 0 && (
+                  <Button className="bg-green-700 hover:bg-green-800" onClick={() => openCreate(dialog.fecha!)}>
+                    <Plus size={14} className="mr-1" /> Nuevo evento
+                  </Button>
+                )}
               </>
             )}
             {(dialog?.mode === 'edit' || dialog?.mode === 'view-employee') && dialog.evento && (
@@ -1255,9 +1265,11 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                 <Trash2 size={14} className="mr-1" /> Eliminar
               </Button>
             )}
-            <Button variant="outline" onClick={() => setDialog(null)}>
-              <X size={14} className="mr-1" /> Cerrar
-            </Button>
+            {dialog?.mode !== 'day' && (
+              <Button variant="outline" onClick={() => setDialog(null)}>
+                <X size={14} className="mr-1" /> Cerrar
+              </Button>
+            )}
             {dialog?.mode === 'view-employee' && (
               <Button className="bg-green-700 hover:bg-green-800" onClick={handleSaveComment} disabled={savingComment}>
                 {savingComment ? 'Guardando...' : 'Guardar comentario'}

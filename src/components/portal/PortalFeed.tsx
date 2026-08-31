@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RichEditor } from './RichEditor'
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
+import { ArchivoPreviewDialog } from '@/components/shared/ArchivoPreviewDialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { handleApiError } from '@/lib/apiErrors'
 import { cn } from '@/lib/utils'
@@ -32,14 +33,42 @@ function formatoTiempoRestante(min: number): string {
 }
 
 function PostContent({ html }: { html: string }) {
+  const [preview, setPreview] = useState<{ url: string; filename: string } | null>(null)
+
+  // Intercepta clicks en <a data-attachment> para abrir un modal con preview
+  // en vez de descargar/navegar. Los demás <a> conservan comportamiento nativo.
+  function onClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = (e.target as HTMLElement).closest('a[data-attachment]') as HTMLAnchorElement | null
+    if (!target) return
+    e.preventDefault()
+    const url = target.getAttribute('href') ?? ''
+    const filename = target.getAttribute('data-file-name') || target.textContent || 'archivo'
+    if (url) setPreview({ url, filename })
+  }
+
   if (!html) return null
   const esHtml = /<[a-z]/i.test(html)
-  if (!esHtml) return <p className="text-sm whitespace-pre-wrap">{html}</p>
-  return <div className="portal-content text-sm" dangerouslySetInnerHTML={{ __html: html }} />
+  return (
+    <>
+      {esHtml ? (
+        <div className="portal-content text-sm" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+      ) : (
+        <p className="text-sm whitespace-pre-wrap">{html}</p>
+      )}
+      <ArchivoPreviewDialog
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        url={preview?.url ?? null}
+        filename={preview?.filename ?? null}
+      />
+    </>
+  )
 }
 
 function esContenidoVacio(html: string): boolean {
-  // Tiptap emite <p></p> cuando el editor está vacío
+  // Tiptap emite <p></p> cuando el editor está vacío. Un aviso NO está vacío
+  // si tiene texto, o si tiene media/adjuntos (imagen, video, audio, archivo).
+  if (/<(img|video|audio|iframe)\b|data-attachment/i.test(html)) return false
   const limpio = html.replace(/<[^>]+>/g, '').trim()
   return limpio === ''
 }

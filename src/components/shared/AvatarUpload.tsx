@@ -66,6 +66,22 @@ export function AvatarUpload({
     if (open) setTab(avatar ? 'foto' : 'iniciales')
   }, [open, avatar])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ targetUserId?: number; avatarUrl?: string | null; bgColor?: string; textColor?: string }>).detail
+      if ((detail.targetUserId ?? null) !== (targetUserId ?? null)) return
+      if (detail.avatarUrl !== undefined) setAvatar(detail.avatarUrl)
+      if (detail.bgColor !== undefined) setBgColor(detail.bgColor)
+      if (detail.textColor !== undefined) setTextColor(detail.textColor)
+    }
+    window.addEventListener('avatar:updated', handler)
+    return () => window.removeEventListener('avatar:updated', handler)
+  }, [targetUserId])
+
+  function emitUpdate(detail: { avatarUrl?: string | null; bgColor?: string; textColor?: string }) {
+    window.dispatchEvent(new CustomEvent('avatar:updated', { detail: { targetUserId, ...detail } }))
+  }
+
   function handleFile(f: File) {
     if (f.size > 5 * 1024 * 1024) { toast.error('La imagen supera 5 MB'); return }
     const reader = new FileReader()
@@ -88,6 +104,7 @@ export function AvatarUpload({
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Error')
       const data = await res.json()
       setAvatar(data.avatarUrl)
+      emitUpdate({ avatarUrl: data.avatarUrl })
       setImgSrc(null)
       toast.success('Foto actualizada')
       setOpen(false)
@@ -104,6 +121,7 @@ export function AvatarUpload({
     setBusy(false)
     if (!res.ok) { toast.error('Error al eliminar'); return }
     setAvatar(null)
+    emitUpdate({ avatarUrl: null })
     setImgSrc(null)
     setTab('iniciales')
     toast.success('Foto eliminada')
@@ -118,6 +136,7 @@ export function AvatarUpload({
     })
     setBusy(false)
     if (!res.ok) { toast.error('Error al guardar colores'); return }
+    emitUpdate({ bgColor, textColor })
     toast.success('Colores actualizados')
     setOpen(false)
   }

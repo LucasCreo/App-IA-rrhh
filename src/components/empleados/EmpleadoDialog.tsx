@@ -15,6 +15,7 @@ import { Paperclip, X, ChevronDown } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SolicitudesModificacionAdmin } from './SolicitudesModificacionAdmin'
 import { validarCuil, maskCuilInput } from '@/lib/cuil'
+import { displayNameFromRef } from '@/lib/aditusSolicitudes'
 
 interface Categoria { id: number; nombre: string }
 interface Area { id: number; nombre: string }
@@ -123,7 +124,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
 
   function validateStep1() {
     const errs = new Set<string>()
-    if (!form.email.trim()) errs.add('email')
+    const email = form.email.trim()
+    if (!email) errs.add('email')
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.add('email')
     if (modoAcceso === 'password' && !password) errs.add('password')
     setErrors(errs)
     return errs.size === 0
@@ -144,7 +147,10 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
-      if (c.tipo === 'booleano') continue
+      if (c.tipo === 'booleano') {
+        if (val !== 'true' && val !== 'false') errs.add(`custom_${c.id}`)
+        continue
+      }
       if (!val || val.trim() === '') errs.add(`custom_${c.id}`)
     }
     setErrors(errs)
@@ -165,7 +171,10 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     if (isVisible('cuil') && form.cuil?.trim() && !validarCuil(form.cuil)) errs.add('cuil')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
-      if (c.tipo === 'booleano') continue
+      if (c.tipo === 'booleano') {
+        if (val !== 'true' && val !== 'false') errs.add(`custom_${c.id}`)
+        continue
+      }
       if (!val || val.trim() === '') errs.add(`custom_${c.id}`)
     }
     if (crearUsuario && !password) errs.add('password')
@@ -174,7 +183,16 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
   }
 
   function handleNext() {
-    if (!validateStep1()) { toast.error(modoAcceso === 'password' ? 'Completá email y contraseña' : 'Completá el email'); return }
+    if (!validateStep1()) {
+      const email = form.email.trim()
+      const emailInvalido = email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      toast.error(
+        emailInvalido
+          ? 'El email tiene un formato inválido'
+          : modoAcceso === 'password' ? 'Completá email y contraseña' : 'Completá el email'
+      )
+      return
+    }
     setStep(2)
   }
 
@@ -352,10 +370,18 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                     <Label className="mb-1.5">{label}{isRequired(key as string) && <span className="text-red-500 ml-1">*</span>}</Label>
                     <Input
                       value={(form[key] ?? '') as string}
-                      onChange={e => set(key)(key === 'cuil' ? maskCuilInput(e.target.value) : e.target.value)}
-                      inputMode={key === 'cuil' ? 'numeric' : undefined}
+                      onChange={e => {
+                        const v = e.target.value
+                        if (key === 'cuil') { set(key)(maskCuilInput(v)); return }
+                        // Teléfono: acepta solo dígitos, +, -, espacios y paréntesis
+                        if (key === 'telefono') { set(key)(v.replace(/[^\d+\-\s()]/g, '')); return }
+                        // Nombre / Apellido: solo letras (incluye acentos, ñ), espacios, apóstrofos y guiones
+                        if (key === 'nombre' || key === 'apellido') { set(key)(v.replace(/[^\p{L}\s'-]/gu, '')); return }
+                        set(key)(v)
+                      }}
+                      inputMode={key === 'cuil' || key === 'telefono' ? 'tel' : undefined}
                       maxLength={key === 'cuil' ? 13 : undefined}
-                      placeholder={key === 'cuil' ? '20-12345678-9' : undefined}
+                      placeholder={key === 'cuil' ? '20-12345678-9' : key === 'telefono' ? '+54 11 1234-5678' : undefined}
                       className={cn(err(key as string) && 'border-red-500 focus-visible:ring-red-500')}
                     />
                     {key === 'cuil' && err('cuil') && (
@@ -446,20 +472,35 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
               <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
                 <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
                 {c.tipo === 'booleano' ? (
-                  <div className="flex items-center gap-2 pt-1">
-                    <Checkbox
-                      checked={valoresCustom[c.id] === 'true'}
-                      onCheckedChange={v => setValoresCustom(prev => ({ ...prev, [c.id]: v ? 'true' : 'false' }))}
-                    />
-                    <span className="text-sm text-muted-foreground">Sí</span>
+                  <div className={cn('flex items-center gap-4 pt-1', err(`custom_${c.id}`) && 'text-red-600')}>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`custom_${c.id}`}
+                        checked={valoresCustom[c.id] === 'true'}
+                        onChange={() => setValoresCustom(prev => ({ ...prev, [c.id]: 'true' }))}
+                        className="accent-green-700"
+                      />
+                      Sí
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`custom_${c.id}`}
+                        checked={valoresCustom[c.id] === 'false'}
+                        onChange={() => setValoresCustom(prev => ({ ...prev, [c.id]: 'false' }))}
+                        className="accent-green-700"
+                      />
+                      No
+                    </label>
                   </div>
                 ) : c.tipo === 'archivo' ? (
                   <div className="space-y-1.5">
                     {valoresCustom[c.id] ? (
                       <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/40">
                         <Paperclip size={13} className="text-muted-foreground shrink-0" />
-                        <a href={`/api/campos/archivo?file=${valoresCustom[c.id]}`} target="_blank" className="text-sm text-blue-600 hover:underline flex-1 truncate">
-                          {valoresCustom[c.id].replace(/^\d+-/, '')}
+                        <a href={`/api/campos/archivo?file=${encodeURIComponent(valoresCustom[c.id])}`} target="_blank" className="text-sm text-blue-600 hover:underline flex-1 truncate">
+                          {displayNameFromRef(valoresCustom[c.id]) || valoresCustom[c.id].replace(/^\d+-/, '')}
                         </a>
                         <button type="button" onClick={() => setValoresCustom(prev => ({ ...prev, [c.id]: '' }))} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0">
                           <X size={13} />
@@ -517,7 +558,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   <Label className="mb-1.5">Nombre <span className="text-red-500">*</span></Label>
                   <Input
                     value={form.nombre}
-                    onChange={e => set('nombre')(e.target.value)}
+                    onChange={e => set('nombre')(e.target.value.replace(/[^\p{L}\s'-]/gu, ''))}
                     className={cn(err('nombre') && 'border-red-500 focus-visible:ring-red-500')}
                     autoFocus={isNew && step === 2}
                   />
@@ -526,7 +567,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   <Label className="mb-1.5">Apellido <span className="text-red-500">*</span></Label>
                   <Input
                     value={form.apellido}
-                    onChange={e => set('apellido')(e.target.value)}
+                    onChange={e => set('apellido')(e.target.value.replace(/[^\p{L}\s'-]/gu, ''))}
                     className={cn(err('apellido') && 'border-red-500 focus-visible:ring-red-500')}
                   />
                 </div>

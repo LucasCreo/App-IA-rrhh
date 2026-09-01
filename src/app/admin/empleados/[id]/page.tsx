@@ -23,7 +23,7 @@ import { EmpleadoCalendarioTab } from '@/components/empleados/EmpleadoCalendario
 import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import { AvatarUpload } from '@/components/shared/AvatarUpload'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { validarCuil } from '@/lib/cuil'
+import { validarCuil, maskCuilInput } from '@/lib/cuil'
 import { cn } from '@/lib/utils'
 import { Paperclip, X, ArrowLeft, Network } from 'lucide-react'
 
@@ -185,7 +185,10 @@ export default function EmpleadoDetailPage() {
     if (isVisible('categoria') && isRequired('categoria') && !form.categoriaId) errs.add('categoria')
     for (const c of camposCustom.filter(c => c.visible && c.requerido)) {
       const val = valoresCustom[c.id]
-      if (c.tipo === 'booleano') continue
+      if (c.tipo === 'booleano') {
+        if (val !== 'true' && val !== 'false') errs.add(`custom_${c.id}`)
+        continue
+      }
       if (!val || val.trim() === '') errs.add(`custom_${c.id}`)
     }
     if (crearUsuario && modoAcceso === 'password' && !password) errs.add('password')
@@ -331,18 +334,26 @@ export default function EmpleadoDetailPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="mb-1.5">Nombre <span className="text-red-500">*</span></Label>
-              <Input value={form.nombre} onChange={e => setField('nombre')(e.target.value)} className={cn('mt-1', err('nombre') && 'border-red-500 focus-visible:ring-red-500')} />
+              <Input value={form.nombre} onChange={e => setField('nombre')(e.target.value.replace(/[^\p{L}\s'-]/gu, ''))} className={cn('mt-1', err('nombre') && 'border-red-500 focus-visible:ring-red-500')} />
             </div>
             <div>
               <Label className="mb-1.5">Apellido <span className="text-red-500">*</span></Label>
-              <Input value={form.apellido} onChange={e => setField('apellido')(e.target.value)} className={cn('mt-1', err('apellido') && 'border-red-500 focus-visible:ring-red-500')} />
+              <Input value={form.apellido} onChange={e => setField('apellido')(e.target.value.replace(/[^\p{L}\s'-]/gu, ''))} className={cn('mt-1', err('apellido') && 'border-red-500 focus-visible:ring-red-500')} />
             </div>
             {TEXT_FIELDS.filter(([k]) => isVisible(k as string)).map(([k, label]) => (
               <div key={k}>
                 <Label className="mb-1.5">{label}{isRequired(k as string) && <span className="text-red-500 ml-1">*</span>}</Label>
                 <Input
                   value={(form[k] ?? '') as string}
-                  onChange={e => setField(k)(e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (k === 'cuil') { setField(k)(maskCuilInput(v)); return }
+                    if (k === 'telefono') { setField(k)(v.replace(/[^\d+\-\s()]/g, '')); return }
+                    setField(k)(v)
+                  }}
+                  inputMode={k === 'cuil' || k === 'telefono' ? 'tel' : undefined}
+                  maxLength={k === 'cuil' ? 13 : undefined}
+                  placeholder={k === 'cuil' ? '20-12345678-9' : k === 'telefono' ? '+54 11 1234-5678' : undefined}
                   className={cn('mt-1', err(k as string) && 'border-red-500 focus-visible:ring-red-500')}
                 />
                 {k === 'cuil' && err('cuil') && (
@@ -414,12 +425,27 @@ export default function EmpleadoDetailPage() {
               <div key={c.id} className={c.tipo === 'archivo' ? 'col-span-2' : ''}>
                 <Label className="mb-1.5">{c.nombre}{c.requerido && <span className="text-red-500 ml-1">*</span>}</Label>
                 {c.tipo === 'booleano' ? (
-                  <div className="flex items-center gap-2 pt-2">
-                    <Checkbox
-                      checked={valoresCustom[c.id] === 'true'}
-                      onCheckedChange={v => setValoresCustom(prev => ({ ...prev, [c.id]: v ? 'true' : 'false' }))}
-                    />
-                    <span className="text-sm text-muted-foreground">Sí</span>
+                  <div className={cn('flex items-center gap-4 pt-2', err(`custom_${c.id}`) && 'text-red-600')}>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`custom_${c.id}`}
+                        checked={valoresCustom[c.id] === 'true'}
+                        onChange={() => setValoresCustom(prev => ({ ...prev, [c.id]: 'true' }))}
+                        className="accent-green-700"
+                      />
+                      Sí
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`custom_${c.id}`}
+                        checked={valoresCustom[c.id] === 'false'}
+                        onChange={() => setValoresCustom(prev => ({ ...prev, [c.id]: 'false' }))}
+                        className="accent-green-700"
+                      />
+                      No
+                    </label>
                   </div>
                 ) : c.tipo === 'archivo' ? (
                   <div className="mt-1 space-y-1.5">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
+import { getTransporter, smtpDiagnostics } from '@/lib/email'
 
 export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
@@ -27,12 +28,20 @@ export async function GET() {
       : 'Ningún usuario tiene Google vinculado',
   }
 
-  const smtpConfigured = !!process.env.SMTP_HOST && !!process.env.SMTP_USER
-  results.smtp = {
-    ok: smtpConfigured,
-    detail: smtpConfigured
-      ? `Configurado (${process.env.SMTP_HOST})`
-      : 'Sin configuración SMTP en variables de entorno',
+  const diag = smtpDiagnostics()
+  const t = getTransporter()
+  if (!t) {
+    const missing = Object.entries(diag)
+      .filter(([k, v]) => (k === 'SMTP_HOST' || k === 'SMTP_USER' || k === 'SMTP_PASS') && v === false)
+      .map(([k]) => k)
+    results.smtp = { ok: false, detail: `Faltan/vacías: ${missing.join(', ') || 'ninguna (revisar código)'}` }
+  } else {
+    try {
+      await t.verify()
+      results.smtp = { ok: true, detail: `Conectado a ${process.env.SMTP_HOST} — FROM=${diag.SMTP_FROM ? 'set' : 'vacío (usará SMTP_USER)'}` }
+    } catch (e: any) {
+      results.smtp = { ok: false, detail: `Auth/conexión fallida: ${e?.message ?? 'error desconocido'}` }
+    }
   }
 
   return NextResponse.json(results)

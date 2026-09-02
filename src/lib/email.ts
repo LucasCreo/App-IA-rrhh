@@ -2,12 +2,17 @@ import nodemailer from 'nodemailer'
 
 let transporter: nodemailer.Transporter | null = null
 
-function getTransporter() {
+function envVal(k: string) {
+  const v = process.env[k]
+  return v && v.trim() ? v.trim() : null
+}
+
+export function getTransporter() {
   if (transporter) return transporter
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT ?? 587)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
+  const host = envVal('SMTP_HOST')
+  const port = Number(envVal('SMTP_PORT') ?? '587')
+  const user = envVal('SMTP_USER')
+  const pass = envVal('SMTP_PASS')
   if (!host || !user || !pass) return null
   transporter = nodemailer.createTransport({
     host,
@@ -16,6 +21,16 @@ function getTransporter() {
     auth: { user, pass },
   })
   return transporter
+}
+
+export function smtpDiagnostics() {
+  return {
+    SMTP_HOST: !!envVal('SMTP_HOST'),
+    SMTP_PORT: envVal('SMTP_PORT') ?? '(default 587)',
+    SMTP_USER: !!envVal('SMTP_USER'),
+    SMTP_PASS: !!envVal('SMTP_PASS'),
+    SMTP_FROM: !!envVal('SMTP_FROM'),
+  }
 }
 
 interface SendMailArgs {
@@ -30,8 +45,12 @@ interface SendMailArgs {
 export async function sendMail({ to, subject, title, bodyHtml, ctaLabel, ctaUrl }: SendMailArgs) {
   const t = getTransporter()
   if (!t) {
-    console.warn('[email] SMTP no configurado, skip envío a', to)
-    return
+    const missing = Object.entries(smtpDiagnostics())
+      .filter(([k, v]) => (k === 'SMTP_HOST' || k === 'SMTP_USER' || k === 'SMTP_PASS') && v === false)
+      .map(([k]) => k)
+    const msg = `SMTP no configurado (faltan/vacías: ${missing.join(', ')})`
+    console.warn('[email]', msg, '— skip envío a', to)
+    throw new Error(msg)
   }
   const from = process.env.SMTP_FROM?.trim() || process.env.SMTP_USER
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
@@ -57,6 +76,8 @@ export async function sendMail({ to, subject, title, bodyHtml, ctaLabel, ctaUrl 
   try {
     await t.sendMail({ from, to, subject, html })
   } catch (e) {
-    console.error(`[email] fallo enviando a ${to}:`, (e as Error).message)
+    const msg = (e as Error).message
+    console.error(`[email] fallo enviando a ${to}:`, msg)
+    throw new Error(msg)
   }
 }

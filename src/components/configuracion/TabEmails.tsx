@@ -55,11 +55,6 @@ export function TabEmails() {
   const [resetOpen, setResetOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(new Set())
-  const [smtpStatus, setSmtpStatus] = useState<{ ok: boolean; detail: string } | null>(null)
-
-  useEffect(() => {
-    fetch('/api/configuracion/health').then(r => r.json()).then(d => setSmtpStatus(d.smtp ?? null)).catch(() => {})
-  }, [])
 
   const selected = templates.find(t => t.key === selectedKey) ?? null
 
@@ -168,21 +163,6 @@ export function TabEmails() {
   )
 
   return (
-    <div className="space-y-3">
-      {smtpStatus && (
-        <div className={cn(
-          'rounded-md border px-3 py-2 text-xs flex items-start gap-2',
-          smtpStatus.ok
-            ? 'border-green-600/40 bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300'
-            : 'border-red-600/40 bg-red-50 dark:bg-red-500/10 text-red-800 dark:text-red-300'
-        )}>
-          <Mail size={14} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-medium">SMTP: {smtpStatus.ok ? 'operativo' : 'no operativo'}</p>
-            <p className="opacity-80">{smtpStatus.detail}</p>
-          </div>
-        </div>
-      )}
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
       {/* Lista de templates */}
       <Card>
@@ -421,7 +401,6 @@ export function TabEmails() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
     </div>
   )
 }

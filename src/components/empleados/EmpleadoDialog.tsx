@@ -316,6 +316,8 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                   <Label className="mb-1.5">Email <span className="text-red-500">*</span></Label>
                   <Input
                     type="email"
+                    name="nuevo-empleado-email"
+                    autoComplete="off"
                     value={form.email}
                     onChange={e => { set('email')(e.target.value); clearError('email') }}
                     placeholder="empleado@empresa.com"

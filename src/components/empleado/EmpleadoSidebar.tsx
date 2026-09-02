@@ -231,13 +231,11 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
         'border-t border-border py-3 mt-auto',
         collapsed ? 'px-2 flex flex-col items-center gap-2' : 'px-3 flex items-center gap-2'
       )}>
-        <Link
-          href="/empleado/perfil"
+        <div
           data-tour="perfil"
-          title={collapsed ? 'Mi Perfil' : undefined}
           className={cn(
-            'flex items-center gap-2 rounded-md transition-colors min-w-0',
-            collapsed ? 'p-1' : 'flex-1 px-1 py-1 hover:bg-muted',
+            'flex items-center gap-2 rounded-md min-w-0',
+            collapsed ? 'p-1' : 'flex-1 px-1 py-1',
             perfilActive && !collapsed && 'bg-muted'
           )}
         >
@@ -250,9 +248,15 @@ export function EmpleadoSidebar({ appName = 'RRHH', logoUrl, initials, fullName,
             className={cn(perfilActive && 'ring-2 ring-green-400/60 rounded-full')}
           />
           {!collapsed && (
-            <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">{fullName}</p>
+            <Link
+              href="/empleado/perfil"
+              title="Mi Perfil"
+              className="text-xs text-muted-foreground truncate flex-1 min-w-0 hover:text-foreground transition-colors"
+            >
+              {fullName}
+            </Link>
           )}
-        </Link>
+        </div>
         <button
           onClick={toggle}
           title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}

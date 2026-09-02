@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle, SlidersHorizontal, X } from 'lucide-react'
+import { ClipboardList, Plus, Search, CheckSquare, Square, Trash2, Pencil, AlertTriangle, SlidersHorizontal, X, Paperclip, Upload } from 'lucide-react'
+import { displayNameFromRef } from '@/lib/aditusSolicitudes'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
@@ -465,16 +466,11 @@ export function AsignacionesList() {
                   {camposAdmin.map(campo => (
                     <div key={campo.nombre}>
                       <p className="text-xs text-muted-foreground mb-1">{campo.label} <span className="italic">(opcional)</span></p>
-                      {campo.tipo === 'texto' ? (
-                        <Textarea className="text-sm min-h-[60px]" placeholder={`${campo.label}...`}
-                          value={editDatosAdmin[campo.nombre] ?? ''}
-                          onChange={e => setEditDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))} />
-                      ) : (
-                        <Input type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
-                          placeholder={campo.label}
-                          value={editDatosAdmin[campo.nombre] ?? ''}
-                          onChange={e => setEditDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))} />
-                      )}
+                      <CampoAdminInput
+                        campo={campo}
+                        value={editDatosAdmin[campo.nombre] ?? ''}
+                        onChange={v => setEditDatosAdmin(prev => ({ ...prev, [campo.nombre]: v }))}
+                      />
                     </div>
                   ))}
                 </div>
@@ -555,21 +551,11 @@ export function AsignacionesList() {
                   {camposAdmin.map(campo => (
                     <div key={campo.nombre}>
                       <p className="text-xs text-muted-foreground mb-1">{campo.label} <span className="italic">(opcional — el empleado lo verá como solo lectura)</span></p>
-                      {campo.tipo === 'texto' ? (
-                        <Textarea
-                          className="text-sm min-h-[60px]"
-                          placeholder={`${campo.label}...`}
-                          value={datosAdmin[campo.nombre] ?? ''}
-                          onChange={e => setDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))}
-                        />
-                      ) : (
-                        <Input
-                          type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
-                          placeholder={campo.label}
-                          value={datosAdmin[campo.nombre] ?? ''}
-                          onChange={e => setDatosAdmin(prev => ({ ...prev, [campo.nombre]: e.target.value }))}
-                        />
-                      )}
+                      <CampoAdminInput
+                        campo={campo}
+                        value={datosAdmin[campo.nombre] ?? ''}
+                        onChange={v => setDatosAdmin(prev => ({ ...prev, [campo.nombre]: v }))}
+                      />
                     </div>
                   ))}
                 </div>
@@ -634,5 +620,98 @@ export function AsignacionesList() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function CampoAdminInput({ campo, value, onChange }: { campo: Campo; value: string; onChange: (v: string) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function subir(file: File) {
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch('/api/formularios/archivo', { method: 'POST', body: fd })
+    setUploading(false)
+    if (!r.ok) { toast.error('Error al subir el archivo'); return }
+    const { fileName } = await r.json()
+    onChange(fileName)
+  }
+
+  if (campo.tipo === 'texto') {
+    return <Textarea className="text-sm min-h-[60px]" placeholder={`${campo.label}...`} value={value} onChange={e => onChange(e.target.value)} />
+  }
+  if (campo.tipo === 'seleccion') {
+    return (
+      <Select value={value} onValueChange={v => v && onChange(v)}>
+        <SelectTrigger className="w-full"><SelectValue placeholder="Seleccioná una opción" /></SelectTrigger>
+        <SelectContent side="bottom" alignItemWithTrigger={false}>
+          {(campo.opciones ?? '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
+            <SelectItem key={o} value={o}>{o}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+  if (campo.tipo === 'booleano') {
+    return (
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name={`admin_${campo.nombre}`} checked={value === 'true'} onChange={() => onChange('true')} className="accent-green-700" />
+          Sí
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name={`admin_${campo.nombre}`} checked={value === 'false'} onChange={() => onChange('false')} className="accent-green-700" />
+          No
+        </label>
+      </div>
+    )
+  }
+  if (campo.tipo === 'archivo') {
+    return (
+      <div className="flex items-center gap-2">
+        {value ? (
+          <>
+            <a
+              href={`/api/formularios/archivo?file=${encodeURIComponent(value)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 text-sm text-green-700 dark:text-green-400 hover:underline inline-flex items-center gap-1 truncate"
+            >
+              <Paperclip size={13} /> {displayNameFromRef(value) || value}
+            </a>
+            <button type="button" onClick={() => onChange('')} className="text-muted-foreground hover:text-destructive" title="Quitar">
+              <X size={14} />
+            </button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full h-9"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload size={13} className="mr-1.5" />
+            {uploading ? 'Subiendo…' : 'Subir archivo'}
+          </Button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) subir(f); e.target.value = '' }}
+        />
+      </div>
+    )
+  }
+  return (
+    <Input
+      type={campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'}
+      placeholder={campo.label}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    />
   )
 }

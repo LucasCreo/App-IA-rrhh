@@ -203,7 +203,10 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
     if (!tipoSel) return
     const camposValidos = tipoSel.campos.every(c => {
       if (!c.requerido) return true
-      if (c.tipo === 'booleano') return true
+      if (c.tipo === 'booleano') {
+        const v = campoValues[c.nombre]
+        return v === 'true' || v === 'false'
+      }
       return campoValues[c.nombre]?.trim()
     })
     if (!camposValidos) { toast.error('Completá los campos requeridos'); return }
@@ -515,15 +518,28 @@ export function MisSolicitudes({ vista = 'todo' }: { vista?: MisSolicitudesVista
                             )}
                           </div>
                         ) : c.tipo === 'booleano' ? (
-                          <label className="flex items-center gap-2 cursor-pointer select-none h-8">
-                            <input
-                              type="checkbox"
-                              checked={campoValues[c.nombre] === 'true'}
-                              onChange={e => setCampoValues(prev => ({ ...prev, [c.nombre]: e.target.checked ? 'true' : 'false' }))}
-                              className="w-4 h-4 accent-green-700"
-                            />
-                            <span className="text-sm">Sí</span>
-                          </label>
+                          <div className="flex items-center gap-4 h-8">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`campo_${c.nombre}`}
+                                checked={campoValues[c.nombre] === 'true'}
+                                onChange={() => setCampoValues(prev => ({ ...prev, [c.nombre]: 'true' }))}
+                                className="accent-green-700"
+                              />
+                              Sí
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`campo_${c.nombre}`}
+                                checked={campoValues[c.nombre] === 'false'}
+                                onChange={() => setCampoValues(prev => ({ ...prev, [c.nombre]: 'false' }))}
+                                className="accent-green-700"
+                              />
+                              No
+                            </label>
+                          </div>
                         ) : (
                           <Input
                             type={c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : 'text'}

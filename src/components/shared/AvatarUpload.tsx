@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Cropper, { Area } from 'react-easy-crop'
 import { Camera, Trash2, Upload, Check } from 'lucide-react'
 import { toast } from 'sonner'
@@ -78,8 +79,11 @@ export function AvatarUpload({
     return () => window.removeEventListener('avatar:updated', handler)
   }, [targetUserId])
 
+  const router = useRouter()
+
   function emitUpdate(detail: { avatarUrl?: string | null; bgColor?: string; textColor?: string }) {
     window.dispatchEvent(new CustomEvent('avatar:updated', { detail: { targetUserId, ...detail } }))
+    router.refresh()
   }
 
   function handleFile(f: File) {
@@ -146,7 +150,7 @@ export function AvatarUpload({
       <button
         type="button"
         className={cn('relative group shrink-0', className)}
-        onClick={() => setOpen(true)}
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}
         title="Cambiar foto de perfil"
       >
         <AvatarDisplay

@@ -74,8 +74,14 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
     const campos = respuesta.asignacion.plantilla.campos
     for (const campo of campos) {
       if ((campo.rellena ?? 'empleado') === 'empleado' && campo.requerido) {
-        // Los booleanos son válidos aunque estén "false" (sin marcar)
-        if (campo.tipo === 'booleano') continue
+        if (campo.tipo === 'booleano') {
+          const v = form[campo.nombre]
+          if (v !== 'true' && v !== 'false') {
+            toast.error(`El campo "${campo.label}" es requerido`)
+            return
+          }
+          continue
+        }
         if (!form[campo.nombre]?.trim()) {
           toast.error(`El campo "${campo.label}" es requerido`)
           return
@@ -181,15 +187,28 @@ export function FormularioDialog({ respuesta, mode, onClose, onSaved }: Props) {
                     </SelectContent>
                   </Select>
                 ) : campo.tipo === 'booleano' ? (
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={form[campo.nombre] === 'true'}
-                      onChange={e => setField(campo.nombre, e.target.checked ? 'true' : 'false')}
-                      className="w-4 h-4 accent-green-700"
-                    />
-                    <span className="text-sm">Sí</span>
-                  </label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`campo_${campo.nombre}`}
+                        checked={form[campo.nombre] === 'true'}
+                        onChange={() => setField(campo.nombre, 'true')}
+                        className="accent-green-700"
+                      />
+                      Sí
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`campo_${campo.nombre}`}
+                        checked={form[campo.nombre] === 'false'}
+                        onChange={() => setField(campo.nombre, 'false')}
+                        className="accent-green-700"
+                      />
+                      No
+                    </label>
+                  </div>
                 ) : campo.tipo === 'archivo' ? (
                   <div className="flex items-center gap-2">
                     {form[campo.nombre] ? (

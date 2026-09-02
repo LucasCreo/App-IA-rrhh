@@ -33,7 +33,7 @@ export async function sendMail({ to, subject, title, bodyHtml, ctaLabel, ctaUrl 
     console.warn('[email] SMTP no configurado, skip envío a', to)
     return
   }
-  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER
+  const from = process.env.SMTP_FROM?.trim() || process.env.SMTP_USER
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const cta = ctaLabel && ctaUrl
     ? `<div style="margin:24px 0;text-align:center"><a href="${ctaUrl}" style="background:#166534;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block">${ctaLabel}</a></div>`

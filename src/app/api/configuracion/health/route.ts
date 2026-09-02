@@ -29,18 +29,19 @@ export async function GET() {
   }
 
   const diag = smtpDiagnostics()
+  const portStr = process.env.SMTP_PORT?.trim() || '(no set — default 587)'
   const t = getTransporter()
   if (!t) {
     const missing = Object.entries(diag)
       .filter(([k, v]) => (k === 'SMTP_HOST' || k === 'SMTP_USER' || k === 'SMTP_PASS') && v === false)
       .map(([k]) => k)
-    results.smtp = { ok: false, detail: `Faltan/vacías: ${missing.join(', ') || 'ninguna (revisar código)'}` }
+    results.smtp = { ok: false, detail: `Faltan/vacías: ${missing.join(', ') || 'ninguna (revisar código)'} | PORT=${portStr}` }
   } else {
     try {
       await t.verify()
-      results.smtp = { ok: true, detail: `Conectado a ${process.env.SMTP_HOST} — FROM=${diag.SMTP_FROM ? 'set' : 'vacío (usará SMTP_USER)'}` }
+      results.smtp = { ok: true, detail: `Conectado a ${process.env.SMTP_HOST}:${portStr} — FROM=${diag.SMTP_FROM ? 'set' : 'vacío (usará SMTP_USER)'}` }
     } catch (e: any) {
-      results.smtp = { ok: false, detail: `Auth/conexión fallida: ${e?.message ?? 'error desconocido'}` }
+      results.smtp = { ok: false, detail: `Auth/conexión fallida a ${process.env.SMTP_HOST}:${portStr} — ${e?.message ?? 'error desconocido'}` }
     }
   }
 

@@ -39,7 +39,14 @@ const TIPOS_CAMPO = [
 ]
 
 function camposFromRaw(raw: unknown): CampoSolicitud[] {
-  try { return Array.isArray(raw) ? raw as CampoSolicitud[] : [] } catch { return [] }
+  try {
+    if (Array.isArray(raw)) return raw as CampoSolicitud[]
+    if (typeof raw === 'string') {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    }
+    return []
+  } catch { return [] }
 }
 
 function slugify(s: string) {

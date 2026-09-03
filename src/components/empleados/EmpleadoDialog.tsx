@@ -182,7 +182,7 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
     return errs.size === 0
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (!validateStep1()) {
       const email = form.email.trim()
       const emailInvalido = email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -193,6 +193,24 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
       )
       return
     }
+    // Verificá disponibilidad de email y username antes de avanzar
+    const qs = new URLSearchParams()
+    qs.set('email', form.email.trim())
+    if (modoAcceso === 'password' && username.trim()) qs.set('username', username.trim())
+    try {
+      const res = await fetch(`/api/empleados/disponibilidad?${qs}`)
+      if (res.ok) {
+        const { conflicts } = await res.json() as { conflicts: Record<string, string> }
+        if (conflicts && Object.keys(conflicts).length > 0) {
+          const errs = new Set<string>()
+          if (conflicts.email) errs.add('email')
+          if (conflicts.username) errs.add('username')
+          setErrors(errs)
+          toast.error(conflicts.username ?? conflicts.email ?? 'Datos ya usados')
+          return
+        }
+      }
+    } catch { /* si falla el check, dejo que el POST final falle con mensaje */ }
     setStep(2)
   }
 
@@ -331,8 +349,9 @@ export function EmpleadoDialog({ open, onClose, onSaved, empleado }: Props) {
                       <Label className="mb-1.5">Nombre de usuario <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
                       <Input
                         value={username}
-                        onChange={e => setUsername(e.target.value)}
+                        onChange={e => { setUsername(e.target.value); clearError('username') }}
                         placeholder="Ej: jgarcía"
+                        className={cn(err('username') && 'border-red-500 focus-visible:ring-red-500')}
                       />
                     </div>
                     <div>

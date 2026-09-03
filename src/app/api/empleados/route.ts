@@ -114,6 +114,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ya existe una cuenta con ese email', field: 'email' }, { status: 409 })
     }
   }
+  if (body.crearUsuario && body.username) {
+    const dup = await prisma.user.findFirst({ where: { username: body.username }, select: { id: true } })
+    if (dup) return NextResponse.json({ error: 'Ya existe una cuenta con ese nombre de usuario', field: 'username' }, { status: 409 })
+  }
   if (body.legajo) {
     const dup = await prisma.employee.findFirst({ where: { legajo: body.legajo }, select: { id: true } })
     if (dup) return NextResponse.json({ error: 'Ya existe un empleado con ese legajo', field: 'legajo' }, { status: 409 })
@@ -176,6 +180,7 @@ export async function POST(req: NextRequest) {
       let msg = 'Ya existe un registro con ese valor'
       let field = ''
       if (target.some(t => t.includes('email'))) { msg = 'Ya existe una cuenta con ese email'; field = 'email' }
+      else if (target.some(t => t.includes('username'))) { msg = 'Ya existe una cuenta con ese nombre de usuario'; field = 'username' }
       else if (target.some(t => t.includes('legajo'))) { msg = 'Ya existe un empleado con ese legajo'; field = 'legajo' }
       else if (target.some(t => t.includes('cuil'))) { msg = 'Ya existe un empleado con ese CUIL'; field = 'cuil' }
       return NextResponse.json({ error: msg, field }, { status: 409 })

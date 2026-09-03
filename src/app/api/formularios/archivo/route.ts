@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, requirePermiso } from '@/lib/auth'
+import { PERMISOS } from '@/lib/permissions'
 import { validateFile } from '@/lib/fileValidation'
 import { uploadAditusFile, getAditusFile } from '@/lib/aditus'
 import { formularioProps, encodeArchivoRef, parseArchivoRef, displayNameFromRef } from '@/lib/aditusSolicitudes'
@@ -12,7 +13,12 @@ const MAX_SIZE = 10 * 1024 * 1024
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!user.employeeId) return NextResponse.json({ error: 'Sin empleado asociado' }, { status: 400 })
+
+  // Admin con permiso puede subir aunque no tenga empleado asociado
+  const admin = await requirePermiso(PERMISOS.GESTIONAR_FORMULARIOS)
+  if (!user.employeeId && !admin) {
+    return NextResponse.json({ error: 'Sin empleado asociado' }, { status: 400 })
+  }
 
   const formData = await req.formData()
   const file = formData.get('file') as File
@@ -27,7 +33,9 @@ export async function POST(req: NextRequest) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
   const [empleado, respuesta] = await Promise.all([
-    prisma.employee.findUnique({ where: { id: user.employeeId }, select: { legajo: true, cuil: true } }),
+    user.employeeId
+      ? prisma.employee.findUnique({ where: { id: user.employeeId }, select: { legajo: true, cuil: true } })
+      : Promise.resolve(null),
     respuestaId
       ? prisma.respuestaFormulario.findUnique({
           where: { id: respuestaId },
@@ -35,7 +43,6 @@ export async function POST(req: NextRequest) {
         })
       : Promise.resolve(null),
   ])
-  if (!empleado) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
 
   try {
     const aditusId = await uploadAditusFile({
@@ -43,7 +50,7 @@ export async function POST(req: NextRequest) {
       fileName: file.name,
       contentType: file.type || 'application/octet-stream',
       properties: formularioProps({
-        empleado,
+        empleado: empleado ?? { legajo: '', cuil: '' },
         plantillaNombre: respuesta?.asignacion.plantilla.nombre ?? null,
         fileName: file.name,
       }),
@@ -65,11 +72,18 @@ export async function GET(req: NextRequest) {
   const { aditusId, nombre } = parseArchivoRef(ref)
   if (!aditusId) return NextResponse.json({ error: 'Ref inválida' }, { status: 400 })
 
-  // Autorización: dueño de la respuesta, admin con scope, o quien acaba de subirlo
-  const owner = await prisma.respuestaFormulario.findFirst({
-    where: { datos: { contains: aditusId } },
-    select: { employeeId: true },
-  })
+  // Autorización: dueño de la respuesta, referenciado en datosAdmin de una asignación
+  // (subido por RRHH), admin con scope, o quien acaba de subirlo.
+  const [owner, asignacionAdmin] = await Promise.all([
+    prisma.respuestaFormulario.findFirst({
+      where: { datos: { contains: aditusId } },
+      select: { employeeId: true },
+    }),
+    prisma.asignacionFormulario.findFirst({
+      where: { datosAdmin: { contains: aditusId } },
+      select: { id: true },
+    }),
+  ])
   if (owner) {
     if (user.role === 'ADMIN') {
       const scope = await getScopedEmployeeIds(user.userId)
@@ -79,6 +93,9 @@ export async function GET(req: NextRequest) {
     } else if (owner.employeeId !== user.employeeId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
+  } else if (asignacionAdmin) {
+    // Archivo cargado por RRHH en datosAdmin: cualquier empleado con esa asignación lo puede ver.
+    // (No aplicamos scope estricto porque la lectura del formulario ya está restringida.)
   } else if (!fueSubidoRecientementePor(aditusId, user.userId)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }

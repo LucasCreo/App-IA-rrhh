@@ -498,7 +498,7 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                     'px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors',
                     vista === v.id
                       ? 'bg-green-700 text-white'
-                      : 'text-muted-foreground hover:bg-muted'
+                      : 'text-foreground/80 dark:text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <Icon size={13} /> {v.label}

@@ -513,12 +513,12 @@ if (loading) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <h2 className="font-semibold text-foreground leading-tight truncate">{lote.nombre}</h2>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-foreground/70 dark:text-muted-foreground">
                     {formatPeriodo(lote.periodo)}{lote.tipoDocumento ? ` · ${lote.tipoDocumento.nombre}` : ''}
                   </span>
                 </div>
                 {lote.descripcion && (
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{lote.descripcion}</p>
+                  <p className="text-xs text-foreground/70 dark:text-muted-foreground mt-1 truncate">{lote.descripcion}</p>
                 )}
               </div>
               <div className="flex items-center gap-1 shrink-0">

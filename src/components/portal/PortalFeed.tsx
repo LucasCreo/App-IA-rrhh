@@ -920,21 +920,21 @@ export function PortalFeed() {
             </Button>
           </div>
           {filtrosAbiertos && (
-            <div className="bg-muted/30 border border-border rounded-lg p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-              <div className="flex-1 min-w-0">
-                <label className="text-[11px] text-muted-foreground mb-1 block">Área</label>
+            <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 flex flex-col sm:flex-row gap-2 sm:items-center">
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <label className="text-[11px] text-muted-foreground shrink-0">Área</label>
                 <Select value={filtroAreaId || 'todas'} onValueChange={v => setFiltroAreaId(!v || v === 'todas' ? '' : v)}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm flex-1"><SelectValue placeholder="Todas" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todas</SelectItem>
                     {areas.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.nombre}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1 min-w-0">
-                <label className="text-[11px] text-muted-foreground mb-1 block">Categoría</label>
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <label className="text-[11px] text-muted-foreground shrink-0">Categoría</label>
                 <Select value={filtroCategoriaId || 'todas'} onValueChange={v => setFiltroCategoriaId(!v || v === 'todas' ? '' : v)}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm flex-1"><SelectValue placeholder="Todas" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todas</SelectItem>
                     {categorias.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}

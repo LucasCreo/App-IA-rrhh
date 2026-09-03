@@ -179,11 +179,11 @@ export function DocumentoGrupoDetalle({ grupoId }: { grupoId: number }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <h2 className="font-semibold text-foreground leading-tight truncate">{grupo.nombreArchivo}</h2>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-foreground/70 dark:text-muted-foreground">
                     {grupo.tipoDocumento?.nombre ?? 'Sin tipo'}{grupo.periodo ? ` · ${grupo.periodo}` : ''}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-foreground/70 dark:text-muted-foreground mt-1">
                   Cargado por {grupo.cargadoPor.email} · {new Date(grupo.createdAt).toLocaleDateString('es-AR')}
                 </p>
               </div>

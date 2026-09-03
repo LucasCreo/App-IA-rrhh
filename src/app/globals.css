@@ -60,7 +60,9 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Paleta cálida tipo Notion — off-white con leve tinte amarillo (hue 85).
+     Escala de elevación: sidebar < background < card. */
+  --background: oklch(0.985 0.006 85);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -68,15 +70,15 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.955 0.008 85);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.955 0.008 85);
+  --muted-foreground: oklch(0.42 0.005 85);
+  --accent: oklch(0.955 0.008 85);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.92 0.005 85);
+  --input: oklch(0.92 0.005 85);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -84,13 +86,13 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.965 0.008 85);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: oklch(0.945 0.01 85);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: oklch(0.92 0.005 85);
   --sidebar-ring: oklch(0.708 0 0);
 }
 
@@ -154,6 +156,29 @@
   html {
     @apply font-sans;
   }
+}
+
+/* En light mode, el texto del sidebar (nav links, íconos, botones inferiores)
+   usa el foreground pleno en vez del muted, para mejor contraste sobre el
+   fondo cálido. En dark mode se mantiene el muted original. */
+html:not(.dark) aside {
+  --muted-foreground: var(--foreground);
+}
+
+/* En light mode, dentro de tablas todo el texto va en negro pleno (celdas
+   secundarias que usan text-muted-foreground). Los headers y badges con
+   color propio no se ven afectados. */
+html:not(.dark) table {
+  --muted-foreground: var(--foreground);
+}
+
+/* Checkboxes: el borde `border-input` es demasiado claro contra el fondo
+   cálido. Reforzamos con un gris más oscuro en modo claro. */
+html:not(.dark) [data-slot="checkbox"]:not([data-checked]) {
+  border-color: oklch(0.62 0.005 85);
+}
+html:not(.dark) input[type="checkbox"] {
+  accent-color: var(--color-green-700, #166534);
 }
 
 /* En dark mode, cualquier elemento con fondo verde sólido usa texto blanco

@@ -8,11 +8,16 @@ export async function GET() {
   const user = await requirePermiso(PERMISOS.GESTIONAR_EMPLEADOS)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  // Scope: qué empleados puede gestionar este admin (null = todos).
+  // Se devuelve el organigrama completo pero se marca canManage por nodo
+  // para que el cliente sepa cuáles son navegables/editables.
   const scope = await getScopedEmployeeIds(user.userId)
 
+  // Todos los admins ven el organigrama completo (info organizacional).
+  // El scope de admin solo restringe edición y datos sensibles, no la estructura.
   const users = await prisma.user.findMany({
     where: {
-      employeeId: scope ? { in: [...scope] } : { not: null },
+      employeeId: { not: null },
     },
     select: {
       id: true,
@@ -46,6 +51,7 @@ export async function GET() {
         legajo: u.employee.legajo,
         categoria: u.employee.categoria?.nombre ?? null,
       } : null,
+      canManage: u.employee ? (scope ? scope.has(u.employee.id) : true) : false,
     }))
     .sort((a, b) => {
       const aName = a.empleado ? `${a.empleado.apellido} ${a.empleado.nombre}` : a.email
@@ -53,5 +59,5 @@ export async function GET() {
       return aName.localeCompare(bName)
     })
 
-  return NextResponse.json(nodos)
+  return NextResponse.json({ nodos, currentUserId: user.userId })
 }

@@ -33,6 +33,7 @@ interface Empleado {
   area?: { nombre: string } | null; areaId?: number
   categoria: { nombre: string }; categoriaId: number
   user?: {
+    username: string | null; email: string | null
     avatarUrl: string | null; avatarBgColor: string | null; avatarTextColor: string | null
     manager?: { employee: { nombre: string; apellido: string } | null } | null
   } | null
@@ -479,6 +480,7 @@ export function EmpleadosTable() {
                   />
                 </TableHead>
                 <SortableHead campo="legajo" label="Legajo" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <TableHead>Usuario</TableHead>
                 <SortableHead campo="apellido" label="Nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>CUIL</TableHead>
                 <TableHead>Email</TableHead>
@@ -493,7 +495,7 @@ export function EmpleadosTable() {
             <TableBody>
               {data.employees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={12} className="text-center py-10 text-muted-foreground text-sm">
                     No se encontraron empleados
                   </TableCell>
                 </TableRow>
@@ -511,6 +513,11 @@ export function EmpleadosTable() {
                     />
                   </TableCell>
                   <TableCell className="font-mono">{emp.legajo}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground truncate max-w-[160px]">
+                    {emp.user
+                      ? (emp.user.username ?? emp.user.email ?? <span className="italic text-xs">—</span>)
+                      : <span className="italic text-xs" title="Sin acceso al portal">—</span>}
+                  </TableCell>
                   <TableCell>
                     <span className="flex items-center gap-2.5">
                       <AvatarDisplay

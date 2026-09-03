@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Users, Shield, Search, ZoomIn, ZoomOut, RotateCcw, Locate } from 'lucide-react'
+import { Users, Shield, Search, ZoomIn, ZoomOut, RotateCcw, Locate, GitBranch } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -20,6 +20,7 @@ interface Nodo {
     legajo: string
     categoria: string | null
   } | null
+  canManage: boolean
   hijos: Nodo[]
 }
 
@@ -33,12 +34,19 @@ function matches(n: Nodo, q: string): boolean {
   return n.email.toLowerCase().includes(lower)
 }
 
-function Card({ nodo, highlight }: { nodo: Nodo; highlight: boolean }) {
+function Card({ nodo, highlight, isSelf, dimmed }: { nodo: Nodo; highlight: boolean; isSelf: boolean; dimmed: boolean }) {
+  const canManage = nodo.canManage
   const inner = (
     <div className={cn(
-      'bg-card border rounded-xl px-4 py-3 shadow-sm hover:shadow-md hover:border-green-500 dark:hover:border-green-600 transition-all min-w-[200px]',
-      highlight ? 'border-green-500 ring-2 ring-green-500/40' : 'border-border'
-    )}>
+      'bg-card border rounded-xl px-4 py-3 shadow-sm transition-all min-w-[200px]',
+      canManage && 'hover:shadow-md hover:border-green-500 dark:hover:border-green-600',
+      !canManage && 'cursor-default',
+      isSelf ? 'border-green-500 ring-2 ring-green-500/50' :
+        highlight ? 'border-green-500 ring-2 ring-green-500/40' : 'border-border',
+      dimmed && 'opacity-30'
+    )}
+    title={!canManage && nodo.empleado ? 'No tenés permiso para gestionar este empleado' : undefined}
+    >
       {nodo.empleado ? (
         <>
           <p className="text-sm font-semibold text-foreground leading-tight">
@@ -59,27 +67,35 @@ function Card({ nodo, highlight }: { nodo: Nodo; highlight: boolean }) {
       )}
     </div>
   )
-  return nodo.empleado
+  return nodo.empleado && canManage
     ? <Link href={`/admin/empleados/${nodo.empleado.id}`} className="inline-block">{inner}</Link>
     : <div className="inline-block">{inner}</div>
 }
 
-function Rama({ nodo, q }: { nodo: Nodo; q: string }) {
+function Rama({ nodo, q, currentUserId, ramaIds, dimOutside }: {
+  nodo: Nodo; q: string; currentUserId: number | null; ramaIds: Set<number>; dimOutside: boolean
+}) {
   const tieneHijos = nodo.hijos.length > 0
+  const dimmed = dimOutside && !ramaIds.has(nodo.id)
   return (
     <div className="flex flex-col items-center">
-      <Card nodo={nodo} highlight={matches(nodo, q)} />
+      <Card
+        nodo={nodo}
+        highlight={matches(nodo, q)}
+        isSelf={currentUserId === nodo.id}
+        dimmed={dimmed}
+      />
       {tieneHijos && (
         <>
-          <div className="w-px h-6 bg-border" />
+          <div className="w-px h-6 bg-neutral-400 dark:bg-border" />
           <div className="relative flex gap-6 pt-6">
             {nodo.hijos.length > 1 && (
-              <div className="absolute top-0 h-px bg-border" style={{ left: '20%', right: '20%' }} />
+              <div className="absolute top-0 h-px bg-neutral-400 dark:bg-border" style={{ left: '20%', right: '20%' }} />
             )}
             {nodo.hijos.map(h => (
               <div key={h.id} className="relative flex flex-col items-center">
-                <div className="absolute -top-6 w-px h-6 bg-border" />
-                <Rama nodo={h} q={q} />
+                <div className="absolute -top-6 w-px h-6 bg-neutral-400 dark:bg-border" />
+                <Rama nodo={h} q={q} currentUserId={currentUserId} ramaIds={ramaIds} dimOutside={dimOutside} />
               </div>
             ))}
           </div>
@@ -95,6 +111,8 @@ function contarMatches(nodo: Nodo, q: string): number {
 
 export function OrganigramaView() {
   const [roots, setRoots] = useState<Nodo[] | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null)
+  const [soloMiRama, setSoloMiRama] = useState(false)
   const [q, setQ] = useState('')
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -151,7 +169,8 @@ export function OrganigramaView() {
   useEffect(() => {
     fetch('/api/organigrama')
       .then(r => r.json())
-      .then((data: Omit<Nodo, 'hijos'>[]) => {
+      .then((res: { nodos: Omit<Nodo, 'hijos'>[]; currentUserId: number | null }) => {
+        const data = Array.isArray(res) ? res : res.nodos
         const map = new Map<number, Nodo>()
         data.forEach(u => map.set(u.id, { ...u, hijos: [] }))
         const rs: Nodo[] = []
@@ -163,8 +182,34 @@ export function OrganigramaView() {
           }
         })
         setRoots(rs)
+        setCurrentUserId(Array.isArray(res) ? null : res.currentUserId)
       })
   }, [])
+
+  // Set de userIds que forman la "línea" del usuario logueado: sí mismo + ancestros + descendientes.
+  const ramaIds = useMemo(() => {
+    if (!roots || !currentUserId) return new Set<number>()
+    // Aplano el árbol a un mapa (id → { nodo, parentId })
+    const flat = new Map<number, { nodo: Nodo; parentId: number | null }>()
+    const walk = (n: Nodo, parentId: number | null) => {
+      flat.set(n.id, { nodo: n, parentId })
+      n.hijos.forEach(h => walk(h, n.id))
+    }
+    roots.forEach(r => walk(r, null))
+    const self = flat.get(currentUserId)
+    if (!self) return new Set<number>()
+    const ids = new Set<number>([currentUserId])
+    // Ancestros
+    let cur: number | null = self.parentId
+    while (cur !== null && flat.has(cur)) {
+      ids.add(cur)
+      cur = flat.get(cur)!.parentId
+    }
+    // Descendientes
+    const addDesc = (n: Nodo) => { n.hijos.forEach(h => { ids.add(h.id); addDesc(h) }) }
+    addDesc(self.nodo)
+    return ids
+  }, [roots, currentUserId])
 
   const totalMatches = useMemo(
     () => (roots && q ? roots.reduce((s, r) => s + contarMatches(r, q), 0) : 0),
@@ -243,6 +288,17 @@ export function OrganigramaView() {
         >
           <Locate size={13} /> Centrar
         </Button>
+        {ramaIds.size > 0 && (
+          <Button
+            size="sm"
+            variant={soloMiRama ? 'default' : 'outline'}
+            className={cn('h-8 gap-1.5 text-xs', soloMiRama && 'bg-green-700 hover:bg-green-800 text-white')}
+            onClick={() => setSoloMiRama(v => !v)}
+            title="Resalta tu línea (superiores y equipo directo)"
+          >
+            <GitBranch size={13} /> Mi rama
+          </Button>
+        )}
       </div>
       <div
         ref={canvasRef}
@@ -263,7 +319,16 @@ export function OrganigramaView() {
             transition: dragging ? 'none' : 'transform 0.15s',
           }}
         >
-          {roots.map(r => <Rama key={r.id} nodo={r} q={q} />)}
+          {roots.map(r => (
+            <Rama
+              key={r.id}
+              nodo={r}
+              q={q}
+              currentUserId={currentUserId}
+              ramaIds={ramaIds}
+              dimOutside={soloMiRama}
+            />
+          ))}
         </div>
       </div>
     </div>

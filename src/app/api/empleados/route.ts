@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
         categoria: true,
         user: {
           select: {
+            username: true, email: true,
             avatarUrl: true, avatarBgColor: true, avatarTextColor: true,
             manager: { select: { employee: { select: { nombre: true, apellido: true } } } },
           },

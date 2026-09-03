@@ -74,25 +74,8 @@ export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorAre
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="bg-card rounded-xl border border-border p-5">
-        <p className="font-semibold text-foreground">Estado de Solicitudes</p>
-        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalSolicitudes} solicitudes en total</p>
-        {solicitudesData.length === 0 ? (
-          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
-        ) : (
-          <>
-            <div className="h-[200px]">
-              <ResponsivePie
-                data={solicitudesData}
-                colors={{ datum: 'data.color' }}
-                {...pieConfig}
-              />
-            </div>
-            <Legend items={solicitudesData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
-          </>
-        )}
-      </div>
-
+      {/* Alineado con el orden de KPICards: Recibos · Documentos · Solicitudes.
+          Empleados por Área ocupa la posición central (Documentos no tiene chart). */}
       <div className="bg-card rounded-xl border border-border p-5">
         <p className="font-semibold text-foreground">Estado de Recibos</p>
         <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalRecibos} recibos en total</p>
@@ -127,6 +110,25 @@ export function Charts({ solicitudesPorEstado, recibosPorEstado, empleadosPorAre
               />
             </div>
             <Legend items={areaPieData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
+          </>
+        )}
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-5">
+        <p className="font-semibold text-foreground">Estado de Solicitudes</p>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-2">{totalSolicitudes} solicitudes en total</p>
+        {solicitudesData.length === 0 ? (
+          <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
+        ) : (
+          <>
+            <div className="h-[200px]">
+              <ResponsivePie
+                data={solicitudesData}
+                colors={{ datum: 'data.color' }}
+                {...pieConfig}
+              />
+            </div>
+            <Legend items={solicitudesData.map(d => ({ label: d.label, color: d.color, value: d.value }))} />
           </>
         )}
       </div>

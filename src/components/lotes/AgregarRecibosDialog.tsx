@@ -133,10 +133,17 @@ export function AgregarRecibosDialog({ open, loteId, onClose, onSaved }: Props) 
       const data = await r.json()
       if (!r.ok) { toast.error(data.error ?? 'Error al agregar recibos'); return }
 
+      const partes: string[] = []
+      if (data.asignados) partes.push(`${data.asignados} asignado(s)`)
+      if (data.duplicados) partes.push(`${data.duplicados} duplicado(s) en revisión`)
+      const resumen = partes.length > 0 ? partes.join(', ') : `${data.uploaded} recibo(s) agregados`
+
       if (data.errors?.length > 0) {
-        toast.warning(`${data.uploaded} recibo(s) agregados. ${data.errors.length} con error.`)
+        toast.warning(`${resumen}. ${data.errors.length} con error.`)
+      } else if (data.duplicados) {
+        toast.warning(resumen)
       } else {
-        toast.success(`${data.uploaded} recibo(s) agregados`)
+        toast.success(resumen)
       }
       onSaved()
     } catch {

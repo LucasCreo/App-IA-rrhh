@@ -4,7 +4,7 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
-import { reciboProps } from '@/lib/aditusRecibos'
+import { reciboProps, reciboPendienteProps } from '@/lib/aditusRecibos'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -22,7 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const formData = await req.formData()
 
-    const uploaded: number[] = []
+    let uploaded = 0
+    let asignados = 0
+    let duplicados = 0
     const errors: string[] = []
     let i = 0
 
@@ -48,16 +50,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         continue
       }
 
-      // Prevenir duplicados: mismo empleado ya cargado en este lote
-      const dup = await prisma.document.findFirst({
-        where: { loteId: lote.id, employeeId },
-        select: { id: true },
-      })
-      if (dup) {
-        errors.push(`${file.name}: el empleado ya tiene un recibo cargado en este lote (eliminá el anterior si querés reemplazarlo)`)
-        continue
-      }
-
       const empleado = await prisma.employee.findUnique({
         where: { id: employeeId },
         select: { legajo: true, nombre: true, apellido: true, cuil: true },
@@ -68,21 +60,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       const nombreArchivoLimpio = file.name.replace(/^.*[\\/]/, '')
+
+      // Duplicado: si el empleado ya tiene un recibo asignado en este lote,
+      // el archivo NO se descarta — se sube a Aditus con props "pendiente"
+      // y queda como LoteArchivoPendiente con motivo DUPLICADO_EN_LOTE
+      // para que el admin decida manualmente si asignarlo/reemplazar/descartar.
+      const dup = await prisma.document.findFirst({
+        where: { loteId: lote.id, employeeId },
+        select: { id: true },
+      })
+
       let aditusId: string
       try {
         aditusId = await uploadAditusFile({
           content: buffer,
           fileName: nombreArchivoLimpio,
           contentType: 'application/pdf',
-          properties: reciboProps({ empleado, periodo: lote.periodo, loteNombre: lote.nombre }),
+          properties: dup
+            ? reciboPendienteProps({ fileName: nombreArchivoLimpio, loteNombre: lote.nombre })
+            : reciboProps({ empleado, periodo: lote.periodo, loteNombre: lote.nombre }),
         })
       } catch (e) {
         errors.push(`${file.name}: ${e instanceof Error ? e.message : 'error subiendo a Aditus'}`)
         continue
       }
 
+      if (dup) {
+        try {
+          await prisma.loteArchivoPendiente.create({
+            data: {
+              loteId: lote.id,
+              aditusId,
+              nombreArchivo: nombreArchivoLimpio,
+              legajoDetectado: empleado.legajo,
+              motivos: JSON.stringify([{
+                code: 'DUPLICADO_EN_LOTE',
+                message: `El legajo ${empleado.legajo} ya tiene un archivo asignado en este lote`,
+                validator: 'lote',
+              }]),
+            },
+          })
+          duplicados++
+          uploaded++
+        } catch (e) {
+          try { await deleteAditusFile(aditusId) } catch { /* rollback */ }
+          errors.push(`${file.name}: ${e instanceof Error ? e.message : 'error creando pendiente'}`)
+        }
+        continue
+      }
+
       try {
-        const doc = await prisma.document.create({
+        await prisma.document.create({
           data: {
             nombreArchivo: nombreArchivoLimpio,
             aditusId,
@@ -94,7 +122,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             ...(lote.tipoDocumentoId ? { tipoDocumentoId: lote.tipoDocumentoId } : {}),
           },
         })
-        uploaded.push(doc.id)
+        uploaded++
+        asignados++
 
         await prisma.loteEmpleado.upsert({
           where: { loteId_employeeId: { loteId: lote.id, employeeId } },
@@ -107,8 +136,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    await logAction(user.userId, 'AGREGAR_RECIBOS', 'Lote', `${lote.nombre} — ${uploaded.length} docs`)
-    return NextResponse.json({ uploaded: uploaded.length, errors }, { status: 201 })
+    await logAction(
+      user.userId,
+      'AGREGAR_RECIBOS',
+      'Lote',
+      `${lote.nombre} — ${uploaded} archivo(s), ${asignados} asignado(s), ${duplicados} duplicado(s) en revisión`
+    )
+    return NextResponse.json({ uploaded, asignados, duplicados, errors }, { status: 201 })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Error interno' }, { status: 500 })
   }

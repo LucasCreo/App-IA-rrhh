@@ -768,7 +768,7 @@ if (loading) {
                               {motivos.map((m, idx) => (
                                 <span
                                   key={idx}
-                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900"
+                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900"
                                   title={m.message}
                                 >
                                   {m.code}

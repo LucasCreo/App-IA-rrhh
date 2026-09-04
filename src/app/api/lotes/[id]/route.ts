@@ -34,7 +34,8 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     if (!lote) return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
 
     const scope = await getScopedEmployeeIds(user.userId)
-    if (scope && lote.empleados.length > 0 && !lote.empleados.some(le => scope.has(le.employeeId))) {
+    const esCreador = lote.creadoPorId === user.userId
+    if (scope && !esCreador && lote.empleados.length > 0 && !lote.empleados.some(le => scope.has(le.employeeId))) {
       return NextResponse.json({ error: 'No autorizado sobre este lote' }, { status: 403 })
     }
 
@@ -51,27 +52,37 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
       orderBy: [{ apellido: 'asc' }, { nombre: 'asc' }],
     })
 
-    const docByEmployee = new Map<number, any>()
+    const docsByEmployee = new Map<number, any[]>()
     for (const doc of lote.documentos) {
-      if (!docByEmployee.has(doc.employeeId)) {
-        docByEmployee.set(doc.employeeId, doc)
+      const arr = docsByEmployee.get(doc.employeeId) ?? []
+      arr.push(doc)
+      docsByEmployee.set(doc.employeeId, arr)
+    }
+
+    // Una fila por (empleado, documento). Empleado sin recibos → 1 fila con documento=null.
+    const empleadosConEstado: any[] = []
+    for (const e of activos) {
+      const docs = docsByEmployee.get(e.id) ?? []
+      if (docs.length === 0) {
+        empleadosConEstado.push({ ...e, documento: null })
+      } else {
+        for (const d of docs) {
+          empleadosConEstado.push({ ...e, documento: d })
+        }
       }
     }
 
-    const empleadosConEstado = activos.map(e => ({
-      ...e,
-      documento: docByEmployee.get(e.id) ?? null,
-    }))
-
-    const allDocs = [...docByEmployee.values()]
+    const allDocs = lote.documentos
+    const countEmpBy = (pred: (d: any) => boolean) =>
+      activos.filter(e => (docsByEmployee.get(e.id) ?? []).some(pred)).length
     const stats = {
       total: activos.length,
-      firmados: allDocs.filter(d => d.estado === 'FIRMADO').length,
+      firmados: countEmpBy(d => d.estado === 'FIRMADO'),
       enFirma: allDocs.filter(d => d.estado === 'ENVIADO_A_FIRMA').length,
       borradores: allDocs.filter(d => d.estado === 'BORRADOR').length,
       errores: allDocs.filter(d => d.estado === 'ERROR').length,
       rechazados: allDocs.filter(d => d.estado === 'RECHAZADO').length,
-      sinRecibo: activos.filter(e => !docByEmployee.has(e.id)).length,
+      sinRecibo: activos.filter(e => !docsByEmployee.has(e.id)).length,
       pendientes: lote.pendientes.length,
     }
 

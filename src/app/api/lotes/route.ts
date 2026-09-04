@@ -7,6 +7,7 @@ import { getScopedEmployeeIds } from '@/lib/scope'
 import { getReciboTipoId } from '@/lib/tiposDocumento'
 import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
 import { reciboProps, reciboPendienteProps } from '@/lib/aditusRecibos'
+import { actualizarProgresoLote } from '@/lib/loteProgress'
 import {
   runValidators,
   pdfIntegridadValidator,
@@ -35,16 +36,20 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 20) || 20))
 
   const scope = await getScopedEmployeeIds(user.userId)
-  const where = {
-    ...(scope ? { empleados: { some: { employeeId: { in: [...scope] } } } } : {}),
-    ...(q ? {
+  const AND: any[] = []
+  if (scope) {
+    // El admin ve un lote si algún empleado asignado está en su scope O si el lote lo creó él mismo
+    // (así puede ver un lote recién creado aunque todavía no tenga asignaciones dentro de su rama).
+    AND.push({
       OR: [
-        { nombre: { contains: q } },
-        { descripcion: { contains: q } },
+        { creadoPorId: user.userId },
+        { empleados: { some: { employeeId: { in: [...scope] } } } },
       ],
-    } : {}),
-    ...(periodo ? { periodo: { contains: periodo } } : {}),
+    })
   }
+  if (q) AND.push({ OR: [{ nombre: { contains: q } }, { descripcion: { contains: q } }] })
+  if (periodo) AND.push({ periodo: { contains: periodo } })
+  const where = AND.length > 0 ? { AND } : {}
 
   const [total, lotes] = await Promise.all([
     paged ? prisma.lote.count({ where }) : Promise.resolve(0),
@@ -62,10 +67,12 @@ export async function GET(req: NextRequest) {
   ])
 
   const items = lotes.map(l => {
-    const empleadosIds = scope
-      ? l.empleados.filter(e => scope.has(e.employeeId)).map(e => e.employeeId)
+    // Si el admin creó el lote, ve todos los empleados/docs (aunque estén fuera de su scope)
+    const aplicaScope = scope && l.creadoPorId !== user.userId
+    const empleadosIds = aplicaScope
+      ? l.empleados.filter(e => scope!.has(e.employeeId)).map(e => e.employeeId)
       : l.empleados.map(e => e.employeeId)
-    const docs = l.documentos.filter(d => !scope || scope.has(d.employeeId))
+    const docs = l.documentos.filter(d => !aplicaScope || scope!.has(d.employeeId))
     const empleadosConDoc = new Set(docs.map(d => d.employeeId))
     return {
       id: l.id,
@@ -121,6 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
+  // Estado inicial provisorio; se recalcula al final según pendientes.
   const lote = await prisma.lote.create({
     data: {
       nombre,
@@ -128,7 +136,7 @@ export async function POST(req: NextRequest) {
       periodo,
       creadoPorId: user.userId,
       origen: 'MANUAL',
-      estado: 'CERRADO',
+      estado: 'LISTO',
       progreso: 100,
       ...(tipoDocumentoId ? { tipoDocumentoId } : {}),
     },
@@ -268,6 +276,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  await actualizarProgresoLote(lote.id).catch(() => { /* best-effort */ })
   await logAction(user.userId, 'CREAR_LOTE', 'Lote', `${nombre} — ${uploaded} archivo(s), ${asignados} auto-asignado(s)`)
   return NextResponse.json({ loteId: lote.id, uploaded, asignados, errors }, { status: 201 })
   } catch (e: any) {

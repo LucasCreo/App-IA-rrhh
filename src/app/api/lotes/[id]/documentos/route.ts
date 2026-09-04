@@ -5,6 +5,7 @@ import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { uploadAditusFile, deleteAditusFile } from '@/lib/aditus'
 import { reciboProps, reciboPendienteProps } from '@/lib/aditusRecibos'
+import { actualizarProgresoLote } from '@/lib/loteProgress'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
+    await actualizarProgresoLote(lote.id).catch(() => { /* best-effort */ })
     await logAction(
       user.userId,
       'AGREGAR_RECIBOS',

@@ -18,6 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const body = await req.json().catch(() => ({}))
   const employeeId = Number(body?.employeeId)
+  const confirmarDuplicado = body?.confirmarDuplicado === true
   if (!Number.isInteger(employeeId) || employeeId <= 0) {
     return NextResponse.json({ error: 'employeeId requerido' }, { status: 400 })
   }
@@ -39,13 +40,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!empleado) return NextResponse.json({ error: 'Empleado no encontrado' }, { status: 404 })
   if (!pendiente.aditusId) return NextResponse.json({ error: 'Pendiente sin archivo en Aditus' }, { status: 500 })
 
-  // Evitar duplicados: si el empleado ya tiene un doc en este lote, rechazar
-  const yaTiene = await prisma.document.findFirst({
-    where: { loteId, employeeId },
-    select: { id: true },
-  })
-  if (yaTiene) {
-    return NextResponse.json({ error: 'Ese empleado ya tiene un recibo en este lote' }, { status: 409 })
+  // Un empleado puede tener más de un recibo en el mismo lote, pero si ya
+  // tiene uno se advierte al cliente para que confirme antes de duplicar.
+  if (!confirmarDuplicado) {
+    const yaTiene = await prisma.document.findFirst({
+      where: { loteId, employeeId },
+      select: { id: true },
+    })
+    if (yaTiene) {
+      return NextResponse.json({
+        code: 'DUPLICADO_EN_LOTE',
+        error: 'Ese empleado ya tiene un recibo en este lote. ¿Querés asignar otro igual?',
+      }, { status: 409 })
+    }
   }
 
   // Actualizar metadata en Aditus con datos del empleado (get + put mismo id)

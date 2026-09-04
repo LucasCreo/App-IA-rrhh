@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, X, Save, GripVertical, Cloud, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, X, Save, GripVertical, Cloud, CheckCircle2, XCircle, ArrowUp, ArrowDown } from 'lucide-react'
 import { plantillaARegex } from '@/lib/recibosDetect'
 import { PatternInput } from './PatternInput'
 import { cn } from '@/lib/utils'
@@ -46,6 +46,15 @@ export function TabRecibos() {
   }
   function addPattern() {
     setPatterns(prev => [...prev, ''])
+  }
+  function movePattern(from: number, to: number) {
+    setPatterns(prev => {
+      if (to < 0 || to >= prev.length) return prev
+      const next = [...prev]
+      const [it] = next.splice(from, 1)
+      next.splice(to, 0, it)
+      return next
+    })
   }
 
   async function save() {
@@ -117,7 +126,14 @@ export function TabRecibos() {
 
           {/* Patrones */}
           <div className="space-y-3">
-            <p className="text-xs font-medium text-muted-foreground">Patrones</p>
+            <div className="flex items-baseline justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Patrones</p>
+              {patterns.length > 1 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Se evalúan de arriba hacia abajo — el primero que matchee gana.
+                </p>
+              )}
+            </div>
             {patterns.length === 0 && (
               <p className="text-xs text-muted-foreground italic">
                 Sin patrones configurados. Se usa detección genérica.
@@ -128,6 +144,26 @@ export function TabRecibos() {
               const invalidPattern = p.trim() && plantillaARegex(p) === null
               return (
                 <div key={i} className="flex items-start gap-2">
+                  <div className="flex flex-col gap-0.5 pt-1.5 shrink-0">
+                    <button
+                      onClick={() => movePattern(i, i - 1)}
+                      disabled={i === 0}
+                      className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Subir"
+                      aria-label="Subir patrón"
+                    >
+                      <ArrowUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => movePattern(i, i + 1)}
+                      disabled={i === patterns.length - 1}
+                      className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Bajar"
+                      aria-label="Bajar patrón"
+                    >
+                      <ArrowDown size={12} />
+                    </button>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <PatternInput
                       value={p}

@@ -121,7 +121,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [assignOpenId, setAssignOpenId] = useState<number | null>(null)
   const [preview, setPreview] = useState<{ kind: 'pend' | 'doc'; id: number; nombre: string } | null>(null)
   const [analizandoIds, setAnalizandoIds] = useState<Set<number>>(new Set())
-  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<number>>(new Set())
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set())
   const [tabActivo, setTabActivo] = useState<'recibos' | 'pendientes'>('recibos')
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -140,6 +140,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   const [envioReporteOpen, setEnvioReporteOpen] = useState(false)
   const [replaceTargetDocId, setReplaceTargetDocId] = useState<number | null>(null)
   const [deleteDoc, setDeleteDoc] = useState<{ id: number; empleado: string } | null>(null)
+  const [dupConfirm, setDupConfirm] = useState<{ pendId: number; employeeId: number; empleado: string } | null>(null)
   const replaceFileRef = useRef<HTMLInputElement>(null)
   const procesadosRef = useRef<Set<number>>(new Set())
 
@@ -269,11 +270,11 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
   async function enviarTodos() {
     setSending(true)
     try {
-      // Si hay selección, derivo los docIds enviables (solo BORRADOR/ERROR) desde los empleados seleccionados
+      // Si hay selección, envío solo los docIds seleccionados que estén en BORRADOR/ERROR
       let body: string
-      if (selectedEmpIds.size > 0) {
+      if (selectedDocIds.size > 0) {
         const docIds = empleados
-          .filter(e => selectedEmpIds.has(e.id) && e.documento && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR'))
+          .filter(e => e.documento && selectedDocIds.has(e.documento.id) && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR'))
           .map(e => e.documento!.id)
         body = JSON.stringify({ documentIds: docIds })
       } else {
@@ -295,7 +296,7 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
         setEnvioErrors([])
         toast.success(`${data.sent} recibo(s) enviados`)
       }
-      setSelectedEmpIds(new Set())
+      setSelectedDocIds(new Set())
       await fetchData()
     } finally {
       setSending(false)
@@ -370,14 +371,23 @@ export function LoteDetalle({ loteId }: { loteId: number }) {
     }
   }
 
-  async function asignarPendiente(pendId: number, employeeId: number) {
+  async function asignarPendiente(pendId: number, employeeId: number, confirmarDuplicado = false) {
     const r = await fetch(`/api/lotes/${loteId}/pendientes/${pendId}/asignar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employeeId }),
+      body: JSON.stringify({ employeeId, confirmarDuplicado }),
     })
     if (!r.ok) {
       const d = await r.json().catch(() => ({}))
+      if (r.status === 409 && d?.code === 'DUPLICADO_EN_LOTE') {
+        const emp = empleados.find(e => e.id === employeeId)
+        setDupConfirm({
+          pendId,
+          employeeId,
+          empleado: emp ? `${emp.apellido}, ${emp.nombre}` : `Empleado #${employeeId}`,
+        })
+        return
+      }
       toast.error(d?.error ?? 'No se pudo asignar')
       return
     }
@@ -532,8 +542,8 @@ if (loading) {
                   {(() => {
                     if (sending) return 'Enviando...'
                     const label = accion === 'LECTURA' ? 'Notificar' : 'Enviar a firma'
-                    if (selectedEmpIds.size === 0) return label
-                    const enviables = empleados.filter(e => selectedEmpIds.has(e.id) && e.documento && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR')).length
+                    if (selectedDocIds.size === 0) return label
+                    const enviables = empleados.filter(e => e.documento && selectedDocIds.has(e.documento.id) && (e.documento.estado === 'BORRADOR' || e.documento.estado === 'ERROR')).length
                     return `${label} (${enviables})`
                   })()}
                 </Button>
@@ -590,7 +600,7 @@ if (loading) {
                 <span className="text-blue-600 dark:text-blue-400">{stats.enFirma} en firma</span>
               )}
               {stats.sinRecibo > 0 && (
-                <span className="text-yellow-600 dark:text-yellow-500">{stats.sinRecibo} sin recibo</span>
+                <span className="text-amber-700 dark:text-yellow-500">{stats.sinRecibo} sin recibo</span>
               )}
               {(stats.errores + stats.rechazados) > 0 && (
                 <span className="text-red-600 dark:text-red-400">{stats.errores + stats.rechazados} con error</span>
@@ -617,13 +627,13 @@ if (loading) {
             className={cn(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
               tabActivo === 'pendientes'
-                ? 'border-yellow-600 text-yellow-700 dark:text-yellow-400'
+                ? 'border-amber-600 text-amber-700 dark:border-yellow-600 dark:text-yellow-400'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             A revisión
             {pendientes.length > 0 && (
-              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-yellow-500 text-white text-[10px] font-semibold">
+              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-amber-600 dark:bg-yellow-500 text-white text-[10px] font-semibold">
                 {pendientes.length}
               </span>
             )}
@@ -633,10 +643,10 @@ if (loading) {
         {/* Archivos sin asignar */}
         {tabActivo === 'pendientes' && pendientes.length === 0 && (
           <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-yellow-50 dark:bg-yellow-950/20">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-amber-100 dark:bg-yellow-950/20">
               <div className="flex items-center gap-2">
-                <Package size={15} className="text-yellow-700 dark:text-yellow-400" />
-                <span className="text-sm font-semibold text-yellow-900 dark:text-yellow-300">
+                <Package size={15} className="text-amber-800 dark:text-yellow-400" />
+                <span className="text-sm font-semibold text-amber-900 dark:text-yellow-300">
                   Archivos a revisión (0)
                 </span>
               </div>
@@ -664,11 +674,11 @@ if (loading) {
           const sinDetectar = pendientes.filter(p => !p.legajoDetectado && !analizandoIds.has(p.id)).length
           return (
           <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-yellow-50 dark:bg-yellow-950/20">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-amber-100 dark:bg-yellow-950/20">
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Package size={15} className="text-yellow-700 dark:text-yellow-400" />
-                  <span className="text-sm font-semibold text-yellow-900 dark:text-yellow-300">
+                  <Package size={15} className="text-amber-800 dark:text-yellow-400" />
+                  <span className="text-sm font-semibold text-amber-900 dark:text-yellow-300">
                     Archivos sin asignar ({pendientes.length})
                   </span>
                 </div>
@@ -768,7 +778,7 @@ if (loading) {
                               {motivos.map((m, idx) => (
                                 <span
                                   key={idx}
-                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900"
+                                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900"
                                   title={m.message}
                                 >
                                   {m.code}
@@ -977,17 +987,17 @@ if (loading) {
               <tr className="border-b border-border bg-muted/30">
                 <th className="w-10 text-left py-3 px-4">
                   {filteredEmpleados.length > 0 && (() => {
-                    const visIds = filteredEmpleados.map(e => e.id)
-                    const allSel = visIds.length > 0 && visIds.every(id => selectedEmpIds.has(id))
+                    const visDocIds = filteredEmpleados.filter(e => e.documento).map(e => e.documento!.id)
+                    const allSel = visDocIds.length > 0 && visDocIds.every(id => selectedDocIds.has(id))
                     return (
                       <input
                         type="checkbox"
                         checked={allSel}
                         onChange={e => {
-                          setSelectedEmpIds(prev => {
+                          setSelectedDocIds(prev => {
                             const next = new Set(prev)
-                            if (e.target.checked) visIds.forEach(id => next.add(id))
-                            else visIds.forEach(id => next.delete(id))
+                            if (e.target.checked) visDocIds.forEach(id => next.add(id))
+                            else visDocIds.forEach(id => next.delete(id))
                             return next
                           })
                         }}
@@ -1023,27 +1033,32 @@ if (loading) {
                 const { Icon } = cfg
                 const docId = emp.documento?.id
                 const isLoading = actionLoading === docId
+                const rowKey = docId ?? `emp-${emp.id}`
                 return (
                   <tr
-                    key={emp.id}
+                    key={rowKey}
                     className={`border-b border-border last:border-0 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}
                   >
                     <td className="py-3 px-4 w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedEmpIds.has(emp.id)}
-                        onChange={e => {
-                          setSelectedEmpIds(prev => {
-                            const next = new Set(prev)
-                            if (e.target.checked) next.add(emp.id)
-                            else next.delete(emp.id)
-                            return next
-                          })
-                        }}
-                        className="cursor-pointer accent-green-700"
-                      />
+                      {docId && (
+                        <input
+                          type="checkbox"
+                          checked={selectedDocIds.has(docId)}
+                          onChange={e => {
+                            setSelectedDocIds(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.add(docId)
+                              else next.delete(docId)
+                              return next
+                            })
+                          }}
+                          className="cursor-pointer accent-green-700"
+                        />
+                      )}
                     </td>
-                    <td className="py-3 px-4 font-medium">{emp.apellido}, {emp.nombre}</td>
+                    <td className="py-3 px-4 font-medium">
+                      {emp.apellido}, {emp.nombre}
+                    </td>
                     <td className="py-3 px-4 text-muted-foreground font-mono text-xs hidden sm:table-cell">{emp.legajo}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.classes}`}>
@@ -1198,6 +1213,19 @@ if (loading) {
         description="El archivo se borra del sistema. Esta acción no se puede deshacer."
         onConfirm={doDeleteDoc}
         onCancel={() => setDeleteDoc(null)}
+      />
+      <ConfirmDialog
+        open={!!dupConfirm}
+        title={`${dupConfirm?.empleado} ya tiene un recibo en este lote`}
+        description="Si continuás, va a quedar con más de un recibo asignado. ¿Querés seguir?"
+        confirmLabel="Asignar de todos modos"
+        confirmVariant="default"
+        onConfirm={() => {
+          const c = dupConfirm
+          setDupConfirm(null)
+          if (c) asignarPendiente(c.pendId, c.employeeId, true)
+        }}
+        onCancel={() => setDupConfirm(null)}
       />
 
       <Dialog open={envioReporteOpen} onOpenChange={v => !v && setEnvioReporteOpen(false)}>

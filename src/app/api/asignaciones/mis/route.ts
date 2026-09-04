@@ -11,12 +11,14 @@ export async function GET(req: NextRequest) {
   const employeeIdParam = searchParams.get('employeeId')
 
   let employeeId: number | undefined
-  if (user.role === 'EMPLOYEE') {
+  // Vista propia: sin param, uso el employeeId del usuario (aplica a EMPLOYEE y a ADMIN que también es empleado)
+  const vistaPropia = !employeeIdParam
+  if (vistaPropia) {
     if (!user.employeeId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     employeeId = user.employeeId
   } else {
-    // Admin: puede pedir el de un empleado específico (respetando scope)
-    if (!employeeIdParam) return NextResponse.json({ error: 'employeeId requerido para admin' }, { status: 400 })
+    // Admin viendo el legajo de otro empleado (respetando scope)
+    if (user.role !== 'ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     employeeId = Number(employeeIdParam)
     const scope = await getScopedEmployeeIds(user.userId)
     if (scope && !scope.has(employeeId)) return NextResponse.json({ error: 'Fuera de scope' }, { status: 403 })
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
   const asignaciones = await prisma.documentoAsignacion.findMany({
     where: {
       employeeId,
-      ...(user.role === 'EMPLOYEE' ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO'] } } : {}),
+      ...(vistaPropia ? { estado: { in: ['ENVIADO_A_FIRMA', 'FIRMADO', 'RECHAZADO'] } } : {}),
     },
     include: {
       grupo: {

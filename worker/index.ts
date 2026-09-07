@@ -10,6 +10,9 @@
  *   WORKER_LOG_LEVEL     - debug | info | warn | error (default info)
  *   WORKER_ID_SUFFIX     - opcional, sirve para distinguir instancias
  */
+// Primero de todo: jobRunner y sftpWatcher arrastran @/lib/prisma y @/lib/aditus,
+// que leen process.env en import time.
+import 'dotenv/config'
 import { hostname } from 'os'
 import { runJobLoop } from './jobRunner'
 import { runSftpWatcher } from './sftpWatcher'

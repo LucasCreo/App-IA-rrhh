@@ -93,9 +93,10 @@ deploy_master:
   dependencies: [docker_build]
   script:
     - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME
+    - docker pull $IMAGE_ARG:$CI_COMMIT_REF_NAME-worker
     - cd /home/desarrollo/compose
-    - docker compose -f docker-compose-aditus.yml pull aditus-rrhh
-    - docker compose -f docker-compose-aditus.yml up -d aditus-rrhh
+    - docker compose -f docker-compose-aditus.yml pull aditus-rrhh aditus-rrhh-worker
+    - docker compose -f docker-compose-aditus.yml up -d aditus-rrhh aditus-rrhh-worker
     - docker images -q -f dangling=true $IMAGE_ARG | xargs --no-run-if-empty docker rmi -f || true
   only: [master]
 

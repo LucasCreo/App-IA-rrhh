@@ -11,13 +11,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const existing = await prisma.tipoDocumento.findUnique({ where: { id: Number(id) } })
-  if (existing?.protegido) return NextResponse.json({ error: 'Este tipo de documento es inmutable' }, { status: 403 })
+  if (!existing) return NextResponse.json({ error: 'Tipo de documento no encontrado' }, { status: 404 })
 
-  const { nombre, descripcion, accion, campos, tienePeriodo } = await req.json()
+  const body = await req.json()
+  const { nombre, descripcion, accion, metodoFirma, campos, tienePeriodo } = body
+
+  // En tipos protegidos (ej: "Recibo de Sueldo") lo único editable es `metodoFirma`.
+  if (existing.protegido) {
+    const METODOS_FIRMA = ['CONTRASENA', 'PROVEEDOR']
+    if (existing.accion !== 'FIRMA' || !METODOS_FIRMA.includes(metodoFirma)) {
+      return NextResponse.json({ error: 'Este tipo de documento es inmutable' }, { status: 403 })
+    }
+    const tipo = await prisma.tipoDocumento.update({
+      where: { id: Number(id) },
+      data: { metodoFirma },
+    })
+    invalidateReciboTipoCache()
+    return NextResponse.json({ ...tipo, campos: tipo.campos ? JSON.parse(tipo.campos) : null })
+  }
+
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
   const ACCIONES = ['FIRMA', 'LECTURA', 'NINGUNA']
+  const METODOS_FIRMA = ['CONTRASENA', 'PROVEEDOR']
   const nuevaAccion = ACCIONES.includes(accion) ? accion : undefined
+  const accionEfectiva = nuevaAccion ?? existing?.accion
+  const nuevoMetodoFirma = accionEfectiva === 'FIRMA' && METODOS_FIRMA.includes(metodoFirma)
+    ? metodoFirma
+    : (accionEfectiva === 'FIRMA' ? undefined : 'CONTRASENA')
 
   // Bloquear cambio de acción si ya hay documentos usando este tipo
   if (nuevaAccion && existing && nuevaAccion !== existing.accion) {
@@ -37,6 +58,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         nombre: nombre.trim(),
         descripcion: descripcion?.trim() || null,
         accion: nuevaAccion,
+        metodoFirma: nuevoMetodoFirma,
         campos: campos !== undefined ? (campos ? JSON.stringify(campos) : null) : undefined,
         tienePeriodo: tienePeriodo !== undefined ? tienePeriodo !== false : undefined,
       },

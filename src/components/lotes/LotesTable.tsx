@@ -301,6 +301,11 @@ export function LotesTable() {
               const pct = enProceso ? lote.progreso : pctFirma
               const pctLabel = enProceso ? `${lote.progreso}% procesado` : `${lote.stats.firmados}/${lote.stats.total} firmados`
               const errTotal = lote.stats.errores + lote.stats.rechazados
+              // Este lote es uno de los que suma al badge del sidebar en Recibos:
+              // estado CON_ERRORES o al menos un documento en ERROR.
+              const requiereAtencion = lote.estado === 'CON_ERRORES' || lote.stats.errores > 0
+              // Cantidad concreta de items que hacen que el lote esté flageado (para el badge)
+              const atencionCount = lote.stats.errores + lote.stats.pendientes
               const isSelected = selected.has(lote.id)
               const meta = ESTADO_META[lote.estado] ?? { label: lote.estado, className: 'bg-muted text-muted-foreground' }
               const IconEstado = meta.icon
@@ -316,8 +321,16 @@ export function LotesTable() {
                   />
                   <div
                     onClick={() => router.push(`/admin/lotes/${lote.id}`)}
-                    className={`flex-1 min-w-0 bg-card border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group ${isSelected ? 'border-green-500' : 'border-border'}`}
+                    className={`relative flex-1 min-w-0 bg-card border rounded-xl px-5 py-4 cursor-pointer hover:border-green-500/60 hover:shadow-sm transition-all group ${isSelected ? 'border-green-500' : 'border-border'}`}
                   >
+                    {requiereAtencion && (
+                      <span
+                        className="absolute -top-2 -left-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 text-white text-xs font-bold px-1.5 shadow ring-2 ring-background"
+                        title={`${atencionCount} item(s) requieren revisión`}
+                      >
+                        {atencionCount > 99 ? '99+' : Math.max(1, atencionCount)}
+                      </span>
+                    )}
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">

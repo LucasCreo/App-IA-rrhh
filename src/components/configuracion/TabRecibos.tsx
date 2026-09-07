@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, X, Save, GripVertical, Cloud, CheckCircle2, XCircle, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, X, Save, GripVertical, Cloud, CheckCircle2, XCircle, ArrowUp, ArrowDown, FileSignature } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { plantillaARegex } from '@/lib/recibosDetect'
 import { PatternInput } from './PatternInput'
 import { cn } from '@/lib/utils'
@@ -96,6 +97,8 @@ export function TabRecibos() {
 
   return (
     <div className="space-y-6">
+      <MetodoFirmaReciboCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Detección de legajo por nombre de archivo</CardTitle>
@@ -423,6 +426,86 @@ function SftpConfigCard() {
             {testing ? 'Probando…' : 'Probar conexión'}
           </Button>
           <Button onClick={save} disabled={saving} className="bg-green-700 hover:bg-green-800">
+            <Save size={13} className="mr-1.5" />
+            {saving ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+const METODOS_FIRMA_RECIBO: Record<string, string> = {
+  CONTRASENA: 'Con contraseña del empleado',
+  PROVEEDOR:  'Con proveedor externo (API)',
+}
+
+function MetodoFirmaReciboCard() {
+  const [tipoId, setTipoId] = useState<number | null>(null)
+  const [metodoFirma, setMetodoFirma] = useState<string>('CONTRASENA')
+  const [initial, setInitial] = useState<string>('CONTRASENA')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/configuracion/tipos-documento')
+      .then(r => r.ok ? r.json() : [])
+      .then((tipos: Array<{ id: number; nombre: string; metodoFirma?: string }>) => {
+        const recibo = tipos.find(t => t.nombre === 'Recibo de Sueldo')
+        if (recibo) {
+          setTipoId(recibo.id)
+          const m = recibo.metodoFirma ?? 'CONTRASENA'
+          setMetodoFirma(m)
+          setInitial(m)
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function save() {
+    if (tipoId == null) return
+    setSaving(true)
+    try {
+      const r = await fetch(`/api/configuracion/tipos-documento/${tipoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metodoFirma }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d.error ?? `Error ${r.status} al guardar`)
+        return
+      }
+      toast.success('Método de firma actualizado')
+      setInitial(metodoFirma)
+    } finally { setSaving(false) }
+  }
+
+  if (loading) return null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><FileSignature size={17} /> Método de firma para recibos</CardTitle>
+        <CardDescription className="mt-1">
+          Cómo firman los empleados los recibos de sueldo. Si elegís proveedor externo, se usa la API configurada en <em>General → Proveedor de firma electrónica</em>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="max-w-sm">
+          <Select value={metodoFirma} onValueChange={v => v && setMetodoFirma(v)}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent side="bottom" alignItemWithTrigger={false}>
+              {Object.entries(METODOS_FIRMA_RECIBO).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex justify-end">
+          <Button
+            onClick={save}
+            disabled={saving || metodoFirma === initial}
+            className="bg-green-700 hover:bg-green-800"
+          >
             <Save size={13} className="mr-1.5" />
             {saving ? 'Guardando…' : 'Guardar'}
           </Button>

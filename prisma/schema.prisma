@@ -198,6 +198,8 @@ model TipoDocumento {
   nombre            String              @unique
   descripcion       String?
   accion            String              @default("FIRMA")
+  // Sólo aplica cuando accion=FIRMA: CONTRASENA (default) | PROVEEDOR
+  metodoFirma       String              @default("CONTRASENA")
   campos            String?             @db.NVarChar(Max)
   tienePeriodo      Boolean             @default(true)
   protegido         Boolean             @default(false)
@@ -300,6 +302,17 @@ model GeneralConfig {
   soporteTel                 String?
   avisosEmpleadosHabilitados Boolean  @default(true)
   reciboFilenamePatterns     String?  @db.NVarChar(Max)
+  // Proveedor externo de firma electrónica (API). Solo config; el cableo al
+  // flujo de firma se hace aparte cuando se conozca el contrato del proveedor.
+  firmaEnabled               Boolean  @default(false)
+  firmaProveedor             String?
+  firmaApiUrl                String?
+  firmaApiKey                String?
+  firmaApiSecret             String?
+  // Headers y body del POST (JSON serializado). Pueden contener placeholders
+  // que el flujo de firma reemplazará al construir el request.
+  firmaApiHeaders            String?  @db.NVarChar(Max)
+  firmaApiBody               String?  @db.NVarChar(Max)
   // Ingesta SFTP de recibos
   sftpEnabled                Boolean  @default(false)
   sftpHost                   String?

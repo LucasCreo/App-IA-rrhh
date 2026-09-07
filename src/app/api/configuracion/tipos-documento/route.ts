@@ -16,16 +16,20 @@ export async function POST(req: NextRequest) {
   const user = await requirePermiso(PERMISOS.GESTIONAR_CONFIGURACION)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { nombre, descripcion, accion, campos, tienePeriodo } = await req.json()
+  const { nombre, descripcion, accion, metodoFirma, campos, tienePeriodo } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
   const ACCIONES = ['FIRMA', 'LECTURA', 'NINGUNA']
+  const METODOS_FIRMA = ['CONTRASENA', 'PROVEEDOR']
+  const accionFinal = ACCIONES.includes(accion) ? accion : 'FIRMA'
   try {
     const tipo = await prisma.tipoDocumento.create({
       data: {
         nombre: nombre.trim(),
         descripcion: descripcion?.trim() || null,
-        accion: ACCIONES.includes(accion) ? accion : 'FIRMA',
+        accion: accionFinal,
+        // metodoFirma sólo es relevante si accion=FIRMA; para otros forzamos CONTRASENA por consistencia
+        metodoFirma: accionFinal === 'FIRMA' && METODOS_FIRMA.includes(metodoFirma) ? metodoFirma : 'CONTRASENA',
         campos: campos ? JSON.stringify(campos) : null,
         tienePeriodo: tienePeriodo !== false,
       },

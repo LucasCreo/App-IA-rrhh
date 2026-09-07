@@ -156,10 +156,6 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
   const [assignFiltrosOpen, setAssignFiltrosOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savingComment, setSavingComment] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-  const [filterText, setFilterText] = useState('')
-  const [filterTipo, setFilterTipo] = useState('')
-  const [filterEmpleadoId, setFilterEmpleadoId] = useState<number | ''>('')
   const [deleteEventId, setDeleteEventId] = useState<number | null>(null)
 
   const load = useCallback(() => {
@@ -296,6 +292,25 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     return e.color ?? getTipoColor(e.tipo)
   }
 
+  /** Luminancia perceptual (0..1) de un color hex. */
+  function hexLuminance(hex: string): number {
+    const c = hex.replace('#', '').trim()
+    if (c.length !== 6) return 0.5
+    const r = parseInt(c.slice(0, 2), 16) / 255
+    const g = parseInt(c.slice(2, 4), 16) / 255
+    const b = parseInt(c.slice(4, 6), 16) / 255
+    return 0.299 * r + 0.587 * g + 0.114 * b
+  }
+  /** Estilo de la barra del evento: adapta texto y agrega borde si el color es muy claro. */
+  function getEventStyle(e: Evento): React.CSSProperties {
+    const bg = getEventColor(e)
+    const lum = hexLuminance(bg)
+    const fg = lum > 0.6 ? '#111' : '#fff'
+    // Si el color es casi blanco, agrego un borde tenue para que se vea contra el fondo.
+    const border = lum > 0.85 ? '1px solid rgba(0,0,0,0.25)' : undefined
+    return { backgroundColor: bg, color: fg, border }
+  }
+
   const tiposDisponibles = tipos.filter(t => isAdmin ? t.permiteAdmin : t.permiteEmpleado)
 
   function defaultTipo() {
@@ -410,23 +425,15 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
     load()
   }
 
-  // Filter eventos
+  // Filter eventos: se controla desde la leyenda de tipos y el popover de empleados
   const eventosFiltrados = eventos.filter(e => {
     if (tiposOcultos.has(e.tipo)) return false
     if (isAdmin && empleadosOcultos.size > 0 && e.asignados.length > 0) {
       const algunoVisible = e.asignados.some(a => !empleadosOcultos.has(a.employeeId))
       if (!algunoVisible) return false
     }
-    if (filterText) {
-      const q = filterText.toLowerCase()
-      if (!e.titulo.toLowerCase().includes(q) && !(e.descripcion?.toLowerCase().includes(q))) return false
-    }
-    if (filterTipo && e.tipo !== filterTipo) return false
-    if (filterEmpleadoId !== '' && !e.asignados.some(a => a.employeeId === filterEmpleadoId)) return false
     return true
   })
-
-  const filtrosActivos = (filterText ? 1 : 0) + (filterTipo ? 1 : 0) + (filterEmpleadoId !== '' ? 1 : 0)
 
   // Build calendar grid
   const firstDay = new Date(anio, mes - 1, 1).getDay()
@@ -585,16 +592,6 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
               </Popover.Portal>
             </Popover.Root>
           )}
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setShowFilters(f => !f)} className="relative">
-              <SlidersHorizontal size={14} className="mr-1" /> Filtrar
-              {filtrosActivos > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-green-600 text-white text-[10px] font-bold">
-                  {filtrosActivos}
-                </span>
-              )}
-            </Button>
-          )}
           {tiposDisponibles.length > 0 && (
             <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openCreate(toLocalDateStr(now))}>
               <Plus size={14} className="mr-1" /> Nuevo evento
@@ -626,18 +623,29 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
             <span className="text-xs text-muted-foreground mr-1">Tipos:</span>
             {items.map(t => {
               const oculto = tiposOcultos.has(t.nombre)
+              // Colores muy claros no contrastan sobre fondo dark: heredamos foreground para el texto y engrosamos el borde.
+              const lum = hexLuminance(t.color)
+              const chipStyle = oculto
+                ? {}
+                : lum > 0.85
+                  ? { backgroundColor: `${t.color}30`, borderColor: `${t.color}80` }
+                  : { backgroundColor: `${t.color}20`, color: t.color, borderColor: `${t.color}40` }
               return (
                 <button
                   key={t.nombre}
                   onClick={() => toggleTipoOculto(t.nombre)}
                   className={cn(
                     'text-xs px-2 py-0.5 rounded-full border transition-all inline-flex items-center gap-1.5',
-                    oculto ? 'opacity-40 border-dashed' : 'border-transparent'
+                    oculto ? 'opacity-40 border-dashed' : 'border-transparent',
+                    !oculto && lum > 0.85 && 'text-foreground'
                   )}
-                  style={oculto ? {} : { backgroundColor: `${t.color}20`, color: t.color, borderColor: `${t.color}40` }}
+                  style={chipStyle}
                   title={oculto ? 'Mostrar' : 'Ocultar'}
                 >
-                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: t.color, boxShadow: lum > 0.85 ? '0 0 0 1px rgba(0,0,0,0.25)' : undefined }}
+                  />
                   {t.label}
                 </button>
               )
@@ -653,42 +661,6 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
           </div>
         )
       })()}
-
-      {/* Filter bar (admin only) */}
-      {isAdmin && showFilters && (
-        <div className="px-6 py-3 border-b bg-muted/30 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-48">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8 h-8 text-sm"
-              placeholder="Buscar en título o descripción..."
-              value={filterText}
-              onChange={e => setFilterText(e.target.value)}
-            />
-          </div>
-          <select
-            className="h-8 text-sm border rounded-md px-2 bg-background"
-            value={filterTipo}
-            onChange={e => setFilterTipo(e.target.value)}
-          >
-            <option value="">Todos los tipos</option>
-            {tipos.map(t => <option key={t.nombre} value={t.nombre}>{formatTipoLabel(t.nombre)}</option>)}
-          </select>
-          <select
-            className="h-8 text-sm border rounded-md px-2 bg-background"
-            value={filterEmpleadoId}
-            onChange={e => setFilterEmpleadoId(e.target.value === '' ? '' : Number(e.target.value))}
-          >
-            <option value="">Todos los empleados</option>
-            {empleados.map(emp => <option key={emp.id} value={emp.id}>{emp.apellido}, {emp.nombre}</option>)}
-          </select>
-          {(filterText || filterTipo || filterEmpleadoId !== '') && (
-            <Button variant="ghost" size="sm" onClick={() => { setFilterText(''); setFilterTipo(''); setFilterEmpleadoId('') }}>
-              <X size={13} className="mr-1" /> Limpiar
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Grid mes */}
       {vista === 'mes' && (
@@ -751,12 +723,12 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                             onDragStart={ev => { if (draggable) { ev.stopPropagation(); ev.dataTransfer.effectAllowed = 'move'; setDragEvento(e) } }}
                             onDragEnd={() => { setDragEvento(null); setDragOverDate(null) }}
                             className={cn(
-                              'text-xs text-white px-1 py-0.5 truncate hover:opacity-80',
+                              'text-xs px-1 py-0.5 truncate hover:opacity-80',
                               draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
                               isStart && isEnd ? 'rounded' : isStart ? 'rounded-l' : isEnd ? 'rounded-r' : 'rounded-none',
                               dragEvento?.id === e.id && 'opacity-50'
                             )}
-                            style={{ backgroundColor: getEventColor(e) }}
+                            style={getEventStyle(e)}
                           >
                             {isStart && !e.todoElDia && (
                               <span className="opacity-75 mr-1">
@@ -830,11 +802,11 @@ export function CalendarioView({ isAdmin = false, empleados = [], currentUserId,
                           onDragStart={ev => { if (draggable) { ev.stopPropagation(); ev.dataTransfer.effectAllowed = 'move'; setDragEvento(e) } }}
                           onDragEnd={() => { setDragEvento(null); setDragOverDate(null) }}
                           className={cn(
-                            'text-xs text-white px-1.5 py-1 rounded hover:opacity-80 truncate',
+                            'text-xs px-1.5 py-1 rounded hover:opacity-80 truncate',
                             draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
                             dragEvento?.id === e.id && 'opacity-50'
                           )}
-                          style={{ backgroundColor: getEventColor(e) }}
+                          style={getEventStyle(e)}
                           title={e.titulo}
                         >
                           {!e.todoElDia && (

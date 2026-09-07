@@ -24,6 +24,7 @@ interface Tipo {
   nombre: string
   descripcion?: string | null
   accion: string
+  metodoFirma?: string
   campos?: CampoDefinicion[] | null
   tienePeriodo?: boolean
   protegido?: boolean
@@ -33,6 +34,11 @@ const ACCIONES: Record<string, string> = {
   FIRMA: 'Firma digital',
   LECTURA: 'Lectura',
   NINGUNA: 'Sin acción',
+}
+
+const METODOS_FIRMA: Record<string, string> = {
+  CONTRASENA: 'Con contraseña',
+  PROVEEDOR: 'Con proveedor externo',
 }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -54,6 +60,7 @@ interface EditState {
   nombre: string
   descripcion: string
   accion: string
+  metodoFirma: string
   tienePeriodo: boolean
   campos: CampoDefinicion[]
 }
@@ -100,6 +107,7 @@ export function TabDocumentos() {
       nombre: tipo.nombre,
       descripcion: tipo.descripcion ?? '',
       accion: tipo.accion,
+      metodoFirma: tipo.metodoFirma ?? 'CONTRASENA',
       tienePeriodo: tipo.tienePeriodo !== false,
       campos: tipo.campos ? [...tipo.campos] : [],
     })
@@ -153,6 +161,7 @@ export function TabDocumentos() {
         nombre: editDialog.nombre,
         descripcion: editDialog.descripcion,
         accion: editDialog.accion,
+        metodoFirma: editDialog.metodoFirma,
         tienePeriodo: editDialog.tienePeriodo,
         campos: editDialog.campos,
       }),
@@ -193,7 +202,22 @@ export function TabDocumentos() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{tipo.descripcion ?? '—'}</td>
-                    <td className="px-4 py-2 text-sm text-muted-foreground">{ACCIONES[tipo.accion] ?? tipo.accion}</td>
+                    <td className="px-4 py-2 text-sm text-muted-foreground">
+                      {ACCIONES[tipo.accion] ?? tipo.accion}
+                      {tipo.accion === 'FIRMA' && (
+                        <span
+                          className={
+                            'ml-2 inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded ' +
+                            (tipo.metodoFirma === 'PROVEEDOR'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400'
+                              : 'bg-muted text-muted-foreground')
+                          }
+                          title={METODOS_FIRMA[tipo.metodoFirma ?? 'CONTRASENA'] ?? tipo.metodoFirma}
+                        >
+                          {tipo.metodoFirma === 'PROVEEDOR' ? 'Proveedor' : 'Contraseña'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-1">
                         <Button size="sm" variant="ghost" title="Editar tipo" onClick={() => openEditDialog(tipo)}>
@@ -272,6 +296,23 @@ export function TabDocumentos() {
                   </Select>
                 </div>
               </div>
+              {editDialog.accion === 'FIRMA' && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Método de firma</p>
+                  <Select
+                    value={editDialog.metodoFirma}
+                    onValueChange={v => v && setEditDialog(prev => prev ? { ...prev, metodoFirma: v } : prev)}
+                  >
+                    <SelectTrigger className="h-8 text-sm w-full sm:w-64"><SelectValue /></SelectTrigger>
+                    <SelectContent side="bottom" alignItemWithTrigger={false}>
+                      {Object.entries(METODOS_FIRMA).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    "Con proveedor externo" usa la API configurada en <em>General → Proveedor de firma electrónica</em>.
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Descripción</p>
                 <Input

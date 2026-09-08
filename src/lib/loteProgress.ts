@@ -36,12 +36,8 @@ export async function actualizarProgresoLote(loteId: number): Promise<void> {
       ? (pendientesCount > 0 ? 'CON_ERRORES' : 'LISTO')
       : 'PROCESANDO'
   } else {
-    // Manual: no tocar estado CERRADO. Para el resto, LISTO / CON_ERRORES según pendientes.
-    if (estadoAnterior?.estado === 'CERRADO') {
-      nuevoEstado = 'CERRADO'
-    } else {
-      nuevoEstado = pendientesCount > 0 ? 'CON_ERRORES' : 'LISTO'
-    }
+    // Manual: LISTO / CON_ERRORES según pendientes.
+    nuevoEstado = pendientesCount > 0 ? 'CON_ERRORES' : 'LISTO'
   }
   await prisma.lote.update({
     where: { id: loteId },

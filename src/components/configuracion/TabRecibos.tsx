@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { plantillaARegex } from '@/lib/recibosDetect'
 import { PatternInput } from './PatternInput'
 import { cn } from '@/lib/utils'
+import { FirmaJsonEditor, PlaceholderPalette } from '@/components/configuracion/FirmaJsonEditor'
 
 const PLACEHOLDERS = [
   { tag: '{legajo}', desc: 'Requerido. Número de legajo.' },
@@ -440,36 +441,110 @@ const METODOS_FIRMA_RECIBO: Record<string, string> = {
   PROVEEDOR:  'Con proveedor externo (API)',
 }
 
+interface ReciboFirma {
+  tipoId: number | null
+  metodoFirma: string
+  firmaProveedorNombre: string
+  firmaApiKey: string
+  firmaApiSecret: string
+  firmaApiSecretSet: boolean
+  firmaApiSecretClear: boolean
+  firmaEndpoint: string
+  firmaBody: string
+  firmaHeaders: string
+}
+const EMPTY_RECIBO_FIRMA: ReciboFirma = {
+  tipoId: null, metodoFirma: 'CONTRASENA',
+  firmaProveedorNombre: '', firmaApiKey: '', firmaApiSecret: '', firmaApiSecretSet: false, firmaApiSecretClear: false,
+  firmaEndpoint: '', firmaBody: '', firmaHeaders: '',
+}
+
+function esJsonValidoRF(s: string): boolean {
+  const t = s.trim()
+  if (!t) return true
+  try { JSON.parse(t); return true } catch { return false }
+}
+
 function MetodoFirmaReciboCard() {
-  const [tipoId, setTipoId] = useState<number | null>(null)
-  const [metodoFirma, setMetodoFirma] = useState<string>('CONTRASENA')
-  const [initial, setInitial] = useState<string>('CONTRASENA')
+  const [state, setState] = useState<ReciboFirma>(EMPTY_RECIBO_FIRMA)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; status: number; url: string; body: string } | null>(null)
+
+  async function probar() {
+    if (!state.firmaEndpoint.trim()) { toast.error('Falta la URL del endpoint'); return }
+    if (!esJsonValidoRF(state.firmaBody)) { toast.error('Body no es JSON válido'); return }
+    if (!esJsonValidoRF(state.firmaHeaders)) { toast.error('Headers no es JSON válido'); return }
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const r = await fetch('/api/configuracion/firma/probar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firmaEndpoint: state.firmaEndpoint,
+          firmaBody: state.firmaBody,
+          firmaHeaders: state.firmaHeaders,
+          firmaApiKey: state.firmaApiKey,
+          firmaApiSecret: state.firmaApiSecret,  // vacío = server usa null, no el guardado
+        }),
+      })
+      const d = await r.json().catch(() => ({}))
+      setTestResult(d)
+    } finally { setTesting(false) }
+  }
 
   useEffect(() => {
     fetch('/api/configuracion/tipos-documento')
       .then(r => r.ok ? r.json() : [])
-      .then((tipos: Array<{ id: number; nombre: string; metodoFirma?: string }>) => {
-        const recibo = tipos.find(t => t.nombre === 'Recibo de Sueldo')
+      .then((tipos) => {
+        const recibo = (tipos as Array<any>).find(t => t.nombre === 'Recibo de Sueldo')
         if (recibo) {
-          setTipoId(recibo.id)
-          const m = recibo.metodoFirma ?? 'CONTRASENA'
-          setMetodoFirma(m)
-          setInitial(m)
+          setState({
+            tipoId: recibo.id,
+            metodoFirma: recibo.metodoFirma ?? 'CONTRASENA',
+            firmaProveedorNombre: recibo.firmaProveedorNombre ?? '',
+            firmaApiKey: recibo.firmaApiKey ?? '',
+            firmaApiSecret: '',
+            firmaApiSecretSet: !!recibo.firmaApiSecretSet,
+            firmaApiSecretClear: false,
+            firmaEndpoint: recibo.firmaEndpoint ?? '',
+            firmaBody: recibo.firmaBody ?? '',
+            firmaHeaders: recibo.firmaHeaders ?? '',
+          })
         }
       })
       .finally(() => setLoading(false))
   }, [])
 
+  function update<K extends keyof ReciboFirma>(k: K, v: ReciboFirma[K]) {
+    setState(s => ({ ...s, [k]: v }))
+  }
+
   async function save() {
-    if (tipoId == null) return
+    if (state.tipoId == null) return
+    if (state.metodoFirma === 'PROVEEDOR') {
+      if (!state.firmaEndpoint.trim()) { toast.error('Falta la URL del endpoint'); return }
+      if (!esJsonValidoRF(state.firmaBody)) { toast.error('Body no es JSON válido'); return }
+      if (!esJsonValidoRF(state.firmaHeaders)) { toast.error('Headers no es JSON válido'); return }
+    }
     setSaving(true)
     try {
-      const r = await fetch(`/api/configuracion/tipos-documento/${tipoId}`, {
+      const payload: Record<string, unknown> = {
+        metodoFirma: state.metodoFirma,
+        firmaProveedorNombre: state.firmaProveedorNombre,
+        firmaApiKey: state.firmaApiKey,
+        firmaEndpoint: state.firmaEndpoint,
+        firmaBody: state.firmaBody,
+        firmaHeaders: state.firmaHeaders,
+      }
+      if (state.firmaApiSecretClear) payload.firmaApiSecretClear = true
+      else if (state.firmaApiSecret) payload.firmaApiSecret = state.firmaApiSecret
+      const r = await fetch(`/api/configuracion/tipos-documento/${state.tipoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metodoFirma }),
+        body: JSON.stringify(payload),
       })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
@@ -477,7 +552,8 @@ function MetodoFirmaReciboCard() {
         return
       }
       toast.success('Método de firma actualizado')
-      setInitial(metodoFirma)
+      if (state.firmaApiSecretClear) setState(s => ({ ...s, firmaApiSecret: '', firmaApiSecretSet: false, firmaApiSecretClear: false }))
+      else if (state.firmaApiSecret) setState(s => ({ ...s, firmaApiSecret: '', firmaApiSecretSet: true }))
     } finally { setSaving(false) }
   }
 
@@ -488,24 +564,117 @@ function MetodoFirmaReciboCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><FileSignature size={17} /> Método de firma para recibos</CardTitle>
         <CardDescription className="mt-1">
-          Cómo firman los empleados los recibos de sueldo. Si elegís proveedor externo, se usa la API configurada en <em>General → Proveedor de firma electrónica</em>.
+          Cómo firman los empleados los recibos de sueldo. Si elegís proveedor externo, configurá la conexión al proveedor y el endpoint del POST.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="max-w-sm">
-          <Select value={metodoFirma} onValueChange={v => v && setMetodoFirma(v)}>
+          <Select value={state.metodoFirma} onValueChange={v => v && update('metodoFirma', v)}>
             <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent side="bottom" alignItemWithTrigger={false}>
               {Object.entries(METODOS_FIRMA_RECIBO).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
+
+        {state.metodoFirma === 'PROVEEDOR' && (
+          <div className="space-y-4 rounded-md border p-3 bg-muted/20">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <p className="text-xs text-muted-foreground mb-1">Nombre del proveedor (opcional)</p>
+                <Input value={state.firmaProveedorNombre} onChange={e => update('firmaProveedorNombre', e.target.value)} placeholder="Ej: Aditus prod" className="h-9 text-sm" />
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-xs text-muted-foreground mb-1">URL (endpoint) *</p>
+                <Input value={state.firmaEndpoint} onChange={e => update('firmaEndpoint', e.target.value)} placeholder="https://api.proveedor.com/sign" className="h-9 text-sm font-mono" />
+                <p className="text-[11px] text-muted-foreground mt-1">URL completa a la que se hace el POST.</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">API Key (opcional)</p>
+                <Input value={state.firmaApiKey} onChange={e => update('firmaApiKey', e.target.value)} placeholder="ID público o key" className="h-9 text-sm font-mono" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-xs text-muted-foreground">
+                    API Secret (opcional)
+                    {state.firmaApiSecretSet && !state.firmaApiSecretClear && <span className="text-green-700 dark:text-green-400 text-[11px] ml-1">(configurado — dejá vacío para no cambiarlo)</span>}
+                    {state.firmaApiSecretClear && <span className="text-red-600 dark:text-red-400 text-[11px] ml-1">se eliminará al guardar</span>}
+                  </p>
+                  {state.firmaApiSecretSet && !state.firmaApiSecretClear && (
+                    <button type="button" onClick={() => setState(s => ({ ...s, firmaApiSecret: '', firmaApiSecretClear: true }))} className="text-[11px] text-red-600 hover:underline">Borrar</button>
+                  )}
+                  {state.firmaApiSecretClear && (
+                    <button type="button" onClick={() => setState(s => ({ ...s, firmaApiSecretClear: false }))} className="text-[11px] text-muted-foreground hover:underline">Deshacer</button>
+                  )}
+                </div>
+                <Input
+                  type="text"
+                  value={state.firmaApiSecretClear ? '' : state.firmaApiSecret}
+                  onChange={e => setState(s => ({ ...s, firmaApiSecret: e.target.value, firmaApiSecretClear: false }))}
+                  placeholder={state.firmaApiSecretClear ? '(vacío)' : state.firmaApiSecretSet ? '••••••••' : 'secret'}
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
+                  disabled={state.firmaApiSecretClear}
+                  className="h-9 text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Placeholders (arrastrá al campo)</p>
+              <PlaceholderPalette />
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-2">
+                Headers (JSON, opcional)
+                {state.firmaHeaders && !esJsonValidoRF(state.firmaHeaders) && <span className="text-red-600 dark:text-red-400">JSON inválido</span>}
+              </p>
+              <FirmaJsonEditor
+                value={state.firmaHeaders}
+                onChange={v => update('firmaHeaders', v)}
+                placeholder='{"Authorization": "Bearer {apiKey}", "Content-Type": "application/json"}'
+                invalid={!!state.firmaHeaders && !esJsonValidoRF(state.firmaHeaders)}
+                minRows={4}
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-2">
+                Body (JSON)
+                {state.firmaBody && !esJsonValidoRF(state.firmaBody) && <span className="text-red-600 dark:text-red-400">JSON inválido</span>}
+              </p>
+              <FirmaJsonEditor
+                value={state.firmaBody}
+                onChange={v => update('firmaBody', v)}
+                placeholder='{"documentId": "{documentId}", "signerEmail": "{empleado.email}"}'
+                invalid={!!state.firmaBody && !esJsonValidoRF(state.firmaBody)}
+                minRows={6}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" variant="outline" onClick={probar} disabled={testing}>
+                {testing ? 'Probando…' : 'Probar conexión'}
+              </Button>
+              <p className="text-[11px] text-muted-foreground">Hace el POST con datos ficticios y muestra la respuesta cruda del proveedor.</p>
+            </div>
+
+            {testResult && (
+              <div className={cn('rounded-md border p-2 text-xs', testResult.ok ? 'border-green-500/50 bg-green-50 dark:bg-green-950/20' : 'border-red-500/50 bg-red-50 dark:bg-red-950/20')}>
+                <p className="font-medium mb-1">
+                  {testResult.ok ? 'OK' : 'Error'} · HTTP {testResult.status} · <span className="font-mono text-[10px] break-all">{testResult.url}</span>
+                </p>
+                <pre className="font-mono text-[11px] whitespace-pre-wrap break-all max-h-40 overflow-auto">{testResult.body || '(respuesta vacía)'}</pre>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex justify-end">
-          <Button
-            onClick={save}
-            disabled={saving || metodoFirma === initial}
-            className="bg-green-700 hover:bg-green-800"
-          >
+          <Button onClick={save} disabled={saving} className="bg-green-700 hover:bg-green-800">
             <Save size={13} className="mr-1.5" />
             {saving ? 'Guardando…' : 'Guardar'}
           </Button>

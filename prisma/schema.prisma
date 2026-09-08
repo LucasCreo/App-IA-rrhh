@@ -194,19 +194,26 @@ model PostComment {
 }
 
 model TipoDocumento {
-  id                Int                 @id @default(autoincrement())
-  nombre            String              @unique
-  descripcion       String?
-  accion            String              @default("FIRMA")
+  id                    Int              @id @default(autoincrement())
+  nombre                String           @unique
+  descripcion           String?
+  accion                String           @default("FIRMA")
   // Sólo aplica cuando accion=FIRMA: CONTRASENA (default) | PROVEEDOR
-  metodoFirma       String              @default("CONTRASENA")
-  campos            String?             @db.NVarChar(Max)
-  tienePeriodo      Boolean             @default(true)
-  protegido         Boolean             @default(false)
-  documentos        Document[]
-  lotes             Lote[]
-  documentosGrupo   DocumentoGrupo[]
-  createdAt         DateTime            @default(now())
+  metodoFirma           String           @default("CONTRASENA")
+  // Config inline del proveedor (sólo cuando metodoFirma=PROVEEDOR)
+  firmaProveedorNombre  String?
+  firmaApiKey           String?
+  firmaApiSecret        String?
+  firmaEndpoint         String?
+  firmaBody             String?          @db.NVarChar(Max)
+  firmaHeaders          String?          @db.NVarChar(Max)
+  campos                String?          @db.NVarChar(Max)
+  tienePeriodo          Boolean          @default(true)
+  protegido             Boolean          @default(false)
+  documentos            Document[]
+  lotes                 Lote[]
+  documentosGrupo       DocumentoGrupo[]
+  createdAt             DateTime         @default(now())
 }
 
 model DocumentoGrupo {
@@ -248,8 +255,8 @@ model Lote {
   tipoDocumentoId Int?
   creadoPorId     Int
   createdAt       DateTime @default(now())
-  // Estado del lote: ABIERTO | PROCESANDO | LISTO | CON_ERRORES | CERRADO
-  estado          String   @default("CERRADO")
+  // Estado del lote: ABIERTO | PROCESANDO | LISTO | CON_ERRORES
+  estado          String   @default("LISTO")
   // 0-100. Solo tiene sentido cuando estado = PROCESANDO
   progreso        Int      @default(100)
   // MANUAL | SFTP — cómo se creó el lote
@@ -302,17 +309,6 @@ model GeneralConfig {
   soporteTel                 String?
   avisosEmpleadosHabilitados Boolean  @default(true)
   reciboFilenamePatterns     String?  @db.NVarChar(Max)
-  // Proveedor externo de firma electrónica (API). Solo config; el cableo al
-  // flujo de firma se hace aparte cuando se conozca el contrato del proveedor.
-  firmaEnabled               Boolean  @default(false)
-  firmaProveedor             String?
-  firmaApiUrl                String?
-  firmaApiKey                String?
-  firmaApiSecret             String?
-  // Headers y body del POST (JSON serializado). Pueden contener placeholders
-  // que el flujo de firma reemplazará al construir el request.
-  firmaApiHeaders            String?  @db.NVarChar(Max)
-  firmaApiBody               String?  @db.NVarChar(Max)
   // Ingesta SFTP de recibos
   sftpEnabled                Boolean  @default(false)
   sftpHost                   String?

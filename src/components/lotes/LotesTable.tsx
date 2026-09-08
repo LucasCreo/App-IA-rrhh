@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Layers, ChevronRight, Trash2, Search, SlidersHorizontal, X, Lock, RefreshCw, AlertTriangle, CheckCircle2, Cloud } from 'lucide-react'
+import { Plus, Layers, ChevronRight, Trash2, Search, SlidersHorizontal, X, RefreshCw, AlertTriangle, CheckCircle2, Cloud } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -54,7 +54,6 @@ const ESTADO_META: Record<string, { label: string; className: string; icon?: Rea
   PROCESANDO: { label: 'Procesando', className: 'bg-amber-200 text-amber-900 dark:bg-amber-900/30 dark:text-amber-400', icon: RefreshCw },
   LISTO: { label: 'Listo', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
   CON_ERRORES: { label: 'Con errores', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: AlertTriangle },
-  CERRADO: { label: 'Cerrado', className: 'bg-muted text-muted-foreground', icon: Lock },
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -133,14 +132,6 @@ export function LotesTable() {
     es.onerror = () => { /* EventSource reintenta solo */ }
     return () => es.close()
   }, [])
-
-  async function cerrarLote(loteId: number) {
-    const r = await fetch(`/api/lotes/${loteId}/cerrar`, { method: 'POST' })
-    const d = await r.json().catch(() => ({}))
-    if (!r.ok) { toast.error(d?.error ?? 'No se pudo cerrar'); return }
-    toast.success('Lote cerrado')
-    setLotes(prev => prev.map(l => l.id === loteId ? { ...l, estado: 'CERRADO' } : l))
-  }
 
   const allSelected = lotes.length > 0 && lotes.every(l => selected.has(l.id))
   const someSelected = selected.size > 0 && !allSelected
@@ -310,7 +301,6 @@ export function LotesTable() {
               const meta = ESTADO_META[lote.estado] ?? { label: lote.estado, className: 'bg-muted text-muted-foreground' }
               const IconEstado = meta.icon
               const esSftp = lote.origen === 'SFTP'
-              const puedeCerrar = esSftp && (lote.estado === 'LISTO' || lote.estado === 'CON_ERRORES' || lote.estado === 'ABIERTO')
               return (
                 <div key={lote.id} className="flex items-center gap-3">
                   <Checkbox
@@ -386,17 +376,6 @@ export function LotesTable() {
                       </div>
                     </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {puedeCerrar && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            title="Cerrar lote: el próximo archivo SFTP del mismo mes creará un lote nuevo"
-                            onClick={e => { e.stopPropagation(); cerrarLote(lote.id) }}
-                          >
-                            <Lock size={12} className="mr-1" /> Cerrar
-                          </Button>
-                        )}
                         <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
                       </div>
                     </div>

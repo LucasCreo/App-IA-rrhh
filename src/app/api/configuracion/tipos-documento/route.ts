@@ -5,9 +5,14 @@ import { PERMISOS } from '@/lib/permissions'
 import { Prisma } from '@prisma/client'
 
 export async function GET() {
-  const tipos = await prisma.tipoDocumento.findMany({ orderBy: [{ protegido: 'desc' }, { nombre: 'asc' }] })
+  const tipos = await prisma.tipoDocumento.findMany({
+    orderBy: [{ protegido: 'desc' }, { nombre: 'asc' }],
+  })
   return NextResponse.json(tipos.map(t => ({
     ...t,
+    // Enmascaramos el secret: sólo indicamos si está seteado
+    firmaApiSecret: undefined,
+    firmaApiSecretSet: !!t.firmaApiSecret,
     campos: t.campos ? JSON.parse(t.campos) : null,
   })))
 }

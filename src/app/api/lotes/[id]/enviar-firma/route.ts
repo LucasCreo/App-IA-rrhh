@@ -4,6 +4,7 @@ import { requirePermiso } from '@/lib/auth'
 import { PERMISOS } from '@/lib/permissions'
 import { logAction } from '@/lib/audit'
 import { sendMailFromTemplate } from '@/lib/emailTemplates'
+import { sendToProvider } from '@/lib/firmaProvider'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -18,9 +19,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const lote = await prisma.lote.findUnique({
     where: { id: Number(id) },
-    include: { tipoDocumento: { select: { accion: true } } },
+    include: {
+      tipoDocumento: {
+        select: {
+          accion: true, metodoFirma: true,
+          firmaEndpoint: true, firmaBody: true, firmaHeaders: true,
+          firmaApiKey: true, firmaApiSecret: true,
+        },
+      },
+    },
   })
   const accion: string = lote?.tipoDocumento?.accion ?? 'FIRMA'
+  const metodoFirma: string = lote?.tipoDocumento?.metodoFirma ?? 'CONTRASENA'
+  const esProveedor = accion === 'FIRMA' && metodoFirma === 'PROVEEDOR'
 
   const docs = await prisma.document.findMany({
     where: {
@@ -28,14 +39,72 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       estado: { in: ['BORRADOR', 'ERROR'] },
       ...(idsFiltro && idsFiltro.length > 0 ? { id: { in: idsFiltro } } : {}),
     },
-    select: { id: true },
+    include: {
+      employee: { select: { legajo: true, cuil: true, nombre: true, apellido: true, email: true } },
+    },
   })
 
+  const errors: Array<{ documentId: number; error: string }> = []
+  let sent = 0
+
+  if (esProveedor && lote?.tipoDocumento) {
+    const tipoCfg = lote.tipoDocumento
+    for (const doc of docs) {
+      try {
+        const r = await sendToProvider({
+          tipo: {
+            firmaEndpoint:  tipoCfg.firmaEndpoint,
+            firmaBody:      tipoCfg.firmaBody,
+            firmaHeaders:   tipoCfg.firmaHeaders,
+            firmaApiKey:    tipoCfg.firmaApiKey,
+            firmaApiSecret: tipoCfg.firmaApiSecret,
+          },
+          ctx: {
+            documentId: doc.id,
+            empleado: {
+              legajo:   doc.employee.legajo,
+              cuil:     doc.employee.cuil,
+              nombre:   doc.employee.nombre,
+              apellido: doc.employee.apellido,
+              email:    doc.employee.email ?? '',
+            },
+            lote: lote ? { nombre: lote.nombre, periodo: lote.periodo } : null,
+            aditusId: doc.aditusId,
+          },
+        })
+        if (r.ok) {
+          await prisma.document.update({
+            where: { id: doc.id },
+            data: { estado: 'ENVIADO_A_FIRMA', firmaComentario: null },
+          })
+          sent++
+        } else {
+          const msg = `HTTP ${r.status} — ${r.body.slice(0, 500)}`
+          await prisma.document.update({
+            where: { id: doc.id },
+            data: { estado: 'ERROR', firmaComentario: msg },
+          })
+          errors.push({ documentId: doc.id, error: msg })
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        await prisma.document.update({
+          where: { id: doc.id },
+          data: { estado: 'ERROR', firmaComentario: msg.slice(0, 500) },
+        })
+        errors.push({ documentId: doc.id, error: msg })
+      }
+    }
+    await logAction(user.userId, 'ENVIAR_FIRMA_LOTE', 'Lote', `ID ${id}: ${sent} enviados vía proveedor, ${errors.length} con error`)
+    return NextResponse.json({ sent, errors })
+  }
+
+  // Flujo CONTRASENA (o LECTURA/NINGUNA): sólo cambia estado y notifica
   const res = await prisma.document.updateMany({
     where: { id: { in: docs.map(d => d.id) } },
     data: { estado: 'ENVIADO_A_FIRMA' },
   })
-  const sent = res.count
+  sent = res.count
 
   await logAction(user.userId, 'ENVIAR_FIRMA_LOTE', 'Lote', `ID ${id}: ${sent} enviados`)
 

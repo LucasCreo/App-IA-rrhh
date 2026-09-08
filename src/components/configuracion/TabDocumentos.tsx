@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,6 +13,9 @@ import { Switch } from '@/components/ui/switch'
 import { handleApiError } from '@/lib/apiErrors'
 import { useRouter } from 'next/navigation'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { toast } from 'sonner'
+import { FirmaJsonEditor, PlaceholderPalette } from '@/components/configuracion/FirmaJsonEditor'
+import { cn } from '@/lib/utils'
 
 interface CampoDefinicion {
   nombre: string
@@ -25,9 +30,22 @@ interface Tipo {
   descripcion?: string | null
   accion: string
   metodoFirma?: string
+  firmaProveedorNombre?: string | null
+  firmaApiKey?: string | null
+  firmaApiSecretSet?: boolean
+  firmaEndpoint?: string | null
+  firmaBody?: string | null
+  firmaHeaders?: string | null
   campos?: CampoDefinicion[] | null
   tienePeriodo?: boolean
   protegido?: boolean
+}
+
+
+function esJsonValido(s: string): boolean {
+  const t = s.trim()
+  if (!t) return true
+  try { JSON.parse(t); return true } catch { return false }
 }
 
 const ACCIONES: Record<string, string> = {
@@ -61,6 +79,14 @@ interface EditState {
   descripcion: string
   accion: string
   metodoFirma: string
+  firmaProveedorNombre: string
+  firmaApiKey: string
+  firmaApiSecret: string        // input local; vacío = no cambiar
+  firmaApiSecretSet: boolean
+  firmaApiSecretClear: boolean  // true = borrar el secret guardado al guardar
+  firmaEndpoint: string
+  firmaBody: string
+  firmaHeaders: string
   tienePeriodo: boolean
   campos: CampoDefinicion[]
 }
@@ -71,11 +97,37 @@ export function TabDocumentos() {
   const [adding, setAdding] = useState(false)
   const [newTipo, setNewTipo] = useState({ nombre: '', descripcion: '', accion: 'FIRMA' })
   const [editDialog, setEditDialog] = useState<EditState | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; status: number; url: string; body: string } | null>(null)
+
+  async function probarFirma() {
+    if (!editDialog) return
+    if (!editDialog.firmaEndpoint.trim()) { toast.error('Falta la URL del endpoint'); return }
+    if (!esJsonValido(editDialog.firmaBody)) { toast.error('Body no es JSON válido'); return }
+    if (!esJsonValido(editDialog.firmaHeaders)) { toast.error('Headers no es JSON válido'); return }
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const r = await fetch('/api/configuracion/firma/probar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firmaEndpoint: editDialog.firmaEndpoint,
+          firmaBody: editDialog.firmaBody,
+          firmaHeaders: editDialog.firmaHeaders,
+          firmaApiKey: editDialog.firmaApiKey,
+          firmaApiSecret: editDialog.firmaApiSecret,
+        }),
+      })
+      const d = await r.json().catch(() => ({}))
+      setTestResult(d)
+    } finally { setTesting(false) }
+  }
   const [deleteId, setDeleteId] = useState<number | null>(null)
 
   async function load() {
-    const r = await fetch('/api/configuracion/tipos-documento')
-    setTipos(await r.json())
+    const rt = await fetch('/api/configuracion/tipos-documento')
+    setTipos(await rt.json())
   }
 
   useEffect(() => { load() }, [])
@@ -108,6 +160,14 @@ export function TabDocumentos() {
       descripcion: tipo.descripcion ?? '',
       accion: tipo.accion,
       metodoFirma: tipo.metodoFirma ?? 'CONTRASENA',
+      firmaProveedorNombre: tipo.firmaProveedorNombre ?? '',
+      firmaApiKey: tipo.firmaApiKey ?? '',
+      firmaApiSecret: '',
+      firmaApiSecretSet: !!tipo.firmaApiSecretSet,
+      firmaApiSecretClear: false,
+      firmaEndpoint: tipo.firmaEndpoint ?? '',
+      firmaBody: tipo.firmaBody ?? '',
+      firmaHeaders: tipo.firmaHeaders ?? '',
       tienePeriodo: tipo.tienePeriodo !== false,
       campos: tipo.campos ? [...tipo.campos] : [],
     })
@@ -153,18 +213,31 @@ export function TabDocumentos() {
 
   async function saveEdit() {
     if (!editDialog) return
+    if (editDialog.metodoFirma === 'PROVEEDOR' && editDialog.accion === 'FIRMA') {
+      if (!editDialog.firmaEndpoint.trim()) { toast.error('Falta la URL del endpoint'); return }
+      if (!esJsonValido(editDialog.firmaBody)) { toast.error('Body no es JSON válido'); return }
+      if (!esJsonValido(editDialog.firmaHeaders)) { toast.error('Headers no es JSON válido'); return }
+    }
+    const payload: Record<string, unknown> = {
+      ...editDialog.tipo,
+      nombre: editDialog.nombre,
+      descripcion: editDialog.descripcion,
+      accion: editDialog.accion,
+      metodoFirma: editDialog.metodoFirma,
+      firmaProveedorNombre: editDialog.firmaProveedorNombre,
+      firmaApiKey: editDialog.firmaApiKey,
+      firmaEndpoint: editDialog.firmaEndpoint,
+      firmaBody: editDialog.firmaBody,
+      firmaHeaders: editDialog.firmaHeaders,
+      tienePeriodo: editDialog.tienePeriodo,
+      campos: editDialog.campos,
+    }
+    if (editDialog.firmaApiSecretClear) payload.firmaApiSecretClear = true
+    else if (editDialog.firmaApiSecret) payload.firmaApiSecret = editDialog.firmaApiSecret
     const res = await fetch(`/api/configuracion/tipos-documento/${editDialog.tipo.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...editDialog.tipo,
-        nombre: editDialog.nombre,
-        descripcion: editDialog.descripcion,
-        accion: editDialog.accion,
-        metodoFirma: editDialog.metodoFirma,
-        tienePeriodo: editDialog.tienePeriodo,
-        campos: editDialog.campos,
-      }),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) { await handleApiError(res, href => router.push(href)); return }
     setEditDialog(null)
@@ -297,20 +370,150 @@ export function TabDocumentos() {
                 </div>
               </div>
               {editDialog.accion === 'FIRMA' && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Método de firma</p>
-                  <Select
-                    value={editDialog.metodoFirma}
-                    onValueChange={v => v && setEditDialog(prev => prev ? { ...prev, metodoFirma: v } : prev)}
-                  >
-                    <SelectTrigger className="h-8 text-sm w-full sm:w-64"><SelectValue /></SelectTrigger>
-                    <SelectContent side="bottom" alignItemWithTrigger={false}>
-                      {Object.entries(METODOS_FIRMA).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    "Con proveedor externo" usa la API configurada en <em>General → Proveedor de firma electrónica</em>.
-                  </p>
+                <div className="space-y-4 rounded-md border p-3 bg-muted/20">
+                  <div>
+                    <Label className="mb-1.5">Método de firma</Label>
+                    <Select
+                      value={editDialog.metodoFirma}
+                      onValueChange={v => v && setEditDialog(prev => prev ? { ...prev, metodoFirma: v } : prev)}
+                    >
+                      <SelectTrigger className="h-8 text-sm w-full sm:w-64"><SelectValue /></SelectTrigger>
+                      <SelectContent side="bottom" alignItemWithTrigger={false}>
+                        {Object.entries(METODOS_FIRMA).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editDialog.metodoFirma === 'PROVEEDOR' && (
+                    <div className="space-y-4 rounded-md border p-3 bg-muted/20">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="sm:col-span-2">
+                          <Label className="mb-1.5">Nombre del proveedor (opcional)</Label>
+                          <Input
+                            value={editDialog.firmaProveedorNombre}
+                            onChange={e => setEditDialog(prev => prev ? { ...prev, firmaProveedorNombre: e.target.value } : prev)}
+                            placeholder="Ej: Aditus prod"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Label className="mb-1.5">URL (endpoint) *</Label>
+                          <Input
+                            value={editDialog.firmaEndpoint}
+                            onChange={e => setEditDialog(prev => prev ? { ...prev, firmaEndpoint: e.target.value } : prev)}
+                            placeholder="https://api.proveedor.com/sign"
+                            className="h-8 text-sm font-mono"
+                          />
+                          <p className="text-[11px] text-muted-foreground mt-1">URL completa a la que se hace el POST.</p>
+                        </div>
+                        <div>
+                          <Label className="mb-1.5">API Key (opcional)</Label>
+                          <Input
+                            value={editDialog.firmaApiKey}
+                            onChange={e => setEditDialog(prev => prev ? { ...prev, firmaApiKey: e.target.value } : prev)}
+                            placeholder="ID público o key"
+                            className="h-8 text-sm font-mono"
+                          />
+                        </div>
+                        <div>
+                          <Label className="mb-1.5 flex items-center justify-between gap-2">
+                            <span>
+                              API Secret (opcional)
+                              {editDialog.firmaApiSecretSet && !editDialog.firmaApiSecretClear && (
+                                <span className="text-green-700 dark:text-green-400 text-xs font-normal ml-1">(configurado — dejá vacío para no cambiarlo)</span>
+                              )}
+                              {editDialog.firmaApiSecretClear && (
+                                <span className="text-red-600 dark:text-red-400 text-xs font-normal ml-1">se eliminará al guardar</span>
+                              )}
+                            </span>
+                            {editDialog.firmaApiSecretSet && !editDialog.firmaApiSecretClear && (
+                              <button
+                                type="button"
+                                onClick={() => setEditDialog(prev => prev ? { ...prev, firmaApiSecret: '', firmaApiSecretClear: true } : prev)}
+                                className="text-[11px] text-red-600 hover:underline"
+                              >
+                                Borrar
+                              </button>
+                            )}
+                            {editDialog.firmaApiSecretClear && (
+                              <button
+                                type="button"
+                                onClick={() => setEditDialog(prev => prev ? { ...prev, firmaApiSecretClear: false } : prev)}
+                                className="text-[11px] text-muted-foreground hover:underline"
+                              >
+                                Deshacer
+                              </button>
+                            )}
+                          </Label>
+                          <Input
+                            type="text"
+                            value={editDialog.firmaApiSecretClear ? '' : editDialog.firmaApiSecret}
+                            onChange={e => setEditDialog(prev => prev ? { ...prev, firmaApiSecret: e.target.value, firmaApiSecretClear: false } : prev)}
+                            placeholder={editDialog.firmaApiSecretClear ? '(vacío)' : editDialog.firmaApiSecretSet ? '••••••••' : 'secret'}
+                            autoComplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            data-form-type="other"
+                            disabled={editDialog.firmaApiSecretClear}
+                            className="h-8 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="mb-1.5">Placeholders (arrastrá al campo)</Label>
+                        <PlaceholderPalette />
+                      </div>
+
+                      <div>
+                        <Label className="mb-1.5 flex items-center gap-2">
+                          Headers (JSON, opcional)
+                          {editDialog.firmaHeaders && !esJsonValido(editDialog.firmaHeaders) && (
+                            <span className="text-[11px] font-normal text-red-600 dark:text-red-400">JSON inválido</span>
+                          )}
+                        </Label>
+                        <FirmaJsonEditor
+                          value={editDialog.firmaHeaders}
+                          onChange={v => setEditDialog(prev => prev ? { ...prev, firmaHeaders: v } : prev)}
+                          placeholder='{"Authorization": "Bearer {apiKey}", "Content-Type": "application/json"}'
+                          invalid={!!editDialog.firmaHeaders && !esJsonValido(editDialog.firmaHeaders)}
+                          minRows={4}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="mb-1.5 flex items-center gap-2">
+                          Body (JSON)
+                          {editDialog.firmaBody && !esJsonValido(editDialog.firmaBody) && (
+                            <span className="text-[11px] font-normal text-red-600 dark:text-red-400">JSON inválido</span>
+                          )}
+                        </Label>
+                        <FirmaJsonEditor
+                          value={editDialog.firmaBody}
+                          onChange={v => setEditDialog(prev => prev ? { ...prev, firmaBody: v } : prev)}
+                          placeholder='{"documentId": "{documentId}", "signerEmail": "{empleado.email}"}'
+                          invalid={!!editDialog.firmaBody && !esJsonValido(editDialog.firmaBody)}
+                          minRows={6}
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button size="sm" variant="outline" onClick={probarFirma} disabled={testing}>
+                          {testing ? 'Probando…' : 'Probar conexión'}
+                        </Button>
+                        <p className="text-[11px] text-muted-foreground">Hace el POST con datos ficticios y muestra la respuesta cruda.</p>
+                      </div>
+
+                      {testResult && (
+                        <div className={cn('rounded-md border p-2 text-xs', testResult.ok ? 'border-green-500/50 bg-green-50 dark:bg-green-950/20' : 'border-red-500/50 bg-red-50 dark:bg-red-950/20')}>
+                          <p className="font-medium mb-1">
+                            {testResult.ok ? 'OK' : 'Error'} · HTTP {testResult.status} · <span className="font-mono text-[10px] break-all">{testResult.url}</span>
+                          </p>
+                          <pre className="font-mono text-[11px] whitespace-pre-wrap break-all max-h-40 overflow-auto">{testResult.body || '(respuesta vacía)'}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <div>

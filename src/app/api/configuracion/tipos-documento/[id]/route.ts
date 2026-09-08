@@ -14,9 +14,56 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!existing) return NextResponse.json({ error: 'Tipo de documento no encontrado' }, { status: 404 })
 
   const body = await req.json()
-  const { nombre, descripcion, accion, metodoFirma, campos, tienePeriodo } = body
+  const {
+    nombre, descripcion, accion, metodoFirma, campos, tienePeriodo,
+    firmaProveedorNombre, firmaApiKey, firmaApiSecret, firmaApiSecretClear,
+    firmaEndpoint, firmaBody, firmaHeaders,
+  } = body
 
-  // En tipos protegidos (ej: "Recibo de Sueldo") lo único editable es `metodoFirma`.
+  // Helpers
+  const jsonOK = (v: unknown): boolean => {
+    if (typeof v !== 'string') return true
+    const t = v.trim()
+    if (!t) return true
+    try { JSON.parse(t); return true } catch { return false }
+  }
+  const normStr = (v: unknown): string | null => {
+    if (typeof v !== 'string') return null
+    const t = v.trim()
+    return t || null
+  }
+  if (!jsonOK(firmaBody))    return NextResponse.json({ error: 'firmaBody debe ser JSON válido' }, { status: 400 })
+  if (!jsonOK(firmaHeaders)) return NextResponse.json({ error: 'firmaHeaders debe ser JSON válido' }, { status: 400 })
+
+  // Fields de proveedor: sólo se guardan si metodoFirma será PROVEEDOR; si no, se limpian.
+  // apiSecret sólo se actualiza si viene una string no vacía (para no borrar el existente).
+  const buildFirmaFields = (metFirma: string) => {
+    if (metFirma !== 'PROVEEDOR') {
+      return {
+        firmaProveedorNombre: null as string | null,
+        firmaApiKey:          null as string | null,
+        firmaApiSecret:       null as string | null,
+        firmaEndpoint:        null as string | null,
+        firmaBody:            null as string | null,
+        firmaHeaders:         null as string | null,
+      }
+    }
+    const data: Record<string, unknown> = {
+      firmaProveedorNombre: normStr(firmaProveedorNombre),
+      firmaApiKey:          normStr(firmaApiKey),
+      firmaEndpoint:        normStr(firmaEndpoint),
+      firmaBody:            normStr(firmaBody),
+      firmaHeaders:         normStr(firmaHeaders),
+    }
+    if (firmaApiSecretClear === true) {
+      data.firmaApiSecret = null
+    } else if (typeof firmaApiSecret === 'string' && firmaApiSecret.length > 0) {
+      data.firmaApiSecret = firmaApiSecret
+    }
+    return data
+  }
+
+  // En tipos protegidos (ej: "Recibo de Sueldo") sólo se pueden editar los campos de firma.
   if (existing.protegido) {
     const METODOS_FIRMA = ['CONTRASENA', 'PROVEEDOR']
     if (existing.accion !== 'FIRMA' || !METODOS_FIRMA.includes(metodoFirma)) {
@@ -24,7 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     const tipo = await prisma.tipoDocumento.update({
       where: { id: Number(id) },
-      data: { metodoFirma },
+      data: { metodoFirma, ...buildFirmaFields(metodoFirma) },
     })
     invalidateReciboTipoCache()
     return NextResponse.json({ ...tipo, campos: tipo.campos ? JSON.parse(tipo.campos) : null })
@@ -52,6 +99,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   try {
+    const metFirmaFinal = nuevoMetodoFirma ?? existing.metodoFirma
     const tipo = await prisma.tipoDocumento.update({
       where: { id: Number(id) },
       data: {
@@ -61,6 +109,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         metodoFirma: nuevoMetodoFirma,
         campos: campos !== undefined ? (campos ? JSON.stringify(campos) : null) : undefined,
         tienePeriodo: tienePeriodo !== undefined ? tienePeriodo !== false : undefined,
+        ...buildFirmaFields(metFirmaFinal),
       },
     })
     invalidateReciboTipoCache()

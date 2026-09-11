@@ -1,0 +1,246 @@
+{
+  "pkg": "rrhh_temp",
+  "globalName": "RrhhDS",
+  "shape": "package",
+  "srcDir": ".design-sync/.cache/ds-src",
+  "cssEntry": ".design-sync/.cache/generated-tailwind.css",
+  "extraFonts": [
+    ".next/static/chunks/3fikm9-yptene.css"
+  ],
+  "buildCmd": "bash .design-sync/stage-src.sh",
+  "overrides": {
+    "Dialog": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogTrigger": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogContent": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogHeader": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogTitle": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogDescription": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogFooter": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogClose": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogOverlay": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DialogPortal": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "Table": {
+      "cardMode": "column"
+    },
+    "TableHeader": {
+      "cardMode": "column"
+    },
+    "TableBody": {
+      "cardMode": "column"
+    },
+    "TableFooter": {
+      "cardMode": "column"
+    },
+    "TableRow": {
+      "cardMode": "column"
+    },
+    "TableHead": {
+      "cardMode": "column"
+    },
+    "TableCell": {
+      "cardMode": "column"
+    },
+    "TableCaption": {
+      "cardMode": "column"
+    },
+    "AlertDialog": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogAction": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogCancel": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogContent": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogDescription": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogFooter": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogHeader": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogMedia": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogOverlay": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogPortal": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogTitle": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "AlertDialogTrigger": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "ConfirmDialog": {
+      "cardMode": "single",
+      "viewport": "480x420"
+    },
+    "DropdownMenu": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuCheckboxItem": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuContent": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuGroup": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuItem": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuLabel": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuPortal": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuRadioGroup": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuRadioItem": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuSeparator": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuShortcut": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuSub": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuSubContent": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuSubTrigger": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "DropdownMenuTrigger": {
+      "cardMode": "single",
+      "viewport": "380x460"
+    },
+    "Select": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectContent": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectGroup": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectItem": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectLabel": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectScrollDownButton": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectScrollUpButton": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectSeparator": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectTrigger": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "SelectValue": {
+      "cardMode": "single",
+      "viewport": "360x340"
+    },
+    "Pagination": {
+      "cardMode": "column"
+    },
+    "ArchivoPreviewDialog": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    },
+    "BloqueoEliminacionDialog": {
+      "cardMode": "single",
+      "primaryStory": "ConCascada"
+    },
+    "CambiarPasswordDialog": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "projectId": "5ec2781c-c077-4aef-9c0b-8fec04ef1e7e"
+}

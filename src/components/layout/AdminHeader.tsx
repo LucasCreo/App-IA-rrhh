@@ -20,7 +20,7 @@ export function AdminHeader({ title, actions }: Props) {
       )}
     >
       <div className="flex flex-col min-w-0">
-        <h1 className="font-semibold text-green-900 dark:text-green-400 truncate leading-tight">{title}</h1>
+        <h1 data-tour="titulo" className="font-semibold text-green-900 dark:text-green-400 truncate leading-tight">{title}</h1>
         {fromDashboard && (
           <Link
             href="/admin"

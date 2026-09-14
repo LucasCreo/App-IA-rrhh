@@ -157,7 +157,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
             <X size={16} />
           </button>
         </div>
-        <nav className="flex-1 px-2 py-4 space-y-1">
+        <nav data-tour="sidebar" className="flex-1 px-2 py-4 space-y-1">
           {/* Dashboard — fixed, not draggable */}
           {visibleDashboard && (() => {
             const { href, label, icon: Icon } = visibleDashboard
@@ -287,7 +287,7 @@ export function AdminSidebar({ appName = 'RRHH', logoUrl, userEmail, avatarUrl, 
           </div>
         )}
         {/* User profile section */}
-        <div className={cn(
+        <div data-tour="cuenta" className={cn(
           'border-t border-border py-3 mt-auto',
           collapsed ? 'px-2 flex flex-col items-center gap-2' : 'px-3 flex items-center gap-2'
         )}>

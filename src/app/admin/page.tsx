@@ -10,7 +10,7 @@ import { AvatarDisplay } from '@/components/shared/AvatarDisplay'
 import dynamic from 'next/dynamic'
 import { ProximosEventos } from '@/components/calendario/ProximosEventos'
 import { UltimosPostsWidget } from '@/components/portal/UltimosPostsWidget'
-import { WelcomeAdmin } from '@/components/admin/WelcomeAdmin'
+import { TourDashboardAdmin } from '@/components/admin/TourDashboardAdmin'
 import { WelcomeCard } from '@/components/admin/WelcomeCard'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -100,12 +100,14 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <WelcomeAdmin />
+      <TourDashboardAdmin />
       <AdminHeader title="Dashboard" actions={
-        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setSettingsOpen(true)}>
-          <SlidersHorizontal size={13} />
-          Personalizar
-        </Button>
+        <div data-tour="personalizar">
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setSettingsOpen(true)}>
+            <SlidersHorizontal size={13} />
+            Personalizar
+          </Button>
+        </div>
       } />
       <div className="p-4 sm:p-6">
 
@@ -115,26 +117,31 @@ export default function AdminDashboard() {
           </div>
         ) : data ? (
           <div className="space-y-6">
-            {data.me && <WelcomeCard me={data.me} />}
+            {data.me && <div data-tour="saludo"><WelcomeCard me={data.me} /></div>}
             {widgetOrder.map(id => {
               if (hidden.has(id)) return null
-              if (id === 'kpis') return <KPICards key={id} data={data} />
+              if (id === 'kpis') return <div key={id} data-tour="kpi"><KPICards data={data} /></div>
               if (id === 'graficos') return (
-                <Charts
-                  key={id}
-                  solicitudesPorEstado={data.solicitudesPorEstado}
-                  recibosPorEstado={data.recibosPorEstado}
-                  empleadosPorArea={data.empleadosPorArea}
-                />
+                <div key={id} data-tour="graficos">
+                  <Charts
+                    solicitudesPorEstado={data.solicitudesPorEstado}
+                    recibosPorEstado={data.recibosPorEstado}
+                    empleadosPorArea={data.empleadosPorArea}
+                  />
+                </div>
               )
               if (id === 'eventos') return (
-                <ProximosEventos key={id} href="/admin/calendario?from=dashboard" />
+                <div key={id} data-tour="eventos">
+                  <ProximosEventos href="/admin/calendario?from=dashboard" />
+                </div>
               )
               if (id === 'portal') return (
-                <UltimosPostsWidget key={id} baseHref="/admin/portal?from=dashboard" />
+                <div key={id} data-tour="avisos">
+                  <UltimosPostsWidget baseHref="/admin/portal?from=dashboard" />
+                </div>
               )
               if (id === 'pendientes') return (
-                <div key={id} className="rounded-xl border bg-card shadow-sm">
+                <div key={id} data-tour="pendientes" className="rounded-xl border bg-card shadow-sm">
                   <div className="flex items-center justify-between px-5 py-4 border-b">
                     <div className="flex items-center gap-2">
                       <BellRing size={14} className="text-muted-foreground" />
@@ -172,7 +179,7 @@ export default function AdminDashboard() {
                 </div>
               )
               if (id === 'incorporados') return (
-                <div key={id} className="rounded-xl border bg-card shadow-sm">
+                <div key={id} data-tour="incorporados" className="rounded-xl border bg-card shadow-sm">
                   <div className="flex items-center justify-between px-5 py-4 border-b">
                     <div className="flex items-center gap-2">
                       <Users size={14} className="text-muted-foreground" />
